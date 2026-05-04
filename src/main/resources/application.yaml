@@ -1,0 +1,112 @@
+# ==================== 服务器配置 ====================
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# ==================== Spring配置 ====================
+spring:
+  application:
+    name: iot-platform
+
+  # 数据源配置（Druid）
+  datasource:
+    # 指定连接池类型为阿里巴巴 Druid，不写则 Spring Boot 默认使用 HikariCP
+    type: com.alibaba.druid.pool.DruidDataSource
+    # MySQL JDBC 驱动，MySQL 8.0+ 必须使用 com.mysql.cj.jdbc.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 数据库连接地址，包含多个防乱码和时区参数
+    url: jdbc:mysql://localhost:3306/iot_device_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 1784ww//
+    # Druid连接池配置
+    druid:
+      # ---------- 连接池数量控制 ----------
+      # 启动时创建的连接数，也是连接池初始大小
+      initial-size: 5
+      # 连接池最小空闲连接数，低于此数时会主动补充
+      min-idle: 5
+      # 连接池最大同时使用的连接数（活跃连接）
+      max-active: 20
+      # ---------- 超时与回收 ----------
+      # 获取连接的最大等待时间（毫秒），超时会报错
+      max-wait: 60000
+      # 检测空闲连接的时间间隔（毫秒），定期清理无用连接
+      time-between-eviction-runs-millis: 60000
+      # 连接保持空闲的最小时间（毫秒），超过则可能被回收
+      min-evictable-idle-time-millis: 300000
+      # ---------- 连接有效性检测 ----------
+      # 检测连接是否可用的 SQL 语句，一般用 SELECT 1
+      validation-query: SELECT 1
+      # 空闲时检测连接是否有效（推荐开启）
+      test-while-idle: true
+      # 借出连接时不再检测（提升性能）
+      test-on-borrow: false
+      # 归还连接时不再检测（提升性能）
+      test-on-return: false
+      # ---------- 预编译语句缓存 ----------
+      # 开启对预编译 SQL 的缓存，提升 SQL 执行效率
+      pool-prepared-statements: true
+      # 每个连接最多缓存多少条预编译语句
+      max-pool-prepared-statement-per-connection-size: 20
+
+      # ---------- Druid 内置监控页面（访问 /druid/index.html）----------
+      stat-view-servlet:
+        # 启用监控页面
+        enabled: true
+        # 监控页面的访问路径，例如 http://localhost:8080/api/druid/index.html
+        url-pattern: /druid/*
+        # 登录监控页面需要的账号和密码（生产环境务必修改）
+        login-username: admin
+        login-password: admin
+
+      # ---------- Web 请求监控过滤器 ----------
+      web-stat-filter:
+        # 启用对所有请求的性能统计
+        enabled: true
+        # 监控的 URL 路径，/* 表示所有请求
+        url-pattern: /*
+        # 需要排除的静态资源或路径，避免干扰业务监控数据
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+
+  # Jackson 配置（JSON 序列化）
+  jackson:
+    # 日期格式化字符串，返回 JSON 时的标准格式
+    date-format: yyyy-MM-dd HH:mm:ss
+    # 时区固定为东八 区
+    time-zone: GMT+8
+    # 序列化时自动过滤为 null 的属性，减少数据量
+    default-property-inclusion: non_null
+
+# ==================== MyBatis-Plus配置 ====================
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.iot.platform.entity
+  configuration:
+    # 数据库字段下划线自动转 Java 驼峰，如 create_time → createTime
+    map-underscore-to-camel-case: true
+    # 控制台打印 SQL 语句，方便调试（生产环境建议关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      # 主键生成策略：auto 表示用数据库自增
+      id-type: auto
+      # 全局逻辑删除字段名
+      #logic-delete-field: deleted
+      # 逻辑删除时的值（表示已删除）
+      #logic-delete-value: 1
+      # 未删除时的值
+      #logic-not-delete-value: 0
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    # 全局默认日志级别
+    root: info
+    # 自己项目包下的日志级别，方便开发调试
+    com.iot.platform: debug
+    # Mapper 接口打印 SQL 详细执行情况（与 MyBatis 日志配合）
+    com.iot.platform.mapper: debug
+  pattern:
+    # 控制台日志输出格式：时间、线程、日志级别、类名、消息
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
