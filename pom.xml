@@ -50,18 +50,29 @@
 			<artifactId>mybatis-plus-spring-boot4-starter</artifactId>
 			<version>${mybatis-plus.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>com.baomidou</groupId>
+			<artifactId>mybatis-plus-extension</artifactId>
+			<version>${mybatis-plus.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.baomidou</groupId>
+			<artifactId>mybatis-plus-jsqlparser</artifactId>
+			<version>${mybatis-plus.version}</version>
+		</dependency>
 		<!-- Druid 数据库连接池 (Spring Boot 4 专用 Starter) -->
 		<dependency>
 			<groupId>com.alibaba</groupId>
 			<artifactId>druid-spring-boot-4-starter</artifactId> <!--[reference:8] -->
 			<version>${druid.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.baomidou</groupId>
-			<artifactId>mybatis-plus-extension</artifactId>
-			<version>${mybatis-plus.version}</version>
-		</dependency>
-	</dependencies>
+		<!--spring校验工具依赖-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+    </dependencies>
 
 	<build>
 		<plugins>
