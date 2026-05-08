@@ -1,0 +1,42 @@
+### 1. 查询所有设备
+GET http://localhost:8080/api/devices
+
+### 2. 根据ID查询设备
+GET http://localhost:8080/api/devices/1
+
+### 3. 新增设备
+POST http://localhost:8080/api/devices
+Content-Type: application/json
+
+{
+  "deviceName": "温度传感器A",
+  "deviceCode": "SN-001",
+  "typeId": 1,
+  "status": 1,
+  "location": "3号楼2层"
+}
+
+### 4. 更新设备（ID必须一致）
+PUT http://localhost:8080/api/devices/1
+Content-Type: application/json
+
+{
+  "id": 1,
+  "deviceName": "温度传感器A-升级版",
+  "deviceCode": "SN-001",
+  "typeId": 1,
+  "status": 1,
+  "location": "3号楼3层"
+}
+
+### 5. 删除设备
+DELETE http://localhost:8080/api/devices/1
+
+### 6. 查询在线设备
+GET http://localhost:8080/api/devices/online
+
+### 7. 模糊搜索设备
+GET http://localhost:8080/api/devices/search?name=温度
+
+### 8. 更新设备状态
+PUT http://localhost:8080/api/devices/1/status?status=0

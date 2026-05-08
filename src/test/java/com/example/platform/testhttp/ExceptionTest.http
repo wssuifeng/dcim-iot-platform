@@ -1,0 +1,54 @@
+### ==================== 测试全局异常处理器 ====================
+
+### 1. 测试参数校验异常（400）
+### 场景：发送空 JSON 或不满足校验规则的 JSON，故意让 @Valid 失败
+POST http://localhost:8080/api/devices
+Content-Type: application/json
+
+{
+  "deviceName": "",
+  "deviceCode": "",
+  "typeId": null,
+  "status": null,
+  "location": ""
+}
+
+### 2. 测试设备未找到异常（404）
+### 场景：查询一个不可能存在的设备 ID
+GET http://localhost:8080/api/devices/99999
+
+### 3. 测试业务异常（如设备代码重复，400）
+### 场景：新增一个设备代码已存在的设备（需要事先创建一条记录，这里假设 SN-001 已存在）
+POST http://localhost:8080/api/devices
+Content-Type: application/json
+
+{
+  "deviceName": "重复设备",
+  "deviceCode": "SN-001",
+  "typeId": 1,
+  "status": 1,
+  "location": "测试"
+}
+
+### 4. 测试兜底系统异常（500）
+### 场景：暂时没法直接触发内部 500，但可以在 Controller 中临时加一个手动抛异常的方法
+### 如果你有 /api/devices/test-error 之类的调试接口，可以调用它
+### 如果没有，可以临时写一个测试方法，如下行请求仅供参考，实际 URL 以你项目为准
+GET http://localhost:8080/api/devices/test-error
+
+### 5. 测试更新时参数校验异常（400）
+### 例如 PUT 时传送不合法的 ID 或字段违反校验规则
+PUT http://localhost:8080/api/devices/abc
+Content-Type: application/json
+
+{
+  "id": "abc",
+  "deviceName": "",
+  "deviceCode": ""
+}
+
+### 6. 测试删除不存在的设备（404）
+DELETE http://localhost:8080/api/devices/99999
+
+### 7. 测试更新设备状态时设备不存在（404）
+PUT http://localhost:8080/api/devices/99999/status?status=1
