@@ -1,6 +1,6 @@
 # entity — 实体类包
 
-> **版本**: v1.0 | **更新日期**: 2026-05-04
+> **版本**: v1.1 | **更新日期**: 2026-05-08
 
 ---
 
@@ -13,16 +13,20 @@
 - **数据建模**：将数据库表结构映射为 Java 对象
 - **数据传递**：在 Controller、Service、Mapper 各层之间传递业务数据
 - **ORM 映射**：通过 MyBatis-Plus 注解实现对象关系映射
+- **参数校验**：通过 Jakarta Validation 注解定义字段校验规则
 
 ### 与其他模块的关系
 
 ```
 数据库表 ←→ Entity 实体类 ←→ Mapper 数据访问 ←→ Service 业务逻辑 ←→ Controller 接口
+                ↓ @Validated 分组校验
+         GlobalExceptionHandler 拦截校验异常
 ```
 
 - **Mapper 层**：以 Entity 为操作单元进行数据库 CRUD
 - **Service 层**：处理 Entity 对象的业务逻辑
-- **Controller 层**：接收/返回 Entity 数据
+- **Controller 层**：接收/返回 Entity 数据，通过 `@Validated` 触发校验
+- **common/exception**：校验失败时由 `GlobalExceptionHandler` 统一处理
 
 ---
 
@@ -35,18 +39,28 @@
 
 #### 字段说明
 
-| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
-|--------|-----------|-----------|------|--------|------|
-| `id` | `Integer` | `id` | 是 | 自增 | 设备ID（主键） |
-| `deviceName` | `String` | `device_name` | 是 | - | 设备名称 |
-| `deviceCode` | `String` | `device_code` | 是 | - | 设备编码（唯一标识，如 SN 码） |
-| `typeId` | `Integer` | `type_id` | 否 | - | 设备类型ID（关联 device_types 表） |
-| `status` | `Integer` | `status` | 否 | 0 | 设备状态：0-离线，1-在线，2-故障 |
-| `location` | `String` | `location` | 否 | - | 设备位置 |
-| `ipAddress` | `String` | `ip_address` | 否 | - | IP 地址 |
-| `lastOnlineTime` | `LocalDateTime` | `last_online_time` | 否 | - | 最后在线时间 |
-| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 创建时间 |
-| `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 更新时间 |
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 校验规则 | 说明 |
+|--------|-----------|-----------|------|--------|----------|------|
+| `id` | `Integer` | `id` | 更新时必填 | 自增 | `@NotNull(groups=UpdateGroup)` | 设备ID（主键） |
+| `deviceName` | `String` | `device_name` | 是 | - | `@NotBlank(groups={Create,Update})` `@Size(min=2,max=50)` | 设备名称 |
+| `deviceCode` | `String` | `device_code` | 是 | - | `@NotBlank(groups={Create,Update})` `@Pattern(^[A-Za-z0-9_-]+$)` | 设备编码（唯一标识） |
+| `typeId` | `Integer` | `type_id` | 是 | - | `@NotNull(groups={Create,Update})` | 设备类型ID |
+| `status` | `Integer` | `status` | 是 | - | `@NotNull(groups={Create,Update})` `@Min(0)` `@Max(2)` | 设备状态：0-离线，1-在线，2-故障 |
+| `location` | `String` | `location` | 是 | - | `@NotBlank(groups={Create,Update})` `@Size(max=100)` | 设备位置 |
+| `ipAddress` | `String` | `ip_address` | 否 | - | `@Pattern(IP格式，允许空串)` | IP 地址（可选） |
+| `lastOnlineTime` | `LocalDateTime` | `last_online_time` | 否 | - | 无（系统自动记录） | 最后在线时间 |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 无 | 创建时间 |
+| `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 无 | 更新时间 |
+
+#### 校验注解详解
+
+| 注解 | 作用 | 分组 | 说明 |
+|------|------|------|------|
+| `@NotNull` | 值不能为 null | `UpdateGroup` | `id` 仅在更新时必填 |
+| `@NotBlank` | 字符串不能为 null/空/纯空格 | `CreateGroup` + `UpdateGroup` | `deviceName`、`deviceCode`、`location` 在创建和更新时都必填 |
+| `@Size(min=2, max=50)` | 字符串长度范围 | 默认（所有分组） | `deviceName` 长度 2-50 |
+| `@Pattern(regexp=...)` | 正则表达式匹配 | 默认（所有分组） | `deviceCode` 仅允许字母、数字、下划线、短横线；`ipAddress` 允许空串或合法 IP |
+| `@Min(0)` / `@Max(2)` | 数值范围 | `CreateGroup` + `UpdateGroup` | `status` 只能为 0/1/2 |
 
 ### 2.2 DeviceType — 设备类型实体
 
@@ -98,8 +112,6 @@
 | `handleUser` | `String` | `handle_user` | 否 | - | 处理人 |
 | `createTime` | `LocalDateTime` | `create_time` | 否 | - | 告警产生时间 |
 
----
-
 ### 2.5 实体间关系
 
 ```
@@ -116,6 +128,8 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 
 ### 2.6 常用注解说明
 
+#### MyBatis-Plus 注解
+
 | 注解 | 用途 | 示例 |
 |------|------|------|
 | `@Data` | Lombok 注解，自动生成 getter/setter/toString/equals/hashCode | 类级别 |
@@ -125,26 +139,63 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 | `@TableField(fill = ...)` | 自动填充字段 | `@TableField(value = "create_time", fill = FieldFill.INSERT)` |
 | `@TableLogic` | 逻辑删除标记 | 当前已注释，未启用 |
 
+#### Jakarta Validation 注解
+
+| 注解 | 用途 | 来源 |
+|------|------|------|
+| `@NotNull` | 值不能为 null | `jakarta.validation.constraints` |
+| `@NotBlank` | 字符串不能为 null/空/纯空格 | `jakarta.validation.constraints` |
+| `@Size(min, max)` | 字符串长度范围 | `jakarta.validation.constraints` |
+| `@Pattern(regexp)` | 正则表达式匹配 | `jakarta.validation.constraints` |
+| `@Min(value)` | 数值最小值 | `jakarta.validation.constraints` |
+| `@Max(value)` | 数值最大值 | `jakarta.validation.constraints` |
+| `@Validated(Group.class)` | 触发分组校验 | `org.springframework.validation.annotation` |
+
 ---
 
 ## 三、使用示例
 
-### 示例 1：创建设备对象并保存
+### 示例 1：创建设备（校验自动生效）
 
 ```java
-Device device = new Device();
-device.setDeviceName("4号楼温度传感器");
-device.setDeviceCode("TEMP-004");
-device.setTypeId(1);
-device.setStatus(0);
-device.setLocation("4号楼1层大厅");
-device.setIpAddress("192.168.1.104");
+// Controller 中使用 @Validated 触发校验
+@PostMapping
+public Result<Void> save(@Validated(CreateGroup.class) @RequestBody Device device) {
+    deviceService.save(device);
+    return Result.success();
+}
 
-deviceService.save(device);
-// 保存后 device.getId() 可获取自增主键
+// 请求体（合法数据）
+{
+  "deviceName": "4号楼温度传感器",
+  "deviceCode": "TEMP-004",
+  "typeId": 1,
+  "status": 0,
+  "location": "4号楼1层大厅"
+}
+// createTime 和 updateTime 由 MyMetaObjectHandler 自动填充，无需传入
 ```
 
-### 示例 2：创建告警记录
+### 示例 2：校验失败时的响应
+
+```java
+// 请求体（deviceName 为空，deviceCode 包含非法字符）
+{
+  "deviceName": "",
+  "deviceCode": "TEMP@#$",
+  "typeId": null,
+  "status": 5,
+  "location": ""
+}
+
+// GlobalExceptionHandler 自动返回：
+{
+  "code": 400,
+  "message": "设备名称不能为空; 设备编码只能包含字母、数字、下划线和短横线; 设备类型不能为空; 设备状态不能为空; 设备位置不能为空"
+}
+```
+
+### 示例 3：创建告警记录
 
 ```java
 Alert alert = new Alert();
@@ -156,18 +207,6 @@ alert.setAlertMessage("温度超过 80℃，当前值 85.6℃");
 alertService.save(alert);
 ```
 
-### 示例 3：记录设备采集数据
-
-```java
-DeviceData data = new DeviceData();
-data.setDeviceId(1);
-data.setDataValue(new BigDecimal("36.50"));
-data.setDataUnit("℃");
-data.setCollectTime(LocalDateTime.now());
-
-deviceDataService.save(data);
-```
-
 ---
 
 ## 四、注意事项
@@ -175,17 +214,28 @@ deviceDataService.save(data);
 | 问题 | 说明 | 解决方法 |
 |------|------|----------|
 | 字段映射失败 | Java 驼峰与数据库下划线不匹配 | 配置了 `map-underscore-to-camel-case: true`，自动转换；也可用 `@TableField` 显式指定 |
+| 校验不生效 | `@Validated` 未触发校验 | 确保添加了 `spring-boot-starter-validation` 依赖，且 Controller 参数上有 `@Validated` 注解并指定了分组 |
+| 分组校验遗漏 | 未指定 `groups` 导致校验不执行 | Entity 字段的校验注解必须通过 `groups` 声明所属分组，Controller 的 `@Validated` 也必须指定对应分组 |
 | 逻辑删除未启用 | `deleted` 字段已预留但被注释 | 取消注释并修改 `application.yaml` 配置即可启用 |
-| 时间自动填充不生效 | 需实现 `MetaObjectHandler` | 当前仅定义了 `fill` 策略，需添加 Handler 实现类 |
+| 时间自动填充 | `createTime`/`updateTime` 由 `MyMetaObjectHandler` 自动填充 | ✅ 已实现，无需手动设置 |
 | BigDecimal 精度 | `DeviceData.dataValue` 使用 `BigDecimal` | 避免使用 `double`，防止浮点精度丢失 |
 | Lombok 不生效 | IDE 未安装 Lombok 插件 | IntelliJ IDEA 需安装 Lombok 插件并开启注解处理 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-04。*
+## 五、变更记录
+
+| 版本 | 日期 | Commit | 变更说明 |
+|------|------|--------|----------|
+| v1.0 | 2026-05-04 | — | 初始版本，包含 4 个实体类基本字段说明 |
+| v1.1 | 2026-05-08 | `[f88934db]` | Device 实体新增 Jakarta Validation 校验注解（@NotBlank/@NotNull/@Size/@Pattern/@Min/@Max）及分组校验说明；更新字段必填状态；新增校验注解详解章节 |
+
+---
+
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
 
 > ---
-> 
+>
 > **© 2026 IoT-Platform Project.**
-> 
+>
 > 本文档采用 [MIT License](../../../../../../../LICENSE) 授权。文档内容仅供参考，项目维护者不对因使用本文档而产生的任何直接或间接损失承担责任。

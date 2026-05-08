@@ -1,6 +1,6 @@
 # config — 框架配置包
 
-> **版本**: v1.0 | **更新日期**: 2026-05-04
+> **版本**: v1.1 | **更新日期**: 2026-05-08
 
 ---
 
@@ -17,8 +17,9 @@
 ### 与其他模块的关系
 
 ```
-config/MybatisPlusConfig → 为 mapper 层提供分页等增强功能
-application.yaml        → 与 config 包互补，管理外部化配置
+config/MybatisPlusConfig    → 为 mapper 层提供分页等增强功能
+config/MyMetaObjectHandler  → 为 entity 层提供 createTime/updateTime 自动填充
+application.yaml            → 与 config 包互补，管理外部化配置
 ```
 
 ---
@@ -29,7 +30,7 @@ application.yaml        → 与 config 包互补，管理外部化配置
 
 **完整类名**: `com.example.platform.config.MybatisPlusConfig`
 
-> **当前状态**：该配置类已被注释，暂未启用。分页功能需要此配置才能正常使用。
+**当前状态**：✅ 已启用
 
 #### 配置内容
 
@@ -39,25 +40,43 @@ application.yaml        → 与 config 包互补，管理外部化配置
 
 #### 分页插件参数
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
+| 参数 | 值 | 说明 |
+|------|-----|------|
 | `DbType.MYSQL` | - | 数据库类型，影响分页语句生成 |
 
-#### 启用方法
+### 2.2 MyMetaObjectHandler — 自动填充处理器
 
-1. 取消 `MybatisPlusConfig.java` 中所有代码的注释
-2. 确保项目依赖中包含 `mybatis-plus-extension`
-3. 重启项目即可使用分页功能
+**完整类名**: `com.example.platform.config.MyMetaObjectHandler`
+
+实现 `MetaObjectHandler` 接口，配合 Entity 中 `@TableField(fill = FieldFill.INSERT)` 等注解，自动填充 `createTime` 和 `updateTime` 字段。
+
+#### 填充策略
+
+| 字段 | 填充时机 | 填充值 |
+|------|----------|--------|
+| `createTime` | INSERT（插入时） | `LocalDateTime.now()` |
+| `updateTime` | INSERT + UPDATE（插入和更新时） | `LocalDateTime.now()` |
+
+#### 工作原理
+
+```
+执行 save() → MyBatis-Plus 检测到 fill = FieldFill.INSERT
+    → 调用 MyMetaObjectHandler.insertFill()
+    → 自动设置 createTime = 当前时间, updateTime = 当前时间
+
+执行 updateById() → MyBatis-Plus 检测到 fill = FieldFill.INSERT_UPDATE
+    → 调用 MyMetaObjectHandler.updateFill()
+    → 自动设置 updateTime = 当前时间
+```
 
 ---
 
 ## 三、使用示例
 
-### 示例 1：启用分页配置后进行分页查询
+### 示例 1：分页查询
 
 ```java
-// 启用 MybatisPlusConfig 后，可在 Service 层直接使用分页
-Page<Device> page = new Page<>(1, 10); // 第1页，每页10条
+Page<Device> page = new Page<>(1, 10);
 LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
 wrapper.eq(Device::getStatus, 1);
 
@@ -66,17 +85,25 @@ System.out.println("总记录数：" + result.getTotal());
 System.out.println("当前页数据：" + result.getRecords());
 ```
 
-### 示例 2：在 Controller 中使用分页
+### 示例 2：自动填充效果验证
 
 ```java
-@GetMapping("/page")
-public Result<Page<Device>> listByPage(
-        @RequestParam(defaultValue = "1") Integer current,
-        @RequestParam(defaultValue = "10") Integer size) {
-    Page<Device> page = new Page<>(current, size);
-    Page<Device> result = deviceService.page(page);
-    return Result.success(result);
-}
+// 插入时：createTime 和 updateTime 自动填充
+Device device = new Device();
+device.setDeviceName("新设备");
+device.setDeviceCode("SN-002");
+device.setTypeId(1);
+device.setStatus(0);
+device.setLocation("测试位置");
+// 无需手动设置 createTime / updateTime
+deviceService.save(device);
+// device.getCreateTime() → 2026-05-08 12:00:00
+// device.getUpdateTime() → 2026-05-08 12:00:00
+
+// 更新时：updateTime 自动更新
+device.setLocation("新位置");
+deviceService.updateById(device);
+// device.getUpdateTime() → 2026-05-08 12:05:00（自动更新）
 ```
 
 ### 示例 3：自定义新的配置类
@@ -103,17 +130,27 @@ public class CorsConfig {
 
 | 问题 | 说明 | 解决方法 |
 |------|------|----------|
-| 分页查询报错 | 未启用 `MybatisPlusConfig`，分页插件未注册 | 取消 `MybatisPlusConfig.java` 中的注释并重启 |
+| 自动填充不生效 | Entity 字段缺少 `fill` 属性 | 确保字段注解为 `@TableField(value = "create_time", fill = FieldFill.INSERT)` |
+| 自动填充值为 null | `MyMetaObjectHandler` 未注册为 Spring Bean | 确保类有 `@Component` 注解 |
+| 分页查询报错 | 分页插件未注册 | `MybatisPlusConfig` 已启用，确保类有 `@Configuration` 和 `@Bean` 注解 |
 | 配置类不生效 | 缺少 `@Configuration` 注解 | 确保类上有 `@Configuration` 注解 |
 | Bean 冲突 | 多个配置类注册了相同类型的 Bean | 使用 `@Primary` 或 `@Qualifier` 指定优先级 |
-| 配置优先级 | `application.yaml` 与 Java Config 可能存在重叠 | Java Config 优先级通常更高，注意避免重复配置 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-04。*
+## 五、变更记录
+
+| 版本 | 日期 | Commit | 变更说明 |
+|------|------|--------|----------|
+| v1.0 | 2026-05-04 | — | 初始版本，MybatisPlusConfig 为注释状态 |
+| v1.1 | 2026-05-08 | `[f88934db]` | MybatisPlusConfig 已正式启用；新增 MyMetaObjectHandler 自动填充处理器文档 |
+
+---
+
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
 
 > ---
-> 
+>
 > **© 2026 IoT-Platform Project.**
-> 
+>
 > 本文档采用 [MIT License](../../../../../../../LICENSE) 授权。文档内容仅供参考，项目维护者不对因使用本文档而产生的任何直接或间接损失承担责任。

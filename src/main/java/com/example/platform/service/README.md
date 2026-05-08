@@ -1,6 +1,6 @@
 # service — 业务逻辑层包
 
-> **版本**: v1.0 | **更新日期**: 2026-05-04
+> **版本**: v1.1 | **更新日期**: 2026-05-08
 
 ---
 
@@ -14,6 +14,7 @@
 - **事务管理**：通过 `@Transactional` 注解控制数据库事务
 - **通用能力继承**：继承 `IService` 接口，自动获得基础 CRUD 方法
 - **接口隔离**：面向接口编程，便于替换实现和单元测试
+- **业务校验**：在 Service 层执行业务规则校验（如唯一性检查、关联性验证）
 
 ### 与其他模块的关系
 
@@ -21,6 +22,7 @@
 Controller → 调用 Service 接口方法
 Service    → 调用 Mapper 方法操作数据库
 Service    → 使用 Entity 对象传递数据
+Service    → 抛出 BusinessException 子类（由 GlobalExceptionHandler 统一处理）
 ```
 
 ### 目录结构
@@ -94,6 +96,7 @@ service/
 
 **完整类名**: `com.example.platform.service.impl.DeviceServiceImpl`
 **继承**: `ServiceImpl<DeviceMapper, Device>`
+**注解**: `@Service` ✅
 
 | 方法 | 实现方式 | 说明 |
 |------|----------|------|
@@ -101,7 +104,37 @@ service/
 | `findOnlineDevices` | 使用 `LambdaQueryWrapper` | 构建 `status = 1` 条件查询 |
 | `updateStatus` | 使用 `LambdaUpdateWrapper` | 构建按 ID 更新 status 的条件 |
 
-### 2.3 DeviceDataService — 设备数据服务接口
+#### 业务校验逻辑
+
+`DeviceServiceImpl` 的 `save()` 方法覆写了 `IService.save()`，新增以下业务校验：
+
+| 校验项 | 校验方式 | 失败时抛出异常 |
+|--------|----------|---------------|
+| 设备编码唯一性 | `lambdaQuery().eq(Device::getDeviceCode, code).count() > 0` | `DeviceCodeAlreadyExistsException` |
+| 设备类型存在性 | `deviceTypeService.getById(typeId) == null` | `DeviceTypeNotFound` |
+
+### 2.3 DeviceTypeService — 设备类型服务接口
+
+**完整类名**: `com.example.platform.service.DeviceTypeService`
+**继承**: `IService<DeviceType>`
+
+#### 自定义方法
+
+| 方法签名 | 返回类型 | 参数 | 说明 |
+|----------|----------|------|------|
+| `findByTypeCode(String typeCode)` | `DeviceType` | `typeCode`: 类型编码 | 根据类型编码查询设备类型 |
+
+#### 实现类
+
+**完整类名**: `com.example.platform.service.impl.DeviceTypeServiceImpl`
+**继承**: `ServiceImpl<DeviceTypeMapper, DeviceType>`
+**注解**: `@Service` ✅
+
+| 方法 | 实现方式 | 说明 |
+|------|----------|------|
+| `findByTypeCode` | 使用 `LambdaQueryWrapper` | 构建 `type_code = typeCode` 条件查询单条记录 |
+
+### 2.4 DeviceDataService — 设备数据服务接口
 
 **完整类名**: `com.example.platform.service.DeviceDataService`
 **继承**: `IService<DeviceData>`
@@ -109,19 +142,7 @@ service/
 > 当前仅继承通用方法，无自定义方法。
 
 **实现类**: `DeviceDataServiceImpl`
-
-> ⚠️ **注意**：当前实现类缺少 `@Service` 注解，无法被 Spring 自动注入。使用前需添加 `@Service` 注解。
-
-### 2.4 DeviceTypeService — 设备类型服务接口
-
-**完整类名**: `com.example.platform.service.DeviceTypeService`
-**继承**: `IService<DeviceType>`
-
-> 当前仅继承通用方法，无自定义方法。
-
-**实现类**: `DeviceTypeServiceImpl`
-
-> ⚠️ **注意**：当前实现类缺少 `@Service` 注解，无法被 Spring 自动注入。使用前需添加 `@Service` 注解。
+**注解**: `@Service` ✅
 
 ### 2.5 AlertService — 告警服务接口
 
@@ -131,8 +152,7 @@ service/
 > 当前仅继承通用方法，无自定义方法。
 
 **实现类**: `AlertServiceImpl`
-
-> ⚠️ **注意**：当前实现类缺少 `@Service` 注解，无法被 Spring 自动注入。使用前需添加 `@Service` 注解。
+**注解**: `@Service` ✅
 
 ---
 
@@ -145,8 +165,11 @@ service/
 @RequestMapping("/devices")
 public class DeviceController {
 
-    @Autowired
-    private DeviceService deviceService;
+    private final DeviceService deviceService;
+
+    public DeviceController(DeviceService deviceService) {
+        this.deviceService = deviceService;
+    }
 
     @GetMapping
     public Result<List<Device>> list() {
@@ -160,7 +183,24 @@ public class DeviceController {
 }
 ```
 
-### 示例 2：使用条件构造器进行复杂查询
+### 示例 2：新增设备（含业务校验）
+
+```java
+// Controller 调用
+@PostMapping
+public Result<Void> save(@Validated(CreateGroup.class) @RequestBody Device device) {
+    deviceService.save(device);
+    return Result.success();
+}
+
+// DeviceServiceImpl.save() 内部逻辑：
+// 1. 检查 deviceCode 是否已存在 → 存在则抛出 DeviceCodeAlreadyExistsException
+// 2. 检查 typeId 对应的设备类型是否存在 → 不存在则抛出 DeviceTypeNotFound
+// 3. 校验通过 → 调用 super.save() 执行插入
+// 4. createTime / updateTime 由 MyMetaObjectHandler 自动填充
+```
+
+### 示例 3：使用条件构造器进行复杂查询
 
 ```java
 // 查询指定类型的在线设备
@@ -172,21 +212,12 @@ public List<Device> findOnlineByType(Integer typeId) {
 }
 ```
 
-### 示例 3：批量操作与事务控制
+### 示例 4：根据类型编码查询设备类型
 
 ```java
-@Service
-public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> implements DeviceService {
-
-    @Autowired
-    private DeviceTypeService deviceTypeService;
-
-    @Transactional(rollbackFor = Exception.class)
-    public boolean addDeviceWithType(Device device, DeviceType type) {
-        deviceTypeService.save(type);
-        device.setTypeId(type.getId());
-        return save(device);
-    }
+DeviceType type = deviceTypeService.findByTypeCode("TEMP_SENSOR");
+if (type == null) {
+    throw new DeviceTypeNotFound("TEMP_SENSOR");
 }
 ```
 
@@ -197,6 +228,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 | 问题 | 说明 | 解决方法 |
 |------|------|----------|
 | Service 注入失败 | 接口没有对应的实现类 | 确保实现类有 `@Service` 注解，且实现了对应接口 |
+| 业务校验异常 | `save()` 抛出 `BusinessException` 子类 | 由 `GlobalExceptionHandler` 统一捕获并返回错误响应，Controller 无需 try-catch |
 | 事务不生效 | 方法非 `public` 或同类内部调用 | 事务方法必须为 `public`，且不能在同类内部直接调用 |
 | `baseMapper` 为 null | 实现类未正确继承 `ServiceImpl` | 确保继承 `ServiceImpl<XXXMapper, XXXEntity>` |
 | 批量操作性能 | `saveBatch` 默认每批 1000 条 | 数据量大时可分批调用，避免内存溢出 |
@@ -204,10 +236,19 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-04。*
+## 五、变更记录
+
+| 版本 | 日期 | Commit | 变更说明 |
+|------|------|--------|----------|
+| v1.0 | 2026-05-04 | — | 初始版本，部分实现类缺少 `@Service` 注解 |
+| v1.1 | 2026-05-08 | `[f88934db]` | 所有实现类已补全 `@Service` 注解；DeviceServiceImpl.save() 新增业务校验逻辑（编码唯一性+类型存在性）；DeviceTypeService 新增 `findByTypeCode()` 方法；Controller 注入方式改为构造器注入 |
+
+---
+
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
 
 > ---
-> 
+>
 > **© 2026 IoT-Platform Project.**
-> 
+>
 > 本文档采用 [MIT License](../../../../../../../LICENSE) 授权。文档内容仅供参考，项目维护者不对因使用本文档而产生的任何直接或间接损失承担责任。

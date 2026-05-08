@@ -1,6 +1,6 @@
 # IoT-Platform 物联网设备管理平台
 
-> **版本**: v0.0.1-SNAPSHOT | **文档更新日期**: 2026-05-04 | **文档版本**: v1.0
+> **版本**: v0.0.1-SNAPSHOT | **文档更新日期**: 2026-05-08 | **文档版本**: v1.1
 
 ---
 
@@ -34,12 +34,12 @@
 
 | 功能包 | 作用 | 关键类 |
 |--------|------|--------|
-| **common** | 统一响应结果封装，保证所有接口返回格式一致 | `Result`、`ResultCode` |
-| **config** | 框架配置类，管理 MyBatis-Plus 等组件的行为 | `MybatisPlusConfig` |
-| **controller** | 接收 HTTP 请求，调用 Service 层处理业务逻辑 | `DeviceController` |
-| **entity** | 数据库表对应的实体类，定义数据结构 | `Device`、`DeviceData`、`DeviceType`、`Alert` |
+| **common** | 统一响应结果封装、业务异常体系、全局异常处理、参数校验分组 | `Result`、`BusinessException`、`GlobalExceptionHandler`、`CreateGroup`/`UpdateGroup` |
+| **config** | 框架配置类，管理 MyBatis-Plus 分页插件和自动填充 | `MybatisPlusConfig`、`MyMetaObjectHandler` |
+| **controller** | 接收 HTTP 请求，参数分组校验，调用 Service 层处理业务逻辑 | `DeviceController` |
+| **entity** | 数据库表对应的实体类，定义数据结构和校验规则 | `Device`、`DeviceData`、`DeviceType`、`Alert` |
 | **mapper** | 数据访问层，负责与数据库交互 | `DeviceMapper`、`DeviceDataMapper` 等 |
-| **service** | 业务逻辑层，封装核心业务规则 | `DeviceService`、`AlertService` 等 |
+| **service** | 业务逻辑层，封装核心业务规则和校验 | `DeviceService`、`DeviceTypeService` 等 |
 
 ---
 
@@ -51,10 +51,12 @@ iot-platform/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/example/platform/
-│   │   │   ├── common/              # 通用工具包（统一响应、状态码等）
-│   │   │   ├── config/              # 框架配置类（分页插件等）
+│   │   │   ├── common/              # 通用工具包（统一响应、异常体系、校验分组）
+│   │   │   │   ├── exception/       # 业务异常类（BusinessException 及子类）
+│   │   │   │   └── group/           # 校验分组接口（CreateGroup、UpdateGroup）
+│   │   │   ├── config/              # 框架配置类（分页插件、自动填充处理器）
 │   │   │   ├── controller/          # 控制器层（接收 HTTP 请求）
-│   │   │   ├── entity/              # 实体类（对应数据库表）
+│   │   │   ├── entity/              # 实体类（对应数据库表，含校验注解）
 │   │   │   ├── mapper/              # 数据访问层（MyBatis-Plus Mapper）
 │   │   │   ├── service/             # 业务逻辑层接口
 │   │   │   │   └── impl/            # 业务逻辑层实现
@@ -73,13 +75,15 @@ iot-platform/
 
 | 目录/文件 | 角色 |
 |-----------|------|
-| `common/` | 基础设施层，提供跨模块复用的工具类和常量定义 |
-| `config/` | 配置层，通过 Java Config 方式管理框架组件 |
-| `controller/` | 入口层，负责请求路由、参数校验和响应封装 |
-| `entity/` | 数据模型层，与数据库表一一对应，承载业务数据 |
+| `common/` | 基础设施层，提供统一响应、异常体系、全局异常处理和校验分组 |
+| `common/exception/` | 业务异常定义，包含 `BusinessException` 基类和具体异常类 |
+| `common/group/` | 校验分组接口，`CreateGroup` 和 `UpdateGroup` 用于区分创建/更新场景 |
+| `config/` | 配置层，管理分页插件和自动填充处理器 |
+| `controller/` | 入口层，负责请求路由、分组参数校验和响应封装 |
+| `entity/` | 数据模型层，与数据库表一一对应，承载业务数据和校验规则 |
 | `mapper/` | 持久层，继承 MyBatis-Plus `BaseMapper`，提供基础 CRUD |
-| `service/` | 业务层，封装业务逻辑，面向 Controller 提供服务 |
-| `service/impl/` | 业务层实现，具体业务逻辑编写位置 |
+| `service/` | 业务层，封装业务逻辑和业务校验，面向 Controller 提供服务 |
+| `service/impl/` | 业务层实现，具体业务逻辑和校验规则编写位置 |
 | `application.yaml` | 集中管理数据库连接、服务端口、日志等所有配置 |
 
 ---
@@ -221,8 +225,6 @@ mysql -u root -p
 
 修改 `src/main/resources/application.yaml` 中的数据库用户名和密码。
 
-> **重要**：`application.yaml` 中存在包名不一致的问题（`com.iot.platform` 应为 `com.example.platform`），请参照「七、已知问题」章节一并修正，否则日志和类型别名配置不会生效。
-
 ### Step 4：启动项目
 
 ```bash
@@ -249,7 +251,8 @@ Druid监控：http://localhost:8080/api/druid
 
 | 地址 | 说明 |
 |------|------|
-| `http://localhost:8080/api` | 项目根路径 |
+| `http://localhost:8080/api/devices` | 设备列表接口 |
+| `http://localhost:8080/api/devices/online` | 在线设备列表 |
 | `http://localhost:8080/api/druid/index.html` | Druid 数据库监控页面（账号/密码：admin/admin） |
 
 ---
@@ -263,45 +266,22 @@ Druid监控：http://localhost:8080/api/druid
 | Druid | 1.2.28 | 数据库连接池，提供监控和性能统计 |
 | MySQL Connector | 9.6.0 | MySQL 数据库驱动 |
 | Lombok | - | 减少样板代码（getter/setter/构造器等） |
+| Jakarta Validation | - | 参数校验框架，支持分组校验 |
 
 ---
 
 ## 七、已知问题
 
-> 以下为项目骨架搭建阶段已知的代码问题，将在后续迭代中修复。
+> 以下为项目骨架搭建阶段已知的代码问题。部分问题已在 `[f88934db]` 提交中修复。
 
-| 问题 | 影响 | 临时解决方法 |
-|------|------|-------------|
-| `application.yaml` 中 `type-aliases-package` 配置为 `com.iot.platform.entity`，与实际包名 `com.example.platform.entity` 不一致 | MyBatis-Plus 类型别名不生效 | 将 `type-aliases-package` 修改为 `com.example.platform.entity` |
-| `application.yaml` 中日志包名配置为 `com.iot.platform`，与实际包名 `com.example.platform` 不一致 | 自定义日志级别不生效，无法看到 debug 级别日志 | 将 `logging.level` 下的 `com.iot.platform` 修改为 `com.example.platform` |
-| `DeviceDataServiceImpl`、`DeviceTypeServiceImpl`、`AlertServiceImpl` 缺少 `@Service` 注解 | 这三个 Service 无法被 Spring 自动注入，Controller 中 `@Autowired` 会报错 | 为这三个类添加 `@Service` 注解 |
-| `MybatisPlusConfig` 分页配置类被整体注释 | 分页查询功能不可用 | 取消注释以启用分页插件 |
-| `DeviceController` 为空类，未实现任何接口 | 无法通过 HTTP 访问设备管理功能 | 参照 controller 模块文档实现具体接口 |
-| 时间自动填充（`FieldFill.INSERT` / `FieldFill.INSERT_UPDATE`）未生效 | `createTime` 和 `updateTime` 不会自动填充 | 需实现 `MetaObjectHandler` 接口的实现类 |
-
-### 配置修正示例
-
-修改 `src/main/resources/application.yaml` 中的以下内容：
-
-```yaml
-# 修改前（错误）
-mybatis-plus:
-  type-aliases-package: com.iot.platform.entity
-
-logging:
-  level:
-    com.iot.platform: debug
-    com.iot.platform.mapper: debug
-
-# 修改后（正确）
-mybatis-plus:
-  type-aliases-package: com.example.platform.entity
-
-logging:
-  level:
-    com.example.platform: debug
-    com.example.platform.mapper: debug
-```
+| 问题 | 状态 | 说明 |
+|------|------|------|
+| ~~`application.yaml` 中 `type-aliases-package` 包名不一致~~ | ✅ 已修复 | 已修正为 `com.example.platform.entity` |
+| ~~`application.yaml` 中日志包名配置不一致~~ | ✅ 已修复 | 已修正为 `com.example.platform` |
+| ~~`DeviceDataServiceImpl`、`DeviceTypeServiceImpl`、`AlertServiceImpl` 缺少 `@Service` 注解~~ | ✅ 已修复 | 所有实现类已补全 `@Service` 注解 |
+| ~~`MybatisPlusConfig` 分页配置类被整体注释~~ | ✅ 已修复 | 已取消注释，分页插件已启用 |
+| ~~`DeviceController` 为空类，未实现任何接口~~ | ✅ 已修复 | 已实现 7 个完整接口，含分组校验 |
+| ~~时间自动填充未生效~~ | ✅ 已修复 | 已实现 `MyMetaObjectHandler`，`createTime`/`updateTime` 自动填充 |
 
 ---
 
@@ -310,12 +290,12 @@ logging:
 | 文档 | 路径 | 说明 |
 |------|------|------|
 | 项目总览 | [README.md](README.md) | 本文件，项目整体介绍 |
-| 通用工具包 | [common/README.md](src/main/java/com/example/platform/common/README.md) | 统一响应结果封装 |
-| 配置包 | [config/README.md](src/main/java/com/example/platform/config/README.md) | 框架配置说明 |
+| 通用工具包 | [common/README.md](src/main/java/com/example/platform/common/README.md) | 统一响应、异常体系、校验分组 |
+| 配置包 | [config/README.md](src/main/java/com/example/platform/config/README.md) | 框架配置与自动填充 |
 | 控制器包 | [controller/README.md](src/main/java/com/example/platform/controller/README.md) | HTTP 接口层 |
-| 实体包 | [entity/README.md](src/main/java/com/example/platform/entity/README.md) | 数据模型定义 |
+| 实体包 | [entity/README.md](src/main/java/com/example/platform/entity/README.md) | 数据模型与校验规则 |
 | 数据访问包 | [mapper/README.md](src/main/java/com/example/platform/mapper/README.md) | 数据库交互层 |
-| 业务逻辑包 | [service/README.md](src/main/java/com/example/platform/service/README.md) | 业务逻辑层 |
+| 业务逻辑包 | [service/README.md](src/main/java/com/example/platform/service/README.md) | 业务逻辑与校验 |
 
 ---
 
@@ -341,6 +321,7 @@ logging:
 | 版本 | 日期 | 变更内容 |
 |------|------|----------|
 | v1.0 | 2026-05-04 | 初始版本，创建全部项目文档和模块文档 |
+| v1.1 | 2026-05-08 | `[f88934db]` 同步更新：已知问题全部修复；新增 validation 依赖；common 新增 exception/group 子包；config 新增 MyMetaObjectHandler；controller 已实现完整接口；entity 新增校验注解；service 补全 @Service 并新增业务校验 |
 
 ### 9.5 定期审核
 
@@ -357,11 +338,11 @@ logging:
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-04。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
 
 > ---
-> 
+>
 > **© 2026 IoT-Platform Project.**
-> 
+>
 > 本文档采用 [MIT License](LICENSE) 授权。文档内容仅供参考，项目维护者不对因使用本文档而产生的任何直接或间接损失承担责任。
 > 如发现文档问题或有改进建议，请通过 GitHub Issues 提交反馈。
