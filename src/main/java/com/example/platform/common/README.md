@@ -1,6 +1,6 @@
 # common — 通用工具包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v1.2 | **更新日期**: 2026-05-09
 
 ---
 
@@ -113,7 +113,7 @@ common/
 | 异常类 | 状态码 | 触发场景 | 错误消息格式 |
 |--------|--------|----------|-------------|
 | `DeviceCodeAlreadyExistsException` | 4002 | 新增设备时编码已存在 | `"设备代码已存在:{deviceCode}"` |
-| `DeviceNotFoundException` | 4003 | 查询/操作不存在的设备 | `"设备未找到:{deviceName}"` |
+| `DeviceNotFoundException` | 4003 | 查询/操作不存在的设备 | `"设备未找到:{id}"` |
 | `DeviceTypeNotFound` | 4001 | 关联的设备类型不存在 | `"设备类型id不存在:{typeId}"` |
 
 #### 构造方法
@@ -121,7 +121,7 @@ common/
 | 异常类 | 构造参数 |
 |--------|----------|
 | `DeviceCodeAlreadyExistsException` | `String deviceCode` |
-| `DeviceNotFoundException` | `String deviceName` |
+| `DeviceNotFoundException` | `Integer id` |
 | `DeviceTypeNotFound` | `Integer typeId` |
 
 ### 2.4 GlobalExceptionHandler — 全局异常处理器
@@ -249,11 +249,7 @@ public Result<Void> update(@PathVariable Integer id,
 ```java
 @GetMapping("/{id}")
 public Result<Device> getById(@PathVariable Integer id) {
-    Device device = deviceService.getById(id);
-    if (device == null) {
-        throw new DeviceNotFoundException("设备不存在");
-    }
-    return Result.success(device);
+    return Result.success(deviceService.getDeviceOrThrow(id));
 }
 ```
 
@@ -262,7 +258,7 @@ public Result<Device> getById(@PathVariable Integer id) {
 ```json
 {
   "code": 4003,
-  "message": "设备未找到:设备不存在"
+  "message": "设备未找到:9999"
 }
 ```
 
@@ -287,10 +283,11 @@ public Result<Device> getById(@PathVariable Integer id) {
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，包含 Result 和 ResultCode 文档 |
 | v1.1 | 2026-05-08 | `[f88934db]` | 新增 exception 子包（BusinessException、3个具体异常类、GlobalExceptionHandler）和 group 子包（CreateGroup、UpdateGroup）文档；更新状态码列表 |
+| v1.2 | 2026-05-09 | `[0e2c8e48]` | DeviceNotFoundException 构造参数从 `String deviceName` 改为 `Integer id`；更新使用示例为 `getDeviceOrThrow` 调用方式 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
 
 > ---
 >

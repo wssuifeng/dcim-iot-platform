@@ -1,6 +1,6 @@
 # controller — 控制器包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v1.2 | **更新日期**: 2026-05-09
 
 ---
 
@@ -37,7 +37,7 @@
 
 **完整类名**: `com.example.platform.controller.DeviceController`
 
-**当前状态**：✅ 已实现 7 个接口
+**当前状态**：✅ 已实现 9 个接口
 
 #### 接口列表
 
@@ -47,15 +47,17 @@
 | `GET` | `/devices/{id}` | 根据 ID 查询设备 | `Result<Device>` | 无 |
 | `POST` | `/devices` | 新增设备 | `Result<Void>` | `@Validated(CreateGroup.class)` |
 | `PUT` | `/devices/{id}` | 更新设备信息 | `Result<Void>` | `@Validated(UpdateGroup.class)` |
+| `DELETE` | `/devices/{id}` | 删除设备 | `Result<Void>` | 无 |
 | `GET` | `/devices/online` | 查询在线设备 | `Result<List<Device>>` | 无 |
 | `GET` | `/devices/search?name=` | 模糊搜索设备 | `Result<List<Device>>` | 手动校验 name 非空 |
 | `PUT` | `/devices/{id}/status?status=` | 更新设备状态 | `Result<Void>` | 手动校验 status 范围 0-2 |
+| `GET` | `/devices/page` | 分页查询设备 | `Result<Page<Device>>` | 可选 status、name 筛选 |
 
 #### 接口详细说明
 
 **GET /devices/{id}**
 
-- 设备不存在时抛出 `DeviceNotFoundException`，由全局异常处理器返回 HTTP 404
+- 内部调用 `deviceService.getDeviceOrThrow(id)`，设备不存在时抛出 `DeviceNotFoundException`
 - 设备存在时返回 `Result.success(device)`
 
 **POST /devices**
@@ -66,9 +68,20 @@
 
 **PUT /devices/{id}**
 
-- 使用 `@Validated(UpdateGroup.class)` 触发更新场景的参数校验
-- 额外校验：路径 ID 与请求体 ID 必须一致
-- 设备不存在时返回 `Result.error("设备不存在，无法更新")`
+- 先调用 `deviceService.getDeviceOrThrow(id)` 确保设备存在（不存在会抛异常，由全局处理器返回 404）
+- 防御性校验：请求体 ID 与路径 ID 不一致时返回 400 错误；一致或为空则强制以路径 ID 为准
+- 乐观锁场景：`updateById` 返回 false 时返回 `"更新设备失败，数据可能已被他人修改"`
+
+**DELETE /devices/{id}**
+
+- 先调用 `deviceService.getDeviceOrThrow(id)` 确保设备存在
+- 存在则执行 `removeById(id)` 删除
+
+**GET /devices/page**
+
+- 支持分页查询，参数：`current`（页码，默认1）、`size`（每页条数，默认10）
+- 可选筛选：`status`（按状态筛选）、`name`（按设备名称模糊搜索）
+- 结果按 `updateTime` 倒序排列
 
 **PUT /devices/{id}/status**
 
@@ -161,11 +174,61 @@ GET /api/devices/99999
 ```json
 {
   "code": 4003,
-  "message": "设备未找到:设备不存在"
+  "message": "设备未找到:99999"
 }
 ```
 
-### 示例 3：更新设备状态
+### 示例 3：分页查询设备
+
+**请求**：
+
+```
+GET /api/devices/page?current=1&size=10&status=1&name=温度
+```
+
+**响应**：
+
+```json
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": {
+    "records": [...],
+    "total": 15,
+    "size": 10,
+    "current": 1,
+    "pages": 2
+  }
+}
+```
+
+### 示例 4：删除设备
+
+**请求**：
+
+```
+DELETE /api/devices/5
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "message": "操作成功"
+}
+```
+
+**设备不存在响应**：
+
+```json
+{
+  "code": 4003,
+  "message": "设备未找到:5"
+}
+```
+
+### 示例 5：更新设备状态
 
 **请求**：
 
@@ -200,9 +263,10 @@ PUT /api/devices/1/status?status=0
 | 404 Not Found | 请求路径不匹配 | 注意项目配置了 `context-path: /api`，所有请求需加 `/api` 前缀 |
 | 参数校验不生效 | `@Validated` 未触发 | 确保添加了 `spring-boot-starter-validation` 依赖，且指定了分组类 |
 | 分组校验遗漏 | 未指定 `groups` 导致校验不执行 | `@Validated` 必须指定分组接口（如 `CreateGroup.class`），Entity 字段校验注解也需声明 `groups` |
-| 设备不存在时行为 | `GET /devices/{id}` 抛出异常而非返回 `Result.error()` | 这是当前设计选择：异常由 `GlobalExceptionHandler` 统一处理，返回 HTTP 404 |
-| 更新时 ID 不一致 | 路径 ID 与请求体 ID 不匹配 | Controller 会校验两者一致性，不一致时返回 400 错误 |
-| 跨域问题 | 前后端分离开发时可能遇到 | 在 config 包中添加 CORS 配置类 |
+| 设备不存在时行为 | `GET /devices/{id}` 和 `PUT /devices/{id}` 均通过 `getDeviceOrThrow` 抛出异常 | 异常由 `GlobalExceptionHandler` 统一处理，返回 HTTP 404 |
+| 更新时 ID 不一致 | 路径 ID 与请求体 ID 不匹配 | 当请求体 ID 不为 null 且与路径 ID 不一致时返回 400 错误；否则强制以路径 ID 为准 |
+| 更新失败 | `updateById` 返回 false | 可能是乐观锁冲突，返回 `"更新设备失败，数据可能已被他人修改"` |
+| 跨域问题 | 前后端分离开发时可能遇到 | ✅ 已配置 `CorsConfig`，支持 localhost 和 127.0.0.1 跨域访问 |
 
 ---
 
@@ -212,10 +276,11 @@ PUT /api/devices/1/status?status=0
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，Controller 为空类，文档为推荐设计 |
 | v1.1 | 2026-05-08 | `[f88934db]` | DeviceController 已实现 7 个完整接口；新增 `@Validated` 分组校验说明；更新注入方式为构造器注入；异常处理改为委托 GlobalExceptionHandler |
+| v1.2 | 2026-05-09 | `[0e2c8e48]` | 新增 `GET /devices/page` 分页查询接口和 `DELETE /devices/{id}` 删除接口（共 9 个接口）；`getById` 和 `update` 改用 `getDeviceOrThrow`；`update` 逻辑优化（防御性ID校验+乐观锁提示）；跨域问题已由 CorsConfig 解决 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
 
 > ---
 >
