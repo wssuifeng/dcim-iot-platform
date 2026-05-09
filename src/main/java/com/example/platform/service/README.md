@@ -1,6 +1,6 @@
 # service — 业务逻辑层包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v1.2 | **更新日期**: 2026-05-09
 
 ---
 
@@ -88,8 +88,9 @@ service/
 
 | 方法签名 | 返回类型 | 参数 | 说明 |
 |----------|----------|------|------|
+| `getDeviceOrThrow(Integer id)` | `Device` | `id`: 设备ID | 设备存在性校验，不存在时抛出 `DeviceNotFoundException` |
 | `findByNameLike(String name)` | `List<Device>` | `name`: 设备名称关键词 | 根据名称模糊查询设备 |
-| `findOnlineDevices()` | `List<Device>` | 无 | 查询所有在线设备（status = 1） |
+| `findOnlineDevices()` | `List<Device>` | 无 | 查询所有在线设备（status = 1），按 updateTime 倒序 |
 | `updateStatus(Integer id, Integer status)` | `boolean` | `id`: 设备ID, `status`: 新状态值 | 更新设备状态 |
 
 #### 实现类
@@ -100,8 +101,9 @@ service/
 
 | 方法 | 实现方式 | 说明 |
 |------|----------|------|
+| `getDeviceOrThrow` | 调用 `getById(id)` + null 检查 | 不存在时抛出 `DeviceNotFoundException(id)` |
 | `findByNameLike` | 调用 `baseMapper.findByNameLike()` | 委托给 Mapper 层的自定义 SQL |
-| `findOnlineDevices` | 使用 `LambdaQueryWrapper` | 构建 `status = 1` 条件查询 |
+| `findOnlineDevices` | 使用 `LambdaQueryWrapper` | 构建 `status = 1` 条件，按 `updateTime` 倒序 |
 | `updateStatus` | 使用 `LambdaUpdateWrapper` | 构建按 ID 更新 status 的条件 |
 
 #### 业务校验逻辑
@@ -112,6 +114,15 @@ service/
 |--------|----------|---------------|
 | 设备编码唯一性 | `lambdaQuery().eq(Device::getDeviceCode, code).count() > 0` | `DeviceCodeAlreadyExistsException` |
 | 设备类型存在性 | `deviceTypeService.getById(typeId) == null` | `DeviceTypeNotFound` |
+
+#### DeviceServiceImpl 特有方法（未声明在接口中）
+
+以下方法定义在 `DeviceServiceImpl` 中，未通过 `DeviceService` 接口暴露，仅供内部或同包调用：
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `findByTypeId(Integer typeId)` | `List<Device>` | 根据设备类型 ID 查询设备列表 |
+| `countByStatus()` | `List<Map<String, Object>>` | 按状态分组统计设备数量，委托 `baseMapper.countByStatus()` |
 
 ### 2.3 DeviceTypeService — 设备类型服务接口
 
@@ -139,20 +150,34 @@ service/
 **完整类名**: `com.example.platform.service.DeviceDataService`
 **继承**: `IService<DeviceData>`
 
-> 当前仅继承通用方法，无自定义方法。
+> 接口层当前仅继承通用方法。以下自定义方法定义在实现类中。
 
 **实现类**: `DeviceDataServiceImpl`
 **注解**: `@Service` ✅
+
+#### DeviceDataServiceImpl 自定义方法
+
+| 方法签名 | 返回类型 | 参数 | 说明 |
+|----------|----------|------|------|
+| `findByDeviceId(Integer deviceId)` | `List<DeviceData>` | `deviceId`: 设备ID | 查询指定设备的所有数据，按采集时间倒序 |
+| `findLatestByDeviceId(Integer deviceId)` | `DeviceData` | `deviceId`: 设备ID | 查询指定设备的最新一条数据（LIMIT 1） |
 
 ### 2.5 AlertService — 告警服务接口
 
 **完整类名**: `com.example.platform.service.AlertService`
 **继承**: `IService<Alert>`
 
-> 当前仅继承通用方法，无自定义方法。
+> 接口层当前仅继承通用方法。以下自定义方法定义在实现类中。
 
 **实现类**: `AlertServiceImpl`
 **注解**: `@Service` ✅
+
+#### AlertServiceImpl 自定义方法
+
+| 方法签名 | 返回类型 | 参数 | 说明 |
+|----------|----------|------|------|
+| `findByDeviceId(Integer deviceId)` | `List<Alert>` | `deviceId`: 设备ID | 查询指定设备的所有告警，按创建时间倒序 |
+| `findUnhandled()` | `List<Alert>` | 无 | 查询所有未处理告警（isHandled=0），按告警级别和创建时间倒序 |
 
 ---
 
@@ -221,6 +246,28 @@ if (type == null) {
 }
 ```
 
+### 示例 5：设备存在性校验
+
+```java
+// 在 Controller 中使用 getDeviceOrThrow 确保设备存在
+@GetMapping("/{id}")
+public Result<Device> getById(@PathVariable Integer id) {
+    return Result.success(deviceService.getDeviceOrThrow(id));
+}
+
+// 设备不存在时自动抛出 DeviceNotFoundException → GlobalExceptionHandler 返回 404
+```
+
+### 示例 6：查询设备最新数据和未处理告警
+
+```java
+// 查询设备最新一条采集数据
+DeviceData latest = deviceDataServiceImpl.findLatestByDeviceId(1);
+
+// 查询所有未处理告警（按级别和时间排序）
+List<Alert> unhandled = alertServiceImpl.findUnhandled();
+```
+
 ---
 
 ## 四、注意事项
@@ -242,10 +289,11 @@ if (type == null) {
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，部分实现类缺少 `@Service` 注解 |
 | v1.1 | 2026-05-08 | `[f88934db]` | 所有实现类已补全 `@Service` 注解；DeviceServiceImpl.save() 新增业务校验逻辑（编码唯一性+类型存在性）；DeviceTypeService 新增 `findByTypeCode()` 方法；Controller 注入方式改为构造器注入 |
+| v1.2 | 2026-05-09 | `[0e2c8e48]` | DeviceService 新增 `getDeviceOrThrow()` 接口方法；DeviceServiceImpl 新增 `findByTypeId()`、`countByStatus()` 方法；AlertServiceImpl 新增 `findByDeviceId()`、`findUnhandled()` 方法；DeviceDataServiceImpl 新增 `findByDeviceId()`、`findLatestByDeviceId()` 方法；DeviceTypeServiceImpl 新增 `findByTypeCode()` 方法 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
 
 > ---
 >

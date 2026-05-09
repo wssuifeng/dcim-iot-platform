@@ -1,6 +1,6 @@
 # config — 框架配置包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v1.2 | **更新日期**: 2026-05-09
 
 ---
 
@@ -19,6 +19,7 @@
 ```
 config/MybatisPlusConfig    → 为 mapper 层提供分页等增强功能
 config/MyMetaObjectHandler  → 为 entity 层提供 createTime/updateTime 自动填充
+config/CorsConfig           → 为前后端分离开发提供跨域支持
 application.yaml            → 与 config 包互补，管理外部化配置
 ```
 
@@ -44,7 +45,29 @@ application.yaml            → 与 config 包互补，管理外部化配置
 |------|-----|------|
 | `DbType.MYSQL` | - | 数据库类型，影响分页语句生成 |
 
-### 2.2 MyMetaObjectHandler — 自动填充处理器
+### 2.2 CorsConfig — 跨域配置类
+
+**完整类名**: `com.example.platform.config.CorsConfig`
+
+通过注册 `CorsFilter` Bean，为前后端分离开发提供 CORS（Cross-Origin Resource Sharing）跨域支持。
+
+#### 配置内容
+
+| 配置项 | 值 | 说明 |
+|--------|-----|------|
+| `addAllowedOriginPattern` | `http://localhost:*`, `http://127.0.0.1:*` | 允许本地开发服务器的跨域请求 |
+| `addAllowedMethod` | `*` | 允许所有 HTTP 方法（GET/POST/PUT/DELETE 等） |
+| `addAllowedHeader` | `*` | 允许所有请求头（含 Authorization、Content-Type 等） |
+| `setAllowCredentials` | `true` | 允许携带 Cookie / Token 等凭证 |
+| `setMaxAge` | `3600L` | 预检请求（OPTIONS）缓存 1 小时 |
+
+#### 安全说明
+
+- 使用 `addAllowedOriginPattern` 而非 `addAllowedOrigin("*")`，配合 `allowCredentials(true)` 是 Spring 5.3+ 的安全写法
+- 当前仅允许 `localhost` 和 `127.0.0.1` 的跨域访问，生产环境需按需调整
+- 预检请求缓存可减少浏览器 OPTIONS 请求次数，提升性能
+
+### 2.3 MyMetaObjectHandler — 自动填充处理器
 
 **完整类名**: `com.example.platform.config.MyMetaObjectHandler`
 
@@ -106,22 +129,24 @@ deviceService.updateById(device);
 // device.getUpdateTime() → 2026-05-08 12:05:00（自动更新）
 ```
 
-### 示例 3：自定义新的配置类
+### 示例 3：跨域配置效果验证
 
-```java
-@Configuration
-public class CorsConfig {
-    @Bean
-    public CorsFilter corsFilter() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOriginPattern("*");
-        config.addAllowedMethod("*");
-        config.addAllowedHeader("*");
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
-    }
-}
+启动项目后，从前端 `http://localhost:3000` 发起请求：
+
+```bash
+curl -H "Origin: http://localhost:3000" \
+     -H "Access-Control-Request-Method: POST" \
+     -X OPTIONS \
+     http://localhost:8080/api/devices -i
+```
+
+响应头中应包含：
+
+```
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Allow-Methods: POST,GET,PUT,DELETE,OPTIONS,PATCH
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
 ```
 
 ---
@@ -130,6 +155,7 @@ public class CorsConfig {
 
 | 问题 | 说明 | 解决方法 |
 |------|------|----------|
+| 跨域请求被拒绝 | 前端请求不在允许的 Origin 列表中 | 在 `CorsConfig.buildCorsConfiguration()` 中添加对应的 `addAllowedOriginPattern` |
 | 自动填充不生效 | Entity 字段缺少 `fill` 属性 | 确保字段注解为 `@TableField(value = "create_time", fill = FieldFill.INSERT)` |
 | 自动填充值为 null | `MyMetaObjectHandler` 未注册为 Spring Bean | 确保类有 `@Component` 注解 |
 | 分页查询报错 | 分页插件未注册 | `MybatisPlusConfig` 已启用，确保类有 `@Configuration` 和 `@Bean` 注解 |
@@ -144,10 +170,11 @@ public class CorsConfig {
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，MybatisPlusConfig 为注释状态 |
 | v1.1 | 2026-05-08 | `[f88934db]` | MybatisPlusConfig 已正式启用；新增 MyMetaObjectHandler 自动填充处理器文档 |
+| v1.2 | 2026-05-09 | `[0e2c8e48]` | 新增 CorsConfig 跨域配置类文档 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
 
 > ---
 >
