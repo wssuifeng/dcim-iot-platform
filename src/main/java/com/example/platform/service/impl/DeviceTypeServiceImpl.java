@@ -18,4 +18,10 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
             throw new DeviceTypeNotFound(typeId);
         }
     }
+
+    public DeviceType findByTypeCode(String typeCode) {
+        LambdaQueryWrapper<DeviceType> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceType::getTypeCode, typeCode);
+        return getOne(wrapper);
+    }
 }

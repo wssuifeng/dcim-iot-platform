@@ -1,7 +1,8 @@
 package com.example.platform.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
-import com.example.platform.common.exception.DeviceNotFoundException;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.entity.Device;
@@ -28,12 +29,7 @@ public class DeviceController {
 
     @GetMapping("/{id}")
         public Result<Device> getById(@PathVariable Integer id) {
-        Device device = deviceService.getById(id);
-        if (device == null) {
-            // 直接抛出 DeviceNotFoundException，交给全局异常处理器
-            throw new DeviceNotFoundException("设备不存在");
-        }
-        return Result.success(device);
+        return Result.success(deviceService.getDeviceOrThrow(id));
     }
 
     @PostMapping
@@ -46,22 +42,25 @@ public class DeviceController {
     }
 
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Integer id, @Validated(UpdateGroup.class) @RequestBody Device device) {
-        Device existing = deviceService.getById(id);
-        if (existing == null) {
-            return Result.error("设备不存在，无法更新");
-        }
-        if (!id.equals(device.getId())) {   // 注意：如果 device.getId() 为 null 需要特殊处理
+    public Result<Void> update(@PathVariable Integer id,
+                               @Validated(UpdateGroup.class) @RequestBody Device device) {
+        // 1. 先确保记录存在（不存在会抛异常，由全局异常处理器转 404）
+        deviceService.getDeviceOrThrow(id);
+
+        // 2. 防御性校验：body 里如果带了 id，必须和 path 一致；最终以 path id 为准
+        if (device.getId() != null && !id.equals(device.getId())) {
             return Result.error("请求ID不一致，无法更新");
         }
-        else device.setId(id);
+        device.setId(id);
+
+        // 3. 执行更新（若用了乐观锁，此处返回 false 表示并发冲突）
         boolean updated = deviceService.updateById(device);
         if (!updated) {
-            return Result.error("更新设备失败");
+            return Result.error("更新设备失败，数据可能已被他人修改");
         }
+
         return Result.success();
     }
-
     @GetMapping("/online")
     public Result<List<Device>> onlineList() {
         List<Device> devices = deviceService.findOnlineDevices();
@@ -87,6 +86,34 @@ public class DeviceController {
         if (!updated) {
             return Result.error("更新状态失败");
         }
+        return Result.success();
+    }
+
+    @GetMapping("/page")
+    public Result<Page<Device>> listByPage(
+            @RequestParam(defaultValue = "1") Integer current,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String name) {
+        Page<Device> page = new Page<>(current, size);
+        LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
+        if (status != null) {
+            wrapper.eq(Device::getStatus, status);
+        }
+        if (name != null && !name.trim().isEmpty()) {
+            wrapper.like(Device::getDeviceName, name);
+        }
+        wrapper.orderByDesc(Device::getUpdateTime);
+        Page<Device> result = deviceService.page(page, wrapper);
+        return Result.success(result);
+    }
+    /*
+     *  按id删除
+     *  */
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Integer id) {
+        deviceService.getDeviceOrThrow(id);
+        deviceService.removeById(id);
         return Result.success();
     }
 }
