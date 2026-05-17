@@ -110,3 +110,8 @@ logging:
   pattern:
     # 控制台日志输出格式：时间、线程、日志级别、类名、消息
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+
+# 设备监控时间字段配置
+task:
+  check-device-cron: 0 0/5 * * * ? #每五分钟检查一次在线状态

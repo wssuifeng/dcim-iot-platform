@@ -1,6 +1,6 @@
 # IoT-Platform 物联网设备管理平台
 
-> **版本**: v0.0.1-SNAPSHOT | **文档更新日期**: 2026-05-09 | **文档版本**: v1.2
+> **版本**: v0.0.1-SNAPSHOT | **文档更新日期**: 2026-05-16 | **文档版本**: v1.4
 
 ---
 
@@ -36,10 +36,12 @@
 |--------|------|--------|
 | **common** | 统一响应结果封装、业务异常体系、全局异常处理、参数校验分组 | `Result`、`BusinessException`、`GlobalExceptionHandler`、`CreateGroup`/`UpdateGroup` |
 | **config** | 框架配置类，管理 MyBatis-Plus 分页插件、自动填充和跨域配置 | `MybatisPlusConfig`、`MyMetaObjectHandler`、`CorsConfig` |
-| **controller** | 接收 HTTP 请求，参数分组校验，调用 Service 层处理业务逻辑 | `DeviceController`（9 个接口） |
-| **entity** | 数据库表对应的实体类，定义数据结构和校验规则 | `Device`、`DeviceData`、`DeviceType`、`Alert` |
-| **mapper** | 数据访问层，负责与数据库交互 | `DeviceMapper`、`DeviceDataMapper` 等 |
-| **service** | 业务逻辑层，封装核心业务规则和校验 | `DeviceService`、`DeviceTypeService` 等 |
+| **controller** | 接收 HTTP 请求，参数分组校验，调用 Service 层处理业务逻辑 | `DeviceController`（10 个接口）、`DeviceDataController`（7 个接口） |
+| **entity** | 数据库表对应的实体类，定义数据结构和校验规则 | `Device`、`DeviceData`、`DeviceType`、`Alert`、`DictMetric` |
+| **dto** | 数据传输对象，封装请求参数和参数校验 | `AlertRuleConfig`、`AlertRuleDefinition`、`DeviceDataBatchDTO` |
+| **mapper** | 数据访问层，负责与数据库交互 | `DeviceMapper`、`DeviceDataMapper`、`DictMetricMapper` 等 |
+| **service** | 业务逻辑层，封装核心业务规则、告警引擎和缓存 | `DeviceService`、`AlertRuleEngine`、`DictMetricService` 等 |
+| **task** | 定时任务层，执行设备离线检测等周期性任务 | `DeviceMonitorTask` |
 
 ---
 
@@ -56,10 +58,12 @@ iot-platform/
 │   │   │   │   └── group/           # 校验分组接口（CreateGroup、UpdateGroup）
 │   │   │   ├── config/              # 框架配置类（分页插件、自动填充处理器、跨域配置）
 │   │   │   ├── controller/          # 控制器层（接收 HTTP 请求）
+│   │   │   ├── dto/                 # 数据传输对象（请求参数封装与校验）
 │   │   │   ├── entity/              # 实体类（对应数据库表，含校验注解）
 │   │   │   ├── mapper/              # 数据访问层（MyBatis-Plus Mapper）
 │   │   │   ├── service/             # 业务逻辑层接口
 │   │   │   │   └── impl/            # 业务逻辑层实现
+│   │   │   ├── task/                # 定时任务层（设备离线检测等）
 │   │   │   └── IotPlatformApplication.java  # 项目启动入口
 │   │   └── resources/
 │   │       └── application.yaml     # 项目配置文件
@@ -80,6 +84,7 @@ iot-platform/
 | `common/group/` | 校验分组接口，`CreateGroup` 和 `UpdateGroup` 用于区分创建/更新场景 |
 | `config/` | 配置层，管理分页插件、自动填充处理器和跨域配置 |
 | `controller/` | 入口层，负责请求路由、分组参数校验和响应封装 |
+| `dto/` | 数据传输对象层，封装请求参数、声明式校验和 JSON 配置 |
 | `entity/` | 数据模型层，与数据库表一一对应，承载业务数据和校验规则 |
 | `mapper/` | 持久层，继承 MyBatis-Plus `BaseMapper`，提供基础 CRUD |
 | `service/` | 业务层，封装业务逻辑和业务校验，面向 Controller 提供服务 |
@@ -280,7 +285,7 @@ Druid监控：http://localhost:8080/api/druid
 | ~~`application.yaml` 中日志包名配置不一致~~ | ✅ 已修复 | 已修正为 `com.example.platform` |
 | ~~`DeviceDataServiceImpl`、`DeviceTypeServiceImpl`、`AlertServiceImpl` 缺少 `@Service` 注解~~ | ✅ 已修复 | 所有实现类已补全 `@Service` 注解 |
 | ~~`MybatisPlusConfig` 分页配置类被整体注释~~ | ✅ 已修复 | 已取消注释，分页插件已启用 |
-| ~~`DeviceController` 为空类，未实现任何接口~~ | ✅ 已修复 | 已实现 9 个完整接口，含分组校验、分页查询和删除 |
+| ~~`DeviceController` 为空类，未实现任何接口~~ | ✅ 已修复 | 已实现 10 个完整接口，含分组校验、分页查询、删除和告警配置 |
 | ~~时间自动填充未生效~~ | ✅ 已修复 | 已实现 `MyMetaObjectHandler`，`createTime`/`updateTime` 自动填充 |
 
 ---
@@ -296,6 +301,8 @@ Druid监控：http://localhost:8080/api/druid
 | 实体包 | [entity/README.md](src/main/java/com/example/platform/entity/README.md) | 数据模型与校验规则 |
 | 数据访问包 | [mapper/README.md](src/main/java/com/example/platform/mapper/README.md) | 数据库交互层 |
 | 业务逻辑包 | [service/README.md](src/main/java/com/example/platform/service/README.md) | 业务逻辑与校验 |
+| 业务实现包 | [service/impl/README.md](src/main/java/com/example/platform/service/impl/README.md) | 告警引擎与实现类 |
+| 数据传输对象包 | [dto/README.md](src/main/java/com/example/platform/dto/README.md) | 请求参数封装与校验 |
 | 测试包 | [service/impl/README.md](src/test/java/com/example/platform/service/impl/README.md) | Service 层集成测试 |
 
 ---
@@ -324,6 +331,8 @@ Druid监控：http://localhost:8080/api/druid
 | v1.0 | 2026-05-04 | 初始版本，创建全部项目文档和模块文档 |
 | v1.1 | 2026-05-08 | `[f88934db]` 同步更新：已知问题全部修复；新增 validation 依赖；common 新增 exception/group 子包；config 新增 MyMetaObjectHandler；controller 已实现完整接口；entity 新增校验注解；service 补全 @Service 并新增业务校验 |
 | v1.2 | 2026-05-09 | `[0e2c8e48]` 同步更新：common 新增 DeviceNotFoundException(Integer id)；config 新增 CorsConfig 跨域配置；controller 新增分页查询和删除接口（共 9 个）；service 新增 getDeviceOrThrow/findByTypeId/countByStatus 等方法；新增测试目录文档 |
+| v1.3 | 2026-05-15 | `[05b8ff81]` 同步更新：新增 dto 包（AlertRuleConfig/AlertRuleDefinition/DeviceDataBatchDTO 等 5 个 DTO）；新增 DeviceDataController（7 个接口）、DeviceTypeController（1 个接口）、DictMetricController（5 个接口）；DeviceController 新增告警配置接口（共 10 个）；新增 AlertRuleEngine 告警规则引擎；新增 DictMetricService 指标字典缓存服务；DeviceData 新增 metric 字段替代 dataUnit；Device/DeviceType 新增 alertRuleConfig JSON 字段；MyMetaObjectHandler 新增 collectTime 自动填充 |
+| v1.4 | 2026-05-16 | `[240739a]` 同步更新：AlertServiceImpl 新增3个告警统计方法（getStatsByDeviceId/getStatsByTimeRange/listDeviceAlertCountByTimeRange）和 batchHandle 批量处理；AlertMapper 新增3个自定义统计SQL；DeviceMapper 新增 getOnlineDetection；新增 task 包（DeviceMonitorTask 设备离线检测定时任务，cron 配置化）；IotPlatformApplication 新增 @EnableScheduling；application.yaml 新增 task.check-device-cron 配置 |
 
 ### 9.5 定期审核
 
@@ -340,7 +349,7 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-16。*
 
 > ---
 >
