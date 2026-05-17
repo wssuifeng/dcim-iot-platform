@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -36,4 +37,11 @@ public interface DeviceMapper extends BaseMapper<Device> {
      */
     @Select("SELECT status, COUNT(*) as count FROM devices GROUP BY status")
     List<java.util.Map<String, Object>> countByStatus();
+
+    /**
+     * 查看一定时间内没有上传心跳更新在线时间的设备
+     * @return 未更新在线时间设备表
+     */
+    @Select("SELECT * FROM devices WHERE last_online_time IS NULL OR last_online_time < #{checkTime}")
+    List<Device> getOnlineDetection(@Param("checkTime") LocalDateTime checkTime);
 }

@@ -1,6 +1,6 @@
 # config — 框架配置包
 
-> **版本**: v1.2 | **更新日期**: 2026-05-09
+> **版本**: v1.4 | **更新日期**: 2026-05-16
 
 ---
 
@@ -20,7 +20,8 @@
 config/MybatisPlusConfig    → 为 mapper 层提供分页等增强功能
 config/MyMetaObjectHandler  → 为 entity 层提供 createTime/updateTime 自动填充
 config/CorsConfig           → 为前后端分离开发提供跨域支持
-application.yaml            → 与 config 包互补，管理外部化配置
+@EnableScheduling           → 为 task 包提供定时任务调度能力
+application.yaml            → 与 config 包互补，管理外部化配置（含 task 定时任务 cron 表达式）
 ```
 
 ---
@@ -71,12 +72,13 @@ application.yaml            → 与 config 包互补，管理外部化配置
 
 **完整类名**: `com.example.platform.config.MyMetaObjectHandler`
 
-实现 `MetaObjectHandler` 接口，配合 Entity 中 `@TableField(fill = FieldFill.INSERT)` 等注解，自动填充 `createTime` 和 `updateTime` 字段。
+实现 `MetaObjectHandler` 接口，配合 Entity 中 `@TableField(fill = FieldFill.INSERT)` 等注解，自动填充 `createTime`、`updateTime` 和 `collectTime` 字段。
 
 #### 填充策略
 
 | 字段 | 填充时机 | 填充值 |
 |------|----------|--------|
+| `collectTime` | INSERT（插入时） | `LocalDateTime.now()` |
 | `createTime` | INSERT（插入时） | `LocalDateTime.now()` |
 | `updateTime` | INSERT + UPDATE（插入和更新时） | `LocalDateTime.now()` |
 
@@ -85,11 +87,57 @@ application.yaml            → 与 config 包互补，管理外部化配置
 ```
 执行 save() → MyBatis-Plus 检测到 fill = FieldFill.INSERT
     → 调用 MyMetaObjectHandler.insertFill()
-    → 自动设置 createTime = 当前时间, updateTime = 当前时间
+    → 自动设置 collectTime = 当前时间, createTime = 当前时间, updateTime = 当前时间
 
 执行 updateById() → MyBatis-Plus 检测到 fill = FieldFill.INSERT_UPDATE
     → 调用 MyMetaObjectHandler.updateFill()
     → 自动设置 updateTime = 当前时间
+```
+
+### 2.4 @EnableScheduling — 定时任务调度启用
+
+**注解位置**: `com.example.platform.IotPlatformApplication`（启动类）
+
+```java
+@SpringBootApplication
+@MapperScan("com.example.platform.mapper")
+@EnableScheduling
+public class IotPlatformApplication { ... }
+```
+
+#### 作用
+
+| 配置项 | 说明 |
+|--------|------|
+| `@EnableScheduling` | 启用 Spring 定时任务调度能力，使 `@Scheduled` 注解生效 |
+| 依赖模块 | `task/DeviceMonitorTask` 使用 `@Scheduled(cron = "${task.check-device-cron}")` |
+
+### 2.5 application.yaml — 定时任务配置
+
+**配置文件**: `src/main/resources/application.yaml`
+
+```yaml
+task:
+  check-device-cron: 0 0/5 * * * ?  # 每五分钟检查一次设备在线状态
+```
+
+#### 配置说明
+
+| 配置键 | 默认值 | 说明 | 引用位置 |
+|--------|--------|------|----------|
+| `task.check-device-cron` | `0 0/5 * * * ?` | 设备在线状态检查的 cron 表达式 | `DeviceMonitorTask.checkDeviceOnlineStatus()` |
+
+#### cron 表达式格式
+
+```
+0 0/5 * * * ?
+│ │  │ │ │ │
+│ │  │ │ │ └─ 星期（? 表示不指定）
+│ │  │ │ └─── 月份
+│ │  │ └───── 日期
+│ │  └─────── 小时（* 每小时）
+│ └────────── 分钟（0/5 从第0分钟开始，每5分钟）
+└──────────── 秒（0 整秒触发）
 ```
 
 ---
@@ -161,6 +209,8 @@ Access-Control-Max-Age: 3600
 | 分页查询报错 | 分页插件未注册 | `MybatisPlusConfig` 已启用，确保类有 `@Configuration` 和 `@Bean` 注解 |
 | 配置类不生效 | 缺少 `@Configuration` 注解 | 确保类上有 `@Configuration` 注解 |
 | Bean 冲突 | 多个配置类注册了相同类型的 Bean | 使用 `@Primary` 或 `@Qualifier` 指定优先级 |
+| 定时任务不执行 | `@EnableScheduling` 未添加 | 确保启动类上有 `@EnableScheduling` 注解 |
+| cron 表达式不生效 | `@Scheduled` 未读取到配置值 | 检查 `application.yaml` 中 `task.check-device-cron` 配置是否存在 |
 
 ---
 
@@ -171,10 +221,12 @@ Access-Control-Max-Age: 3600
 | v1.0 | 2026-05-04 | — | 初始版本，MybatisPlusConfig 为注释状态 |
 | v1.1 | 2026-05-08 | `[f88934db]` | MybatisPlusConfig 已正式启用；新增 MyMetaObjectHandler 自动填充处理器文档 |
 | v1.2 | 2026-05-09 | `[0e2c8e48]` | 新增 CorsConfig 跨域配置类文档 |
+| v1.3 | 2026-05-15 | `[05b8ff81]` | MyMetaObjectHandler 新增 `collectTime` 自动填充（设备数据采集时间） |
+| v1.4 | 2026-05-16 | `[240739a]` | 新增 `@EnableScheduling` 定时任务调度启用说明；新增 `application.yaml` 中 `task.check-device-cron` 配置说明 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-16。*
 
 > ---
 >

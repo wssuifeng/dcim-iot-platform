@@ -1,6 +1,6 @@
 # controller — 控制器包
 
-> **版本**: v1.2 | **更新日期**: 2026-05-09
+> **版本**: v1.4 | **更新日期**: 2026-05-16
 
 ---
 
@@ -28,6 +28,7 @@
 - **调用 Service**：Controller 不直接操作数据库，而是调用 Service 层方法
 - **使用 common**：通过 `Result.success()` / `Result.error()` 封装响应；抛出 `BusinessException` 子类
 - **接收 entity**：请求参数使用 entity 类接收，配合 `@Validated` 分组校验
+- **接收 dto**：复杂请求参数使用 DTO 类接收，如 `AlertRuleConfig`、`DeviceDataBatchDTO`
 
 ---
 
@@ -37,7 +38,7 @@
 
 **完整类名**: `com.example.platform.controller.DeviceController`
 
-**当前状态**：✅ 已实现 9 个接口
+**当前状态**：✅ 已实现 10 个接口
 
 #### 接口列表
 
@@ -52,6 +53,7 @@
 | `GET` | `/devices/search?name=` | 模糊搜索设备 | `Result<List<Device>>` | 手动校验 name 非空 |
 | `PUT` | `/devices/{id}/status?status=` | 更新设备状态 | `Result<Void>` | 手动校验 status 范围 0-2 |
 | `GET` | `/devices/page` | 分页查询设备 | `Result<Page<Device>>` | 可选 status、name 筛选 |
+| `PUT` | `/devices/{id}/alert-config` | 更新设备级告警规则 | `Result<?>` | `@Validated` + `@RequestBody AlertRuleConfig` |
 
 #### 接口详细说明
 
@@ -87,6 +89,12 @@
 
 - 手动校验 `status` 值范围（0-2），超出范围返回 400 错误
 
+**PUT /devices/{id}/alert-config**
+
+- 更新设备级别的告警规则配置，请求体为 `AlertRuleConfig` DTO
+- 使用 `@Validated` 自动校验规则列表非空、字段完整性
+- 配置通过 `JacksonTypeHandler` 以 JSON 格式存入 `alert_rule_config` 字段
+
 #### 注入方式
 
 ```java
@@ -108,10 +116,103 @@ public DeviceController(DeviceService deviceService) {
 | `@GetMapping` | 映射 GET 请求 | `@GetMapping("/{id}")` |
 | `@PostMapping` | 映射 POST 请求 | `@PostMapping` |
 | `@PutMapping` | 映射 PUT 请求 | `@PutMapping("/{id}")` |
+| `@DeleteMapping` | 映射 DELETE 请求 | `@DeleteMapping("/{id}")` |
 | `@PathVariable` | 获取路径参数 | `@PathVariable Integer id` |
 | `@RequestParam` | 获取查询参数 | `@RequestParam String name` |
 | `@RequestBody` | 获取请求体 JSON | `@RequestBody Device device` |
 | `@Validated` | 触发分组参数校验 | `@Validated(CreateGroup.class) @RequestBody Device device` |
+| `@DateTimeFormat` | 格式化日期参数 | `@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")` |
+
+### 2.2 DeviceDataController — 设备数据控制器
+
+**完整类名**: `com.example.platform.controller.DeviceDataController`
+
+**当前状态**：✅ 已实现 7 个接口
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `POST` | `/device-data` | 单条数据上报（含告警检查） | `Result<Void>` | `@Valid @RequestBody DeviceData` |
+| `POST` | `/device-data/batch` | 批量数据上报（含告警检查） | `Result<Void>` | `@Valid @RequestBody DeviceDataBatchDTO` |
+| `GET` | `/device-data/device/{deviceId}` | 分页查询设备历史数据 | `Result<Page<DeviceData>>` | 默认 current=1, size=20 |
+| `GET` | `/device-data/device/{deviceId}/latest` | 查询设备最新一条数据 | `Result<DeviceData>` | 无 |
+| `GET` | `/device-data/device/{deviceId}/range` | 按时间段查询数据 | `Result<List<DeviceData>>` | `startTime`, `endTime` 必填 |
+| `GET` | `/device-data/device/{deviceId}/statistics` | 时间段内统计数据 | `Result<Map<String, Object>>` | `startTime`, `endTime` 必填 |
+| `GET` | `/device-data/page` | 全局分页查询数据 | `Result<Page<DeviceData>>` | 可选 deviceId 筛选 |
+
+#### 接口详细说明
+
+**POST /device-data**
+
+- 接收单条设备数据，调用 `deviceDataService.saveWithAlertCheck()` 保存并触发告警检查
+- 设备不存在时抛出 `DeviceNotFoundException`
+
+**POST /device-data/batch**
+
+- 批量接收设备数据（1-1000条），逐条保存并触发告警检查
+- 请求体使用 `DeviceDataBatchDTO` 封装
+
+**GET /device-data/device/{deviceId}/range**
+
+- 查询指定设备在时间段内的采集数据，参数格式 `yyyy-MM-dd HH:mm:ss`
+- 先校验设备存在性，再查询数据
+
+**GET /device-data/device/{deviceId}/statistics**
+
+- 返回统计数据：`minVal`（最小值）、`maxVal`（最大值）、`avgVal`（平均值）、`count`（数据条数）
+- 无数据时返回 null 值占位
+
+#### 注入方式
+
+```java
+private final DeviceDataService deviceDataService;
+private final DeviceService deviceService;
+```
+
+使用构造器注入，同时依赖 `DeviceDataService` 和 `DeviceService`（用于设备存在性校验）。
+
+### 2.3 DeviceTypeController — 设备类型控制器
+
+**完整类名**: `com.example.platform.controller.DeviceTypeController`
+
+**当前状态**：✅ 已实现 1 个接口
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `PUT` | `/api/device-types/{id}/alert-config` | 更新设备类型级告警规则 | `Result<?>` | `@Validated @RequestBody AlertRuleConfig` |
+
+#### 接口详细说明
+
+**PUT /api/device-types/{id}/alert-config**
+
+- 更新设备类型的默认告警规则配置
+- 设备类型不存在时抛出 `DeviceTypeNotFound`
+- 该配置作为设备级告警规则的降级方案（设备未配规则时使用类型级规则）
+
+### 2.4 DictMetricController — 指标字典控制器
+
+**完整类名**: `com.example.platform.controller.DictMetricController`
+
+**当前状态**：✅ 已实现 5 个接口
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `GET` | `/api/metric/page` | 分页查询指标字典 | `Page<DictMetric>` | 默认 current=1, size=10 |
+| `POST` | `/api/metric` | 新增指标 | `boolean` | `@RequestBody DictMetric` |
+| `PUT` | `/api/metric` | 更新指标 | `boolean` | `@RequestBody DictMetric` |
+| `DELETE` | `/api/metric/{id}` | 删除指标 | `boolean` | 无 |
+| `POST` | `/api/metric/refreshCache` | 手动刷新缓存 | `String` | 无 |
+
+#### 特点
+
+- 使用 `@RequiredArgsConstructor` 替代手写构造器
+- CRUD 操作自动维护内存缓存一致性
+- 返回类型未使用 `Result<T>` 统一封装（直接返回 MyBatis-Plus 的 `Page` 和 `boolean`）
 
 ---
 
@@ -277,10 +378,12 @@ PUT /api/devices/1/status?status=0
 | v1.0 | 2026-05-04 | — | 初始版本，Controller 为空类，文档为推荐设计 |
 | v1.1 | 2026-05-08 | `[f88934db]` | DeviceController 已实现 7 个完整接口；新增 `@Validated` 分组校验说明；更新注入方式为构造器注入；异常处理改为委托 GlobalExceptionHandler |
 | v1.2 | 2026-05-09 | `[0e2c8e48]` | 新增 `GET /devices/page` 分页查询接口和 `DELETE /devices/{id}` 删除接口（共 9 个接口）；`getById` 和 `update` 改用 `getDeviceOrThrow`；`update` 逻辑优化（防御性ID校验+乐观锁提示）；跨域问题已由 CorsConfig 解决 |
+| v1.3 | 2026-05-15 | `[05b8ff81]` | DeviceController 新增 `PUT /devices/{id}/alert-config` 告警配置接口（共 10 个）；新增 DeviceDataController（7 个接口：数据上报/批量上报/历史查询/最新数据/时间段查询/统计/分页）；新增 DeviceTypeController（1 个接口：类型级告警配置）；新增 DictMetricController（5 个接口：指标字典 CRUD + 缓存刷新） |
+| v1.4 | 2026-05-16 | `[240739a]` | DeviceDataController/DeviceController 注释风格统一为块注释；DeviceDataController.getStatistics 新增设备存在性校验（委托 DeviceService.getDeviceOrThrow） |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-16。*
 
 > ---
 >

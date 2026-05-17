@@ -1,8 +1,10 @@
 package com.example.platform.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -56,4 +58,11 @@ public interface DeviceService extends IService<Device> {
      * 更新设备状态
      */
     boolean updateStatus(Integer id, Integer status);
+
+    /*
+     * 设备级告警规则更新
+     */
+    void updateAlertConfig(Integer typeId, AlertRuleConfig alertRuleConfig);
+
+    List<Device> getOnlineDetection(LocalDateTime checkTime);
 }

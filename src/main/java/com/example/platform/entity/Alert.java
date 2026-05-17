@@ -2,13 +2,16 @@ package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
 @TableName("alerts")
 public class Alert implements Serializable {
-
+    @Serial
+    private static final long serialVersionUID = 1L;
     /** 告警ID（主键，自增） */
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
@@ -34,7 +37,7 @@ public class Alert implements Serializable {
     private Integer isHandled;
 
     /** 处理时间 */
-    @TableField("handle_time")
+    @TableField(value = "handle_time")
     private LocalDateTime handleTime;
 
     /** 处理人（用户名或工号） */
@@ -42,7 +45,7 @@ public class Alert implements Serializable {
     private String handleUser;
 
     /** 告警产生时间 */
-    @TableField("create_time")
+    @TableField(value = "create_time" , fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     /*

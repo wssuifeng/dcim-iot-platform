@@ -3,15 +3,16 @@ package com.example.platform.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-
 import com.example.platform.common.exception.DeviceCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceNotFoundException;
+import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 import com.example.platform.mapper.DeviceMapper;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -88,7 +89,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         deviceCodeExists(device.getDeviceCode());
 
         // 2. 校验设备类型是否存在（跨服务校验，类型ID无效则抛出异常阻断流程）
-        deviceTypeService.typeIdExists(device.getTypeId());
+        deviceTypeService.getTypeOrThrow(device.getTypeId());
 
         // 3. 校验通过后，调用父类 ServiceImpl 的 save 方法执行真正的 INSERT 操作
         return super.save(device);
@@ -132,6 +133,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
      * 设备存在性检查
      * @return 返回 Device
      */
+    @Override
     public Device getDeviceOrThrow(Integer id) {
         Device device = getById(id);
         if (device == null) {
@@ -140,4 +142,16 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         return device;
     }
 
+    @Override
+    public void updateAlertConfig(Integer typeId, AlertRuleConfig alertRuleConfig) {
+        Device device = getDeviceOrThrow(typeId);
+        // 直接 set 对象，MyBatis-Plus 保存时自动转 JSON 存入数据库
+        device.setAlertRuleConfig(alertRuleConfig);
+        this.updateById(device);
+    }
+
+    @Override
+    public List<Device> getOnlineDetection(LocalDateTime checkTime) {
+        return baseMapper.getOnlineDetection(checkTime);
+    }
 }

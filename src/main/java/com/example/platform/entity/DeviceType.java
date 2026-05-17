@@ -1,12 +1,14 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.example.platform.dto.AlertRuleConfig;
 import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("device_types")
+@TableName(value="device_types",autoResultMap = true)
 public class DeviceType implements Serializable {
 
     /** 类型ID（主键，自增） */
@@ -32,6 +34,9 @@ public class DeviceType implements Serializable {
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
+    //  设备类型级别告警规则
+    @TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)
+    private AlertRuleConfig alertRuleConfig;
     /*
      * 逻辑删除字段（当前未启用）
      * 如需开启逻辑删除，请：

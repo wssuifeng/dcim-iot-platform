@@ -1,6 +1,6 @@
 # entity — 实体类包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v1.3 | **更新日期**: 2026-05-16
 
 ---
 
@@ -51,6 +51,7 @@
 | `lastOnlineTime` | `LocalDateTime` | `last_online_time` | 否 | - | 无（系统自动记录） | 最后在线时间 |
 | `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 无 | 创建时间 |
 | `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 无 | 更新时间 |
+| `alertRuleConfig` | `AlertRuleConfig` | `alert_rule_config` | 否 | - | 无 | 设备级告警规则配置（JSON 格式，使用 `JacksonTypeHandler`） |
 
 #### 校验注解详解
 
@@ -77,6 +78,7 @@
 | `description` | `String` | `description` | 否 | - | 类型描述 |
 | `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 创建时间 |
 | `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 更新时间 |
+| `alertRuleConfig` | `AlertRuleConfig` | `alert_rule_config` | 否 | - | 设备类型级告警规则配置（JSON 格式，使用 `JacksonTypeHandler`） |
 
 ### 2.3 DeviceData — 设备数据实体
 
@@ -88,10 +90,10 @@
 | 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
 |--------|-----------|-----------|------|--------|------|
 | `id` | `Long` | `id` | 是 | 自增 | 数据ID（主键，BIGINT 类型） |
-| `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表） |
-| `dataValue` | `BigDecimal` | `data_value` | 否 | - | 数据值（保留两位小数） |
-| `dataUnit` | `String` | `data_unit` | 否 | - | 数据单位（如 ℃、%） |
-| `collectTime` | `LocalDateTime` | `collect_time` | 否 | - | 采集时间 |
+| `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表），`@NotNull` |
+| `metric` | `String` | `metric` | 否 | - | 数据指标标识（如 temperature、humidity），替代原 dataUnit |
+| `dataValue` | `BigDecimal` | `data_value` | 是 | - | 数据值，`@NotNull` + `@DecimalMin(-999.99)` + `@DecimalMax(999.99)` |
+| `collectTime` | `LocalDateTime` | `collect_time` | 否 | 自动填充 | 采集时间 |
 
 ### 2.4 Alert — 告警实体
 
@@ -105,14 +107,29 @@
 | `id` | `Integer` | `id` | 是 | 自增 | 告警ID（主键） |
 | `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表） |
 | `alertType` | `String` | `alert_type` | 是 | - | 告警类型（如"高温告警"） |
-| `alertLevel` | `Integer` | `alert_level` | 否 | 1 | 告警级别：1-一般，2-严重，3-紧急 |
+| `alertLevel` | `Integer` | `alert_level` | 否 | 1 | 告警级别：1-紧急，2-严重，3-一般，4-警告，5-提示，`@Min(1)` `@Max(5)` |
 | `alertMessage` | `String` | `alert_message` | 否 | - | 告警详细描述 |
 | `isHandled` | `Integer` | `is_handled` | 否 | 0 | 是否处理：0-未处理，1-已处理 |
 | `handleTime` | `LocalDateTime` | `handle_time` | 否 | - | 处理时间 |
 | `handleUser` | `String` | `handle_user` | 否 | - | 处理人 |
-| `createTime` | `LocalDateTime` | `create_time` | 否 | - | 告警产生时间 |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 告警产生时间 |
 
-### 2.5 实体间关系
+### 2.5 DictMetric — 指标字典实体
+
+**完整类名**: `com.example.platform.entity.DictMetric`
+**对应表名**: `dict_metric`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
+|--------|-----------|-----------|------|--------|------|
+| `id` | `Integer` | `id` | 是 | 自增 | 主键 |
+| `metricKey` | `String` | `metric_key` | 是 | - | 指标标识（如 temperature） |
+| `metricName` | `String` | `metric_name` | 是 | - | 指标中文名（如 温度） |
+| `metricUnit` | `String` | `metric_unit` | 否 | - | 数据单位（如 ℃） |
+| `description` | `String` | `description` | 否 | - | 描述说明 |
+
+### 2.6 实体间关系
 
 ```
 device_types (1) ──── (N) devices (1) ──── (N) device_data
@@ -137,6 +154,8 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 | `@TableId` | 标记主键字段 | `@TableId(value = "id", type = IdType.AUTO)` |
 | `@TableField` | 映射数据库字段名 | `@TableField("device_name")` |
 | `@TableField(fill = ...)` | 自动填充字段 | `@TableField(value = "create_time", fill = FieldFill.INSERT)` |
+| `@TableField(typeHandler = ...)` | 指定字段类型处理器 | `@TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)` |
+| `@TableName(autoResultMap = true)` | 启用自动结果映射（typeHandler 必需） | `@TableName(value = "devices", autoResultMap = true)` |
 | `@TableLogic` | 逻辑删除标记 | 当前已注释，未启用 |
 
 #### Jakarta Validation 注解
@@ -218,7 +237,10 @@ alertService.save(alert);
 | 分组校验遗漏 | 未指定 `groups` 导致校验不执行 | Entity 字段的校验注解必须通过 `groups` 声明所属分组，Controller 的 `@Validated` 也必须指定对应分组 |
 | 逻辑删除未启用 | `deleted` 字段已预留但被注释 | 取消注释并修改 `application.yaml` 配置即可启用 |
 | 时间自动填充 | `createTime`/`updateTime` 由 `MyMetaObjectHandler` 自动填充 | ✅ 已实现，无需手动设置 |
+| Alert alertLevel 注释不一致 | 源码 `Alert.java` 注释为"1-一般，2-严重，3-紧急"（3级），但 `AlertRuleDefinition.level` 校验为 `@Min(1) @Max(5)`（5级） | 实际业务逻辑使用5级体系，源码注释待更新 |
 | BigDecimal 精度 | `DeviceData.dataValue` 使用 `BigDecimal` | 避免使用 `double`，防止浮点精度丢失 |
+| JSON 字段存储 | `alertRuleConfig` 使用 `JacksonTypeHandler` | `@TableName` 必须设置 `autoResultMap = true`，否则查询时 JSON 不会反序列化 |
+| 指标标识替代单位 | `DeviceData` 新增 `metric` 字段替代原 `dataUnit` | `metric` 关联 `DictMetric.metricKey`，通过字典服务获取中文单位 |
 | Lombok 不生效 | IDE 未安装 Lombok 插件 | IntelliJ IDEA 需安装 Lombok 插件并开启注解处理 |
 
 ---
@@ -229,10 +251,12 @@ alertService.save(alert);
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，包含 4 个实体类基本字段说明 |
 | v1.1 | 2026-05-08 | `[f88934db]` | Device 实体新增 Jakarta Validation 校验注解（@NotBlank/@NotNull/@Size/@Pattern/@Min/@Max）及分组校验说明；更新字段必填状态；新增校验注解详解章节 |
+| v1.2 | 2026-05-15 | `[05b8ff81]` | Device/DeviceType 新增 `alertRuleConfig` JSON 字段（JacksonTypeHandler）；DeviceData 新增 `metric` 字段替代 `dataUnit`，新增校验注解（@NotNull/@DecimalMin/@DecimalMax），`collectTime` 改为自动填充；Alert 告警级别更新为 1-5 级，`createTime` 改为自动填充；新增 DictMetric 指标字典实体；新增 JSON 字段和 autoResultMap 注解说明 |
+| v1.3 | 2026-05-16 | `[240739a]` | 标注 Alert alertLevel 源码注释（3级）与业务逻辑（5级）不一致问题 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-16。*
 
 > ---
 >

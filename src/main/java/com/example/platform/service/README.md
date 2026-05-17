@@ -1,6 +1,6 @@
 # service — 业务逻辑层包
 
-> **版本**: v1.2 | **更新日期**: 2026-05-09
+> **版本**: v1.4 | **更新日期**: 2026-05-16
 
 ---
 
@@ -33,11 +33,14 @@ service/
 ├── DeviceDataService.java      # 设备数据服务接口
 ├── DeviceService.java          # 设备服务接口
 ├── DeviceTypeService.java      # 设备类型服务接口
+├── DictMetricService.java      # 指标字典服务接口
 └── impl/                       # 实现类目录
+    ├── AlertRuleEngine.java    # 告警规则引擎
     ├── AlertServiceImpl.java
     ├── DeviceDataServiceImpl.java
     ├── DeviceServiceImpl.java
-    └── DeviceTypeServiceImpl.java
+    ├── DeviceTypeServiceImpl.java
+    └── DictMetricServiceImpl.java
 ```
 
 ---
@@ -92,6 +95,8 @@ service/
 | `findByNameLike(String name)` | `List<Device>` | `name`: 设备名称关键词 | 根据名称模糊查询设备 |
 | `findOnlineDevices()` | `List<Device>` | 无 | 查询所有在线设备（status = 1），按 updateTime 倒序 |
 | `updateStatus(Integer id, Integer status)` | `boolean` | `id`: 设备ID, `status`: 新状态值 | 更新设备状态 |
+| `updateAlertConfig(Integer id, AlertRuleConfig config)` | `void` | `id`: 设备ID, `config`: 告警规则配置 | 更新设备级告警规则配置 |
+| `getOnlineDetection(LocalDateTime checkTime)` | `List<Device>` | `checkTime`: 检查时间阈值 | 查询指定时间之前未更新在线时间的设备（含从未上线） |
 
 #### 实现类
 
@@ -113,7 +118,7 @@ service/
 | 校验项 | 校验方式 | 失败时抛出异常 |
 |--------|----------|---------------|
 | 设备编码唯一性 | `lambdaQuery().eq(Device::getDeviceCode, code).count() > 0` | `DeviceCodeAlreadyExistsException` |
-| 设备类型存在性 | `deviceTypeService.getById(typeId) == null` | `DeviceTypeNotFound` |
+| 设备类型存在性 | `deviceTypeService.getTypeOrThrow(typeId)` | `DeviceTypeNotFound` |
 
 #### DeviceServiceImpl 特有方法（未声明在接口中）
 
@@ -123,6 +128,7 @@ service/
 |----------|----------|------|
 | `findByTypeId(Integer typeId)` | `List<Device>` | 根据设备类型 ID 查询设备列表 |
 | `countByStatus()` | `List<Map<String, Object>>` | 按状态分组统计设备数量，委托 `baseMapper.countByStatus()` |
+| `updateAlertConfig(Integer id, AlertRuleConfig config)` | `void` | 更新设备级告警规则，通过 `JacksonTypeHandler` 存为 JSON |
 
 ### 2.3 DeviceTypeService — 设备类型服务接口
 
@@ -133,6 +139,8 @@ service/
 
 | 方法签名 | 返回类型 | 参数 | 说明 |
 |----------|----------|------|------|
+| `updateAlertConfig(Integer typeId, AlertRuleConfig config)` | `void` | `typeId`: 类型ID, `config`: 告警规则配置 | 更新设备类型级告警规则配置 |
+| `getTypeOrThrow(int typeId)` | `DeviceType` | `typeId`: 类型ID | 类型存在性校验，不存在时抛出 `DeviceTypeNotFound` |
 | `findByTypeCode(String typeCode)` | `DeviceType` | `typeCode`: 类型编码 | 根据类型编码查询设备类型 |
 
 #### 实现类
@@ -143,6 +151,8 @@ service/
 
 | 方法 | 实现方式 | 说明 |
 |------|----------|------|
+| `updateAlertConfig` | `getTypeOrThrow` + `updateById` | 先校验存在性，再 set 配置对象并更新 |
+| `getTypeOrThrow` | `getById(typeId)` + null 检查 | 不存在时抛出 `DeviceTypeNotFound`，替代原 `typeIdExists` |
 | `findByTypeCode` | 使用 `LambdaQueryWrapper` | 构建 `type_code = typeCode` 条件查询单条记录 |
 
 ### 2.4 DeviceDataService — 设备数据服务接口
@@ -150,17 +160,24 @@ service/
 **完整类名**: `com.example.platform.service.DeviceDataService`
 **继承**: `IService<DeviceData>`
 
-> 接口层当前仅继承通用方法。以下自定义方法定义在实现类中。
-
-**实现类**: `DeviceDataServiceImpl`
-**注解**: `@Service` ✅
-
-#### DeviceDataServiceImpl 自定义方法
+#### 自定义方法
 
 | 方法签名 | 返回类型 | 参数 | 说明 |
 |----------|----------|------|------|
 | `findByDeviceId(Integer deviceId)` | `List<DeviceData>` | `deviceId`: 设备ID | 查询指定设备的所有数据，按采集时间倒序 |
 | `findLatestByDeviceId(Integer deviceId)` | `DeviceData` | `deviceId`: 设备ID | 查询指定设备的最新一条数据（LIMIT 1） |
+| `findByDeviceIdAndTimeRange(Integer deviceId, LocalDateTime startTime, LocalDateTime endTime)` | `List<DeviceData>` | `deviceId`: 设备ID, `startTime`/`endTime`: 时间范围 | 按时间段查询采集数据，按采集时间升序 |
+| `getStatistics(Integer deviceId, LocalDateTime startTime, LocalDateTime endTime)` | `Map<String, Object>` | 同上 | 获取时间段内统计数据（minVal/maxVal/avgVal/count） |
+| `saveWithAlertCheck(DeviceData deviceData)` | `void` | `deviceData`: 设备数据 | 保存数据并触发告警检查（`@Transactional`） |
+
+**实现类**: `DeviceDataServiceImpl`
+**注解**: `@Service` ✅
+
+#### DeviceDataServiceImpl 实现说明
+
+- `saveWithAlertCheck()`：校验设备存在 → 保存数据 → 调用 `AlertRuleEngine.evaluate()` 触发告警评估
+- `getStatistics()`：委托 `baseMapper.getStatisticsByDeviceIdAndTimeRange()`，无数据时返回 null 占位
+- 依赖 `AlertRuleEngine` 和 `DeviceService`（构造器注入）
 
 ### 2.5 AlertService — 告警服务接口
 
@@ -176,8 +193,46 @@ service/
 
 | 方法签名 | 返回类型 | 参数 | 说明 |
 |----------|----------|------|------|
-| `findByDeviceId(Integer deviceId)` | `List<Alert>` | `deviceId`: 设备ID | 查询指定设备的所有告警，按创建时间倒序 |
-| `findUnhandled()` | `List<Alert>` | 无 | 查询所有未处理告警（isHandled=0），按告警级别和创建时间倒序 |
+| `findByDeviceId(Integer deviceId)` | `List<Alert>` | `deviceId`: 设备ID | 按设备ID查询告警；`deviceId` 为 null 时返回 `Collections.emptyList()` |
+| `findUnhandled()` | `List<Alert>` | 无 | 查询所有未处理告警（`isHandled = 0`） |
+| `batchHandle(List<Integer> ids, String handleUser)` | `int` | `ids`: 告警ID列表, `handleUser`: 处理人 | `@Transactional`：批量处理未处理告警，空集合防御返回 0 |
+| `getStatsByDeviceId(Integer deviceId)` | `Map<String, Object>` | `deviceId`: 设备ID | 按设备统计告警数量/最高级别/平均级别/最低级别，先校验设备存在 |
+| `getStatsByTimeRange(LocalDateTime, LocalDateTime)` | `Map<String, Object>` | `startTime`/`endTime`: 时间范围 | 按时间区间统计告警数量/最高级别/平均级别/最低级别 |
+| `listDeviceAlertCountByTimeRange(LocalDateTime, LocalDateTime)` | `List<Map<String, Object>>` | `startTime`/`endTime`: 时间范围 | 按时间区间统计各设备告警数量，按告警数量降序排列 |
+
+#### AlertServiceImpl 依赖注入
+
+```java
+DeviceService deviceService;
+
+public AlertServiceImpl(DeviceService deviceService) {
+    this.deviceService = deviceService;
+}
+```
+
+### 2.6 DictMetricService — 指标字典服务接口
+
+**完整类名**: `com.example.platform.service.DictMetricService`
+**继承**: `IService<DictMetric>`
+
+#### 自定义方法
+
+| 方法签名 | 返回类型 | 参数 | 说明 |
+|----------|----------|------|------|
+| `initCache()` | `void` | 无 | 初始化内存缓存（`@PostConstruct` 启动时自动执行） |
+| `refreshCache()` | `void` | 无 | 刷新缓存（管理页面手动触发） |
+| `getFromCache(String metricKey)` | `DictMetric` | `metricKey`: 指标标识 | 从内存缓存读取指标元数据（高频读取） |
+| `removeById(Integer id)` | `boolean` | `id`: 主键 | 删除指标并同步移除缓存 |
+
+**实现类**: `DictMetricServiceImpl`
+**注解**: `@Service` ✅ + `@Slf4j`
+
+#### DictMetricServiceImpl 实现说明
+
+- 使用 `ConcurrentHashMap` 作为本地内存缓存，key 为 `metricKey`
+- 启动时通过 `@PostConstruct` 自动加载全量数据到缓存
+- 覆写 `save()`/`updateById()`/`removeById()` 方法，自动维护缓存一致性
+- `getFromCache()` 为高频读取方法，直接走内存缓存，不查数据库
 
 ---
 
@@ -264,8 +319,22 @@ public Result<Device> getById(@PathVariable Integer id) {
 // 查询设备最新一条采集数据
 DeviceData latest = deviceDataServiceImpl.findLatestByDeviceId(1);
 
-// 查询所有未处理告警（按级别和时间排序）
+// 查询所有未处理告警
 List<Alert> unhandled = alertServiceImpl.findUnhandled();
+```
+
+### 示例 7：告警聚合统计
+
+```java
+// 按设备统计告警
+Map<String, Object> stats = alertServiceImpl.getStatsByDeviceId(1);
+// 返回: {alertCount=5, maxLevel=1, avgLevel=2.4, minLevel=3}
+
+// 按时间区间统计各设备告警数量
+List<Map<String, Object>> deviceCounts = alertServiceImpl.listDeviceAlertCountByTimeRange(
+    LocalDateTime.of(2026, 5, 1, 0, 0),
+    LocalDateTime.of(2026, 5, 16, 0, 0));
+// 返回: [{deviceId=1, alertCount=8}, {deviceId=3, alertCount=5}, ...]
 ```
 
 ---
@@ -290,10 +359,12 @@ List<Alert> unhandled = alertServiceImpl.findUnhandled();
 | v1.0 | 2026-05-04 | — | 初始版本，部分实现类缺少 `@Service` 注解 |
 | v1.1 | 2026-05-08 | `[f88934db]` | 所有实现类已补全 `@Service` 注解；DeviceServiceImpl.save() 新增业务校验逻辑（编码唯一性+类型存在性）；DeviceTypeService 新增 `findByTypeCode()` 方法；Controller 注入方式改为构造器注入 |
 | v1.2 | 2026-05-09 | `[0e2c8e48]` | DeviceService 新增 `getDeviceOrThrow()` 接口方法；DeviceServiceImpl 新增 `findByTypeId()`、`countByStatus()` 方法；AlertServiceImpl 新增 `findByDeviceId()`、`findUnhandled()` 方法；DeviceDataServiceImpl 新增 `findByDeviceId()`、`findLatestByDeviceId()` 方法；DeviceTypeServiceImpl 新增 `findByTypeCode()` 方法 |
+| v1.3 | 2026-05-15 | `[05b8ff81]` | DeviceService 新增 `updateAlertConfig()` 方法；DeviceTypeService 重构 `typeIdExists` → `getTypeOrThrow`，新增 `updateAlertConfig()` 方法；DeviceDataService 新增 `findByDeviceIdAndTimeRange()`、`getStatistics()`、`saveWithAlertCheck()` 接口方法；新增 DictMetricService 指标字典服务（含内存缓存）；新增 AlertRuleEngine 告警规则引擎 |
+| v1.4 | 2026-05-16 | `[240739a]` | AlertServiceImpl 重大更新：新增3个告警统计方法（getStatsByDeviceId/getStatsByTimeRange/listDeviceAlertCountByTimeRange）、新增 batchHandle 批量处理、新增 DeviceService 注入、findUnhandled/findByDeviceId 简化排序；DeviceService 新增 getOnlineDetection |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-09。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-16。*
 
 > ---
 >
