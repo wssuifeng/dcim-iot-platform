@@ -2,16 +2,19 @@ package com.example.platform.dto;
 
 import com.example.platform.entity.DeviceData;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 
 import java.util.List;
 
+/*
+ * 类功能:设备数据批量上报DTO，封装一次批量上报的多条设备采集数据
+ * */
 @Data
 public class DeviceDataBatchDTO {
+
+    /** 设备数据列表 */
+    @NotEmpty(message = "数据列表不能为空")
     @Valid
-    @NotNull(message = "数据列表不能为空")
-    @Size(min = 1, max = 1000, message = "单次上报数量限制1-1000条")
     private List<DeviceData> dataList;
 }

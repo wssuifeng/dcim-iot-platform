@@ -6,8 +6,12 @@ import com.example.platform.service.DeviceTypeService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/*
+ * 类功能:设备类型接口层，提供设备类型的告警配置更新接口
+ * */
 @RestController
-@RequestMapping("/api/device-types")
+@RequestMapping("/device-types")
+@Validated
 public class DeviceTypeController {
 
     private final DeviceTypeService deviceTypeService;
@@ -16,15 +20,15 @@ public class DeviceTypeController {
         this.deviceTypeService = deviceTypeService;
     }
 
-    /**
-     * 更新设备类型的默认告警配置
-     * 前端传入的是标准的 JSON 对象，Spring 自动封装为 AlertRuleConfig
-     */
+    /*
+     * 方法功能:更新设备类型的默认告警配置
+     * 参数:id-设备类型ID（路径参数）, alertRuleConfig-告警规则配置对象
+     * 返回数据:Result<Void>-操作结果
+     * */
     @PutMapping("/{id}/alert-config")
-    public Result<?> updateAlertConfig(
+    public Result<Void> updateAlertConfig(
             @PathVariable Integer id,
-            @RequestBody @Validated AlertRuleConfig alertRuleConfig) { // 加上 @Validated 自动校验
-
+            @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
         deviceTypeService.updateAlertConfig(id, alertRuleConfig);
         return Result.success();
     }

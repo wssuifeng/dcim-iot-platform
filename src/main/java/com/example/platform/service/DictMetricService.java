@@ -3,24 +3,15 @@ package com.example.platform.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.entity.DictMetric;
 
+/*
+ * 类功能:指标字典服务接口，定义指标字典的缓存刷新方法
+ * */
 public interface DictMetricService extends IService<DictMetric> {
 
-    /**
-     * 初始化缓存（项目启动时自动执行）
-     */
-    void initCache();
-
-    /**
-     * 刷新缓存（管理页面手动触发）
-     */
-    void refreshCache();
-
-    /**
-     * 从缓存中获取指标元数据（高频读取）
-     */
-    DictMetric getFromCache(String metricKey);
     /*
-    * 根据ID删除
-    * */
-    boolean removeById(Integer id);
+     * 方法功能:手动刷新指标字典的内存缓存
+     * 参数:无
+     * 返回数据:无
+     * */
+    void refreshCache();
 }

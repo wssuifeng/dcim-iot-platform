@@ -6,20 +6,14 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * 告警规则配置顶层对象
- */
+/*
+ * 类功能:告警规则配置DTO，包含一组告警规则定义，用于设备级或类型级的告警配置更新
+ * */
 @Data
 public class AlertRuleConfig {
 
-    /**
-     * 告警规则列表，至少包含一条规则。
-     * 列表中的每条规则必须通过 {@link AlertRuleDefinition} 中定义的校验。
-     */
+    /** 告警规则定义列表 */
     @NotEmpty(message = "告警规则列表不能为空")
     @Valid
     private List<AlertRuleDefinition> rules;
-
-    // 未来还可以扩展通用配置，比如：告警静默期(秒)
-    // private Integer silentPeriod;
 }

@@ -7,6 +7,9 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:告警实体类，映射alerts表，记录设备产生的告警信息及其处理状态
+ * */
 @Data
 @TableName("alerts")
 public class Alert implements Serializable {
@@ -20,11 +23,11 @@ public class Alert implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    /** 告警类型（如“高温告警”） */
+    /** 告警类型（如"高温告警"） */
     @TableField("alert_type")
     private String alertType;
 
-    /** 告警级别：1-一般，2-严重，3-紧急 */
+    /** 告警级别：1-紧急，2-严重，3-一般，4-警告，5-提示 */
     @TableField("alert_level")
     private Integer alertLevel;
 

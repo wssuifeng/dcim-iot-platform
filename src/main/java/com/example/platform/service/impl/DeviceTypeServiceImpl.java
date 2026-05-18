@@ -1,6 +1,5 @@
 package com.example.platform.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.exception.DeviceTypeNotFound;
 import com.example.platform.dto.AlertRuleConfig;
@@ -9,26 +8,35 @@ import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.stereotype.Service;
 
+/*
+ * 类功能:设备类型服务实现类，负责设备类型的查询、存在性校验及告警配置更新
+ * */
 @Service
 public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceType> implements DeviceTypeService {
+
+    /*
+     * 方法功能:设备类型存在性检查，不存在则抛出DeviceTypeNotFound异常
+     * 参数:id-设备类型ID
+     * 返回数据:DeviceType-查询到的设备类型对象
+     * */
     @Override
-    public void updateAlertConfig(Integer typeId, AlertRuleConfig alertRuleConfig) {
-        DeviceType type = getTypeOrThrow(typeId);
-        // 直接 set 对象，MyBatis-Plus 保存时自动转 JSON 存入数据库
-        type.setAlertRuleConfig(alertRuleConfig);
-        this.updateById(type);
-    }
-    public DeviceType getTypeOrThrow(int typeId) {
-        DeviceType deviceType = getById(typeId);  // 直接根据主键查询，性能高
-        if (deviceType == null) {
-            throw new DeviceTypeNotFound(typeId);
+    public DeviceType getTypeOrThrow(Integer id) {
+        DeviceType type = getById(id);
+        if (type == null) {
+            throw new DeviceTypeNotFound(id);
         }
-        return deviceType;
+        return type;
     }
 
-    public DeviceType findByTypeCode(String typeCode) {
-        LambdaQueryWrapper<DeviceType> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceType::getTypeCode, typeCode);
-        return getOne(wrapper);
+    /*
+     * 方法功能:更新设备类型的默认告警规则配置
+     * 参数:id-设备类型ID, alertRuleConfig-告警规则配置对象
+     * 返回数据:无
+     * */
+    @Override
+    public void updateAlertConfig(Integer id, AlertRuleConfig alertRuleConfig) {
+        DeviceType type = getTypeOrThrow(id);
+        type.setAlertRuleConfig(alertRuleConfig);
+        updateById(type);
     }
 }
