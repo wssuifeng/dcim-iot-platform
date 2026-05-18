@@ -114,4 +114,11 @@ logging:
 
 # 设备监控时间字段配置
 task:
-  check-device-cron: 0 0/5 * * * ? #每五分钟检查一次在线状态
+  check-device-cron: 0 0/5 * * * ?
+  offline-threshold-seconds: 300
+
+# ==================== CORS跨域配置 ====================
+cors:
+  allowed-origins:
+    - http://localhost:*
+    - http://127.0.0.1:*

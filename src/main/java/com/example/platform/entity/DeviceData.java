@@ -1,6 +1,7 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.example.platform.common.group.CreateGroup;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -11,6 +12,9 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:设备数据实体类，映射device_data表，记录设备上报的采集数据及指标值
+ * */
 @Data
 @TableName("device_data")
 public class DeviceData implements Serializable {
@@ -23,17 +27,17 @@ public class DeviceData implements Serializable {
 
     /** 设备ID */
     @TableField("device_id")
-    @NotNull(message = "设备ID不能为空")
+    @NotNull(message = "设备ID不能为空", groups = CreateGroup.class)
     private Integer deviceId;
 
-    /** 数据指标标识（如 temperature、humidity） */
+    /** 指标标识（如 temperature） */
     @TableField("metric")
-    private String metric;  // <--- 新增字段，替代 dataUnit
+    private String metric;
 
     /** 数据值（保留两位小数） */
-    @NotNull(message = "数据值不能为空")
-    @DecimalMin(value = "-999.99", message = "数据值不能小于-999.99")
-    @DecimalMax(value = "999.99", message = "数据值不能超过999.99")
+    @NotNull(message = "数据值不能为空", groups = CreateGroup.class)
+    @DecimalMin(value = "-999.99", message = "数据值不能小于-999.99", groups = CreateGroup.class)
+    @DecimalMax(value = "999.99", message = "数据值不能超过999.99", groups = CreateGroup.class)
     @TableField("data_value")
     private BigDecimal dataValue;
 

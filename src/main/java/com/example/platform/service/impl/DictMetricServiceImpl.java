@@ -4,85 +4,51 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.entity.DictMetric;
 import com.example.platform.mapper.DictMetricMapper;
 import com.example.platform.service.DictMetricService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 import jakarta.annotation.PostConstruct;
+import org.springframework.stereotype.Service;
+
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Slf4j
+/*
+ * 类功能:指标字典服务实现类，维护指标字典的内存缓存，支持启动时加载和手动刷新
+ * */
 @Service
 public class DictMetricServiceImpl extends ServiceImpl<DictMetricMapper, DictMetric> implements DictMetricService {
 
-    // 本地内存缓存容器
-    private final Map<String, DictMetric> metricCacheMap = new ConcurrentHashMap<>();
+    /** 指标字典内存缓存，key为metricKey，value为DictMetric对象 */
+    private final ConcurrentHashMap<String, DictMetric> metricCache = new ConcurrentHashMap<>();
 
-    /**
-     * 项目启动时，自动加载全量配置到缓存
-     */
+    /*
+     * 方法功能:应用启动时自动加载指标字典到内存缓存
+     * 参数:无
+     * 返回数据:无
+     * */
     @PostConstruct
-    @Override
     public void initCache() {
-        refreshCache();
-        log.info("✅ 指标字典缓存初始化完成，共 {} 项", metricCacheMap.size());
+        loadCache();
     }
 
-    /**
-     * 刷新缓存的方法
-     */
+    /*
+     * 方法功能:手动刷新指标字典缓存，清空后重新从数据库加载
+     * 参数:无
+     * 返回数据:无
+     * */
     @Override
     public void refreshCache() {
-        metricCacheMap.clear();
-        List<DictMetric> list = this.list();
-        for (DictMetric metric : list) {
-            metricCacheMap.put(metric.getMetricKey(), metric);
-        }
+        metricCache.clear();
+        loadCache();
     }
 
-    /**
-     * 高频读取方法：直接走内存缓存
-     */
-    @Override
-    public DictMetric getFromCache(String metricKey) {
-        if (!StringUtils.hasText(metricKey)) {
-            return null;
+    /*
+     * 方法功能:从数据库全量加载指标字典到内存缓存
+     * 参数:无
+     * 返回数据:无
+     * */
+    private void loadCache() {
+        List<DictMetric> metrics = list();
+        for (DictMetric metric : metrics) {
+            metricCache.put(metric.getMetricKey(), metric);
         }
-        return metricCacheMap.get(metricKey);
-    }
-
-    // --- 重写增删改方法，自动维护缓存一致性 ---
-
-    @Override
-    public boolean save(DictMetric entity) {
-        boolean flag = super.save(entity);
-        if (flag) {
-            // 新增成功后，将其放入缓存
-            metricCacheMap.put(entity.getMetricKey(), entity);
-        }
-        return flag;
-    }
-
-    @Override
-    public boolean updateById(DictMetric entity) {
-        boolean flag = super.updateById(entity);
-        if (flag) {
-            // 更新成功后，覆盖缓存中的旧数据
-            metricCacheMap.put(entity.getMetricKey(), entity);
-        }
-        return flag;
-    }
-
-    @Override
-    public boolean removeById(Integer id) {
-        DictMetric entity = super.getById(id);
-        boolean flag = super.removeById(id);
-        if (flag && entity != null) {
-            // 删除成功后，将缓存中的数据移除
-            metricCacheMap.remove(entity.getMetricKey());
-        }
-        return flag;
     }
 }

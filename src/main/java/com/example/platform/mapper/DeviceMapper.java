@@ -1,47 +1,38 @@
 package com.example.platform.mapper;
 
-
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.platform.entity.Device;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
-/**
- * 设备Mapper接口
- * 继承BaseMapper后，自动拥有以下方法：
- * - insert(entity)：插入
- * - deleteById(id)：根据ID删除
- * - updateById(entity)：根据ID更新
- * - selectById(id)：根据ID查询
- * - selectList(wrapper)：条件查询列表
- * - selectPage(page, wrapper)：分页查询
- */
+/*
+ * 类功能:设备数据访问接口，提供设备的模糊查询、状态统计及离线检测等自定义方法
+ * */
 @Mapper
 public interface DeviceMapper extends BaseMapper<Device> {
 
-    /**
-     * 根据设备名称模糊查询
-     * @param name 设备名称
-     * @return 设备列表
-     */
-    @Select("SELECT * FROM devices WHERE device_name LIKE CONCAT('%', #{name}, '%')")
+    /*
+     * 方法功能:根据设备名称模糊查询设备列表
+     * 参数:name-设备名称关键词
+     * 返回数据:List<Device>-匹配的设备列表
+     * */
     List<Device> findByNameLike(@Param("name") String name);
 
-    /**
-     * 统计各状态的设备数量
-     * @return 统计结果
-     */
-    @Select("SELECT status, COUNT(*) as count FROM devices GROUP BY status")
-    List<java.util.Map<String, Object>> countByStatus();
+    /*
+     * 方法功能:按状态分组统计设备数量
+     * 参数:无
+     * 返回数据:List<Map<String, Object>>-每个Map包含status和count两个字段
+     * */
+    List<Map<String, Object>> countByStatus();
 
-    /**
-     * 查看一定时间内没有上传心跳更新在线时间的设备
-     * @return 未更新在线时间设备表
-     */
-    @Select("SELECT * FROM devices WHERE last_online_time IS NULL OR last_online_time < #{checkTime}")
+    /*
+     * 方法功能:查询最后在线时间早于指定阈值的设备（用于离线检测）
+     * 参数:checkTime-判定阈值时间
+     * 返回数据:List<Device>-离线设备列表
+     * */
     List<Device> getOnlineDetection(@Param("checkTime") LocalDateTime checkTime);
 }
