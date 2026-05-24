@@ -2,6 +2,7 @@ package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.entity.Alert;
 import com.example.platform.entity.Device;
@@ -23,6 +24,8 @@ import java.util.stream.Collectors;
  * */
 @Service
 public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements AlertService {
+
+    private static final int MAX_BATCH_HANDLE_SIZE = 50;
 
     private final DeviceService deviceService;
 
@@ -67,6 +70,9 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
     public int batchHandle(List<Integer> ids, String handleUser) {
         if (ids == null || ids.isEmpty()) {
             return 0;
+        }
+        if (ids.size() > MAX_BATCH_HANDLE_SIZE) {
+            throw new IllegalArgumentException("批量处理单次上限" + MAX_BATCH_HANDLE_SIZE + "条，当前" + ids.size() + "条");
         }
         LambdaUpdateWrapper<Alert> wrapper = new LambdaUpdateWrapper<Alert>()
                 .in(Alert::getId, ids)
@@ -152,5 +158,27 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             saveBatch(newAlerts);
         }
         return newAlerts.size();
+    }
+
+    @Override
+    public Page<Alert> pageByCondition(Integer current, Integer size, Integer deviceId,
+                                        Integer isHandled, Integer alertLevel,
+                                        LocalDateTime startTime, LocalDateTime endTime) {
+        Page<Alert> page = new Page<>(current, size);
+        LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
+        if (deviceId != null) {
+            wrapper.eq(Alert::getDeviceId, deviceId);
+        }
+        if (isHandled != null) {
+            wrapper.eq(Alert::getIsHandled, isHandled);
+        }
+        if (alertLevel != null) {
+            wrapper.eq(Alert::getAlertLevel, alertLevel);
+        }
+        if (startTime != null && endTime != null) {
+            wrapper.between(Alert::getCreateTime, startTime, endTime);
+        }
+        wrapper.orderByDesc(Alert::getCreateTime);
+        return page(page, wrapper);
     }
 }
