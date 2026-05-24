@@ -58,9 +58,6 @@ public class DictMetricServiceImpl extends ServiceImpl<DictMetricMapper, DictMet
     public boolean updateById(DictMetric entity) {
         boolean result = super.updateById(entity);
         if (result) {
-            if (entity.getMetricKey() != null) {
-                metricCache.put(entity.getMetricKey(), entity);
-            }
             refreshCache();
         }
         return result;
