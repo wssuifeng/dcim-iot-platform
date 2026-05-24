@@ -1,5 +1,6 @@
 package com.example.platform.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.entity.DictMetric;
 import com.example.platform.mapper.DictMetricMapper;
@@ -16,35 +17,65 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class DictMetricServiceImpl extends ServiceImpl<DictMetricMapper, DictMetric> implements DictMetricService {
 
-    /** 指标字典内存缓存，key为metricKey，value为DictMetric对象 */
     private final ConcurrentHashMap<String, DictMetric> metricCache = new ConcurrentHashMap<>();
 
-    /*
-     * 方法功能:应用启动时自动加载指标字典到内存缓存
-     * 参数:无
-     * 返回数据:无
-     * */
     @PostConstruct
     public void initCache() {
         loadCache();
     }
 
-    /*
-     * 方法功能:手动刷新指标字典缓存，清空后重新从数据库加载
-     * 参数:无
-     * 返回数据:无
-     * */
     @Override
     public void refreshCache() {
         metricCache.clear();
         loadCache();
     }
 
-    /*
-     * 方法功能:从数据库全量加载指标字典到内存缓存
-     * 参数:无
-     * 返回数据:无
-     * */
+    @Override
+    public DictMetric getFromCache(String metricKey) {
+        DictMetric cached = metricCache.get(metricKey);
+        if (cached != null) {
+            return cached;
+        }
+        LambdaQueryWrapper<DictMetric> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DictMetric::getMetricKey, metricKey);
+        DictMetric fromDb = getOne(wrapper);
+        if (fromDb != null) {
+            metricCache.put(metricKey, fromDb);
+        }
+        return fromDb;
+    }
+
+    @Override
+    public boolean save(DictMetric entity) {
+        boolean result = super.save(entity);
+        if (result && entity.getMetricKey() != null) {
+            metricCache.put(entity.getMetricKey(), entity);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean updateById(DictMetric entity) {
+        boolean result = super.updateById(entity);
+        if (result) {
+            if (entity.getMetricKey() != null) {
+                metricCache.put(entity.getMetricKey(), entity);
+            }
+            refreshCache();
+        }
+        return result;
+    }
+
+    @Override
+    public boolean removeById(Integer id) {
+        DictMetric existing = getById(id);
+        boolean result = super.removeById(id);
+        if (result && existing != null && existing.getMetricKey() != null) {
+            metricCache.remove(existing.getMetricKey());
+        }
+        return result;
+    }
+
     private void loadCache() {
         List<DictMetric> metrics = list();
         for (DictMetric metric : metrics) {
