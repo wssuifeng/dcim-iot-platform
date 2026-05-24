@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.platform.entity.Device;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,6 +21,7 @@ public interface DeviceMapper extends BaseMapper<Device> {
      * 参数:name-设备名称关键词
      * 返回数据:List<Device>-匹配的设备列表
      * */
+    @Select("SELECT * FROM devices WHERE device_name LIKE CONCAT('%', #{name}, '%') ORDER BY update_time DESC")
     List<Device> findByNameLike(@Param("name") String name);
 
     /*
@@ -27,6 +29,7 @@ public interface DeviceMapper extends BaseMapper<Device> {
      * 参数:无
      * 返回数据:List<Map<String, Object>>-每个Map包含status和count两个字段
      * */
+    @Select("SELECT status, COUNT(*) AS count FROM devices GROUP BY status ORDER BY status")
     List<Map<String, Object>> countByStatus();
 
     /*
@@ -34,5 +37,6 @@ public interface DeviceMapper extends BaseMapper<Device> {
      * 参数:checkTime-判定阈值时间
      * 返回数据:List<Device>-离线设备列表
      * */
+    @Select("SELECT * FROM devices WHERE last_online_time < #{checkTime} AND status != 0 ORDER BY last_online_time ASC")
     List<Device> getOnlineDetection(@Param("checkTime") LocalDateTime checkTime);
 }
