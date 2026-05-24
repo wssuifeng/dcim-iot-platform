@@ -1,6 +1,6 @@
 # dto — 数据传输对象包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -34,7 +34,10 @@ dto/
 ├── AlertRuleDefinition.java   # 单条告警规则定义
 ├── BatchHandleAlertDTO.java   # 批量处理告警请求
 ├── DeviceDataBatchDTO.java    # 批量上报设备数据请求
-└── HandleAlertDTO.java        # 单条告警处理请求
+├── HandleAlertDTO.java        # 单条告警处理请求
+├── LoginDTO.java              # 登录请求DTO
+├── LoginResponseDTO.java      # 登录成功响应DTO
+└── PasswordResetDTO.java      # 密码重置请求DTO
 ```
 
 ---
@@ -116,6 +119,49 @@ dto/
 |------|------|----------|------|
 | `handleUser` | `String` | `@NotBlank` | 处理人姓名 |
 | `alertId` | `Integer` | `@NotNull` + `@Min(1)` | 告警ID |
+
+### 2.6 LoginDTO — 登录请求DTO
+
+**完整类名**: `com.example.platform.dto.LoginDTO`
+
+封装用户认证所需的用户名和密码。
+
+#### 字段说明
+
+| 字段 | 类型 | 校验规则 | 说明 |
+|------|------|----------|------|
+| `username` | `String` | `@NotBlank(message = "用户名不能为空")` | 用户名 |
+| `password` | `String` | `@NotBlank(message = "密码不能为空")` | 密码（明文，Service 层 BCrypt 校验） |
+
+### 2.7 LoginResponseDTO — 登录成功响应DTO
+
+**完整类名**: `com.example.platform.dto.LoginResponseDTO`
+
+封装 JWT 令牌及用户基本信息，避免返回密码等敏感字段。
+
+#### 字段说明
+
+| 字段 | 类型 | 校验规则 | 说明 |
+|------|------|----------|------|
+| `token` | `String` | 无 | JWT 访问令牌 |
+| `tokenType` | `String` | 无 | 令牌类型，固定值 `"Bearer"` |
+| `expiresIn` | `Long` | 无 | 令牌有效时长（秒） |
+| `userId` | `Long` | 无 | 用户ID |
+| `username` | `String` | 无 | 用户名 |
+| `nickname` | `String` | 无 | 昵称 |
+| `role` | `String` | 无 | 角色标识（ADMIN/OPERATOR/VIEWER） |
+
+### 2.8 PasswordResetDTO — 密码重置请求DTO
+
+**完整类名**: `com.example.platform.dto.PasswordResetDTO`
+
+封装重置密码操作的请求参数。
+
+#### 字段说明
+
+| 字段 | 类型 | 校验规则 | 说明 |
+|------|------|----------|------|
+| `newPassword` | `String` | `@NotBlank` + `@Size(min=8, max=32)` + `@Pattern(^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,32}$)` | 新密码（明文8-32位，需包含大小写字母和数字，经 Service 层 BCrypt 加密后存储） |
 
 ---
 
@@ -208,10 +254,11 @@ Content-Type: application/json
 |------|------|--------|----------|
 | v1.0 | 2026-05-15 | `[05b8ff81]` | 初始版本，包含 AlertRuleConfig、AlertRuleDefinition、BatchHandleAlertDTO、DeviceDataBatchDTO、HandleAlertDTO 五个 DTO 类 |
 | v2.0 | 2026-05-17 | — | AlertRuleDefinition 字段名 `metric` → `metricKey`；`operator` 正则改为 GT/LT/GTE/LTE/EQ；`threshold` 类型由 `BigDecimal` 改为 `Double`；删除 `alertType` 字段；`messageTemplate` 占位符改为 `{metricName}/{unit}/{value}/{threshold}`；BatchHandleAlertDTO `ids` 字段移除无效类型注解，改为 `List<Integer>`；DeviceDataBatchDTO `dataList` 校验改为 `@NotEmpty` + `@Valid`；HandleAlertDTO 补充 `alertId` 字段说明 |
+| v3.0 | 2026-05-24 | — | 新增 LoginDTO（用户名+密码登录请求）；新增 LoginResponseDTO（Token+用户信息响应）；新增 PasswordResetDTO（密码重置请求，含复杂度校验） |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >

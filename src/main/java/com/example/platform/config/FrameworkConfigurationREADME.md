@@ -1,6 +1,6 @@
 # config — 框架配置包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -19,9 +19,13 @@
 ```
 config/MybatisPlusConfig    → 为 mapper 层提供乐观锁、分页等增强功能
 config/MyMetaObjectHandler  → 为 entity 层提供 createTime/updateTime 自动填充
-config/CorsConfig           → 为前后端分离开发提供跨域支持
+config/CorsConfig           → 为 Spring Security 过滤链提供 CORS 配置源
+config/SecurityConfig       → 为应用提供 JWT 认证、RBAC 鉴权、密码加密
+security/JwtAuthenticationFilter  → JWT Token 提取与校验过滤器
+security/CustomAuthenticationEntryPoint → 未认证请求返回 401 JSON
+security/CustomAccessDeniedHandler    → 权限不足请求返回 403 JSON
 @EnableScheduling           → 为 task 包提供定时任务调度能力
-application.yaml            → 与 config 包互补，管理外部化配置（含 task 定时任务 cron 表达式、CORS 允许源等）
+application.yaml            → 与 config 包互补，管理外部化配置（含 task 定时任务 cron 表达式、CORS 允许源、JWT 密钥等）
 ```
 
 ---
@@ -71,23 +75,25 @@ interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
 
 **完整类名**: `com.example.platform.config.CorsConfig`
 
-通过注册 `CorsFilter` Bean，为前后端分离开发提供 CORS（Cross-Origin Resource Sharing）跨域支持。
+通过注册 `CorsConfigurationSource` Bean，为 Spring Security 过滤链提供 CORS（Cross-Origin Resource Sharing）跨域配置。SecurityConfig 中的 `http.cors()` 会自动引用此 Bean。
 
 #### 配置内容
 
 | 配置项 | 值 | 说明 |
 |--------|-----|------|
-| `allowedOrigins` | 从配置文件动态读取 `@Value("${cors.allowed-origins}")` | 不再硬编码，支持生产环境灵活部署 |
+| `allowedOrigins` | 从配置文件动态读取 `@Value("${cors.allowed-origins}")` | 支持生产环境灵活部署 |
 | `addAllowedMethod` | `*` | 允许所有 HTTP 方法（GET/POST/PUT/DELETE 等） |
 | `addAllowedHeader` | `*` | 允许所有请求头（含 Authorization、Content-Type 等） |
 | `setAllowCredentials` | `true` | 允许携带 Cookie / Token 等凭证 |
 | `setMaxAge` | `3600L` | 预检请求（OPTIONS）缓存 1 小时 |
+| `registerCorsConfiguration` | `/**` | 对所有路径生效 |
 
 #### 安全说明
 
 - 使用 `addAllowedOriginPattern` 而非 `addAllowedOrigin("*")`，配合 `allowCredentials(true)` 是 Spring 5.3+ 的安全写法
-- `allowedOrigins` 改为从配置文件 `cors.allowed-origins` 动态读取（v2.0 修复），默认值为 `http://localhost:*,http://127.0.0.1:*`
+- `allowedOrigins` 从配置文件 `cors.allowed-origins` 动态读取，默认值为 `http://localhost:*,http://127.0.0.1:*`
 - 生产环境只需修改 `application.yaml` 中的 `cors.allowed-origins` 配置，无需改动代码
+- 返回 `CorsConfigurationSource` 类型 Bean，供 `SecurityConfig.securityFilterChain()` 中 `http.cors(cors -> cors.configurationSource(corsConfigurationSource))` 引用
 
 ### 2.3 MyMetaObjectHandler — 自动填充处理器
 
@@ -121,7 +127,110 @@ interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
     → setFieldValByName: updateTime = 当前时间（强制覆盖）
 ```
 
-### 2.4 @EnableScheduling — 定时任务调度启用
+### 2.4 SecurityConfig — Spring Security 核心配置类
+
+**完整类名**: `com.example.platform.config.SecurityConfig`
+
+通过 `@Configuration` + `@EnableWebSecurity` 注册，定义 JWT 过滤链、端点访问规则和 RBAC 鉴权策略。
+
+#### 注册的 Bean
+
+| Bean 名称 | 类型 | 说明 |
+|-----------|------|------|
+| `passwordEncoder` | `BCryptPasswordEncoder` | 密码加密器，用于用户注册/登录时的密码哈希 |
+| `customAuthenticationEntryPoint` | `CustomAuthenticationEntryPoint` | 未认证入口点，返回 401 JSON 响应 |
+| `customAccessDeniedHandler` | `CustomAccessDeniedHandler` | 权限不足处理器，返回 403 JSON 响应 |
+| `securityFilterChain` | `SecurityFilterChain` | 安全过滤链，定义认证/鉴权规则 |
+
+#### RBAC 权限层级
+
+| 角色 | 权限范围 |
+|------|----------|
+| `ADMIN` | 全部操作 + 用户管理 + 删除操作 + Druid 监控 + 审计日志清理 |
+| `OPERATOR` | 设备管理 + 告警处理 + 数据上报 + 只读查询 |
+| `VIEWER` | 只读查询（设备/数据/告警/日志） |
+
+#### 端点访问规则
+
+| 规则 | 路径/方法 | 允许角色 |
+|------|-----------|----------|
+| 公开端点 | `/auth/login` | 无需认证 |
+| Druid 监控 | `/druid/**` | ADMIN |
+| DELETE 操作 | 所有 DELETE 请求 | ADMIN |
+| 用户管理 | `/users/**` | ADMIN |
+| 审计日志 | `/audit-logs/**`（DELETE 由上方规则控制） | ADMIN, OPERATOR |
+| 设备写入/数据上报/指标创建 | POST `/devices`, `/device-data`, `/device-data/batch`, `/metric` | ADMIN, OPERATOR |
+| 设备更新/类型更新/指标更新 | PUT `/devices/**`, `/device-types/**`, `/metric` | ADMIN, OPERATOR |
+| 只读查询 | 所有 GET 请求 | 已认证用户（含 VIEWER） |
+| 兜底规则 | 其余请求 | 需认证 |
+
+#### 安全过滤链配置
+
+```
+1. CORS → 使用 CorsConfig 提供的 CorsConfigurationSource
+2. CSRF → 禁用（JWT 无状态，无需 CSRF 防护）
+3. Session → 无状态（SessionCreationPolicy.STATELESS）
+4. 异常处理 → CustomAuthenticationEntryPoint(401) + CustomAccessDeniedHandler(403)
+5. 授权规则 → 如上表
+6. JWT 过滤器 → JwtAuthenticationFilter 插入 UsernamePasswordAuthenticationFilter 之前
+```
+
+#### 设计说明
+
+- `CustomAuthenticationEntryPoint` 和 `CustomAccessDeniedHandler` 通过 `@Bean` 方法在 `SecurityConfig` 中创建，而非 `@Component` 自动扫描，避免 `ObjectMapper` 构造注入导致的循环依赖
+- JWT 过滤器在 Token 过期或无效时不抛出异常，仅不设置 `SecurityContext`，由后续 `AuthenticationEntryPoint` 返回 401
+
+### 2.5 security 子包 — JWT 认证与鉴权组件
+
+#### JwtAuthenticationFilter
+
+**完整类名**: `com.example.platform.security.JwtAuthenticationFilter`
+
+继承 `OncePerRequestFilter`，从请求头 `Authorization: Bearer <token>` 提取 JWT Token，校验签名与有效期，将用户身份与角色写入 `SecurityContext`。
+
+| 步骤 | 说明 |
+|------|------|
+| 1. 提取 Token | 从 `Authorization` 请求头中提取 `Bearer ` 前缀后的 Token |
+| 2. 解析 Claims | 调用 `jwtUtil.parseToken(token)` 解析 Token |
+| 3. 提取身份 | 从 Claims 中提取 `userId`（sub）、`username`、`role` |
+| 4. 构建权限 | 添加 `ROLE_` 前缀构建 `SimpleGrantedAuthority`，匹配 `hasRole()` 规则 |
+| 5. 设置上下文 | 将 `UsernamePasswordAuthenticationToken` 写入 `SecurityContextHolder` |
+
+异常处理：
+- `ExpiredJwtException`：Token 过期，不设置认证信息，由 `CustomAuthenticationEntryPoint` 返回 401
+- `JwtException`：Token 无效（签名错误/格式错误），不设置认证信息，由 `CustomAuthenticationEntryPoint` 返回 401
+
+#### CustomAuthenticationEntryPoint
+
+**完整类名**: `com.example.platform.security.CustomAuthenticationEntryPoint`
+
+实现 `AuthenticationEntryPoint`，当用户未携带有效 Token 访问受保护资源时返回 401 JSON 响应。
+
+返回格式：
+
+```json
+{
+  "code": 401,
+  "message": "未登录或Token已过期"
+}
+```
+
+#### CustomAccessDeniedHandler
+
+**完整类名**: `com.example.platform.security.CustomAccessDeniedHandler`
+
+实现 `AccessDeniedHandler`，当已认证用户访问超出其角色权限的资源时返回 403 JSON 响应。
+
+返回格式：
+
+```json
+{
+  "code": 403,
+  "message": "权限不足，无法访问该资源"
+}
+```
+
+### 2.6 @EnableScheduling — 定时任务调度启用
 
 **注解位置**: `com.example.platform.IotPlatformApplication`（启动类）
 
@@ -139,9 +248,7 @@ public class IotPlatformApplication { ... }
 | `@EnableScheduling` | 启用 Spring 定时任务调度能力，使 `@Scheduled` 注解生效 |
 | 依赖模块 | `task/DeviceMonitorTask` 使用 `@Scheduled(cron = "${task.check-device-cron}")` |
 
-### 2.5 application.yaml — 应用配置
-
-**配置文件**: `src/main/resources/application.yaml`
+### 2.7 application.yaml — 应用配置
 
 ```yaml
 # 设备监控时间字段配置
@@ -263,10 +370,11 @@ Access-Control-Max-Age: 3600
 | v1.3 | 2026-05-15 | `[05b8ff81]` | MyMetaObjectHandler 新增 `collectTime` 自动填充（设备数据采集时间） |
 | v1.4 | 2026-05-16 | `[240739a]` | 新增 `@EnableScheduling` 定时任务调度启用说明；新增 `application.yaml` 中 `task.check-device-cron` 配置说明 |
 | v2.0 | 2026-05-17 | — | MybatisPlusConfig 新增 `OptimisticLockerInnerInterceptor` 乐观锁插件（IoT 设备状态更新防丢失更新）；CorsConfig `allowedOrigins` 改为从配置文件动态读取 `@Value("${cors.allowed-origins}")`，不再硬编码；MyMetaObjectHandler `createTime` 改用 `strictInsertFill`（仅 null 时填充），`updateTime` 仍用 `setFieldValByName` 强制覆盖；`application.yaml` 新增 `cors.allowed-origins` 和 `task.offline-threshold-seconds` 配置项 |
+| v3.0 | 2026-05-24 | — | 新增 SecurityConfig 文档（JWT 过滤链、RBAC 鉴权、BCrypt 密码加密）；新增 security 子包文档（JwtAuthenticationFilter、CustomAuthenticationEntryPoint、CustomAccessDeniedHandler）；CorsConfig 改为提供 `CorsConfigurationSource` Bean 供 Spring Security 引用（不再注册 CorsFilter）；新增 JWT 相关配置项说明 |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >

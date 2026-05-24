@@ -1,6 +1,6 @@
 # service/impl — 业务逻辑实现包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -22,10 +22,13 @@
 service/impl/
 ├── AlertRuleEngine.java         # 告警规则引擎（@Component）
 ├── AlertServiceImpl.java        # 告警服务实现
+├── AuthServiceImpl.java         # 认证服务实现
 ├── DeviceDataServiceImpl.java   # 设备数据服务实现
 ├── DeviceServiceImpl.java       # 设备服务实现
 ├── DeviceTypeServiceImpl.java   # 设备类型服务实现
-└── DictMetricServiceImpl.java   # 指标字典服务实现（含缓存）
+├── DictMetricServiceImpl.java   # 指标字典服务实现（含缓存）
+├── SysAuditLogServiceImpl.java  # 审计日志服务实现
+└── SysUserServiceImpl.java      # 用户服务实现
 ```
 
 ---
@@ -233,6 +236,138 @@ public AlertServiceImpl(DeviceService deviceService) {
 | `updateById()` | 更新成功后 `put(metricKey, entity)` 覆盖 |
 | `removeById()` | 删除成功后 `remove(metricKey)` |
 
+### 2.7 AuthServiceImpl — 认证服务实现
+
+**完整类名**: `com.example.platform.service.impl.AuthServiceImpl`
+**实现接口**: `AuthService`
+**注解**: `@Service` + `@Slf4j`
+
+> 不继承 `ServiceImpl`，为独立业务实现类。
+
+#### 核心方法
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `login(LoginDTO loginDTO, String ip)` | `LoginResponseDTO` | `@Transactional`：用户登录认证，验证凭据并签发 JWT Token |
+
+#### 依赖注入
+
+```java
+private final SysUserService sysUserService;
+private final SysAuditLogService sysAuditLogService;
+private final JwtUtil jwtUtil;
+private final PasswordEncoder passwordEncoder;
+```
+
+#### 登录流程
+
+```
+1. IP频率检查 → ipFailCount >= 5 时拒绝请求（防止暴力破解）
+2. 查找用户 → findByUsername，不存在时记录审计日志并抛出统一错误提示（防止用户名枚举攻击）
+3. 检查账号锁定 → lockTime 未过期时抛出 AccountLockedException；锁定刚过期时自动重置计数
+4. 检查账号停用 → status == 1 时抛出 BusinessException(ACCOUNT_DISABLED)
+5. 验证密码 → BCrypt.matches() 比对明文与密文
+6. 登录成功 → 重置失败计数 → 签发 JWT Token → 记录 LOGIN_SUCCESS 审计日志 → 清除IP失败计数
+7. 登录失败 → 递增失败计数 → 记录 LOGIN_FAIL 审计日志 → 递增IP失败计数 → 抛出统一错误提示
+```
+
+#### IP频率限制
+
+- 使用 `ConcurrentHashMap<String, Integer>` 记录每个IP的登录失败次数
+- 同一IP连续失败5次后拒绝登录请求，提示"登录尝试过于频繁"
+- 登录成功时清除对应IP的失败计数
+
+#### 私有辅助方法
+
+| 方法 | 说明 |
+|------|------|
+| `checkAccountLocked(SysUser user)` | 检查账号锁定状态，锁定中抛出 `AccountLockedException`；锁定刚过期返回 `true`（已自动重置计数） |
+| `checkAccountDisabled(SysUser user)` | 检查账号是否停用，停用时抛出 `BusinessException(ACCOUNT_DISABLED)` |
+| `handleLoginFailure(SysUser user, String ip)` | 处理登录失败：递增失败计数、记录审计日志、递增IP失败计数、抛出统一错误 |
+| `buildLoginResponse(String token, SysUser user)` | 构建 `LoginResponseDTO` 响应对象 |
+
+#### 常量配置
+
+| 常量 | 值 | 说明 |
+|------|----|------|
+| `MAX_LOGIN_FAIL_COUNT` | 3 | 最大连续登录失败次数（达阈值后锁定账号） |
+| `LOCK_DURATION_MINUTES` | 10 | 账号锁定时长（分钟） |
+
+> **注意**：`MAX_LOGIN_FAIL_COUNT` 为 3 次，与 `SysUserServiceImpl.incrementLoginFailCount()` 中的阈值（3次）一致。锁定时长在 `SysUserServiceImpl` 中设置为 30 分钟，此处常量仅用于错误提示消息。
+
+### 2.8 SysUserServiceImpl — 用户服务实现
+
+**完整类名**: `com.example.platform.service.impl.SysUserServiceImpl`
+**继承**: `ServiceImpl<SysUserMapper, SysUser>`
+**实现接口**: `SysUserService`
+**注解**: `@Service`
+
+#### 依赖注入
+
+```java
+private final PasswordEncoder passwordEncoder;
+```
+
+#### 自定义方法
+
+| 方法 | 返回类型 | 事务 | 说明 |
+|------|----------|------|------|
+| `findByUsername(String username)` | `SysUser` | — | 委托 `baseMapper.findByUsername()` 查询 |
+| `getUserOrThrow(Long id)` | `SysUser` | — | `getById(id)` + null 检查，不存在抛出 `UserNotFoundException` |
+| `createUser(SysUser user)` | `boolean` | `@Transactional` | 校验用户名唯一性 → BCrypt 加密密码 → 设置默认值（status=0, role=VIEWER）→ 保存 |
+| `updateUser(SysUser user)` | `boolean` | `@Transactional` | 校验用户存在 → `LambdaUpdateWrapper` 仅更新 nickname/role（防止注入 password/status） |
+| `resetPassword(Long id, String newPassword)` | `void` | `@Transactional` | 校验用户存在 → BCrypt 加密新密码 → 更新 |
+| `updateStatus(Long id, Integer status)` | `void` | `@Transactional` | 校验用户存在 → 更新 status 字段 |
+| `pageUsers(Integer current, Integer size, String keyword)` | `Page<SysUser>` | — | 按用户名关键字分页查询，按创建时间倒序 |
+| `resetLoginFailCount(Long id)` | `void` | `@Transactional` | 重置 loginFailCount=0 并清除 lockTime |
+| `incrementLoginFailCount(Long id)` | `int` | `@Transactional` | SQL原子递增 `login_fail_count`，达3次时设置 `lockTime = now + 30分钟` |
+
+#### incrementLoginFailCount 并发安全
+
+```java
+// 使用 SQL 原子递增，避免并发竞态条件（read-then-write）
+wrapper.setSql("login_fail_count = COALESCE(login_fail_count, 0) + 1");
+```
+
+- 第1步：SQL 原子递增失败计数
+- 第2步：读取递增后的最新值
+- 第3步：达到阈值（3次）且尚未锁定时，设置锁定截止时间
+
+#### 安全设计
+
+| 设计点 | 说明 |
+|--------|------|
+| 密码存储 | BCrypt 加密，永不存储明文 |
+| 更新字段白名单 | `updateUser()` 仅允许更新 nickname/role，防止通过请求体注入 password/status |
+| 用户名唯一性 | `createUser()` 前校验，重复抛出 `UsernameAlreadyExistsException` |
+| 默认角色 | 新用户默认 role=VIEWER，status=0（正常） |
+
+### 2.9 SysAuditLogServiceImpl — 审计日志服务实现
+
+**完整类名**: `com.example.platform.service.impl.SysAuditLogServiceImpl`
+**继承**: `ServiceImpl<SysAuditLogMapper, SysAuditLog>`
+**实现接口**: `SysAuditLogService`
+**注解**: `@Service`
+
+#### 自定义方法
+
+| 方法 | 返回类型 | 事务 | 说明 |
+|------|----------|------|------|
+| `pageLogs(Integer, Integer, Long, String, LocalDateTime, LocalDateTime)` | `Page<SysAuditLog>` | — | 多条件分页查询，支持 userId/operation/时间范围筛选，按 createTime 倒序 |
+| `cleanExpiredLogs(LocalDateTime beforeTime)` | `int` | `@Transactional` | 委托 `baseMapper.deleteByCreateTimeBefore()` 清理过期日志（保留180天） |
+| `log(Long userId, String username, String operation, String ip, String detail)` | `void` | `@Transactional` | 创建并保存一条审计日志记录 |
+
+#### pageLogs 条件构建
+
+```java
+// 所有条件均为可选，动态拼接
+if (userId != null) wrapper.eq(SysAuditLog::getUserId, userId);
+if (operation != null && !operation.trim().isEmpty()) wrapper.eq(SysAuditLog::getOperation, operation);
+if (startTime != null) wrapper.ge(SysAuditLog::getCreateTime, startTime);
+if (endTime != null) wrapper.le(SysAuditLog::getCreateTime, endTime);
+wrapper.orderByDesc(SysAuditLog::getCreateTime);
+```
+
 ---
 
 ## 三、使用方法
@@ -313,10 +448,11 @@ List<Map<String, Object>> deviceCounts = alertService.listDeviceAlertCountByTime
 | v1.0 | 2026-05-15 | `[05b8ff81]` | 初始版本，包含 AlertRuleEngine 告警规则引擎、DeviceDataServiceImpl（5个自定义方法）、DeviceServiceImpl（新增 updateAlertConfig）、DeviceTypeServiceImpl（重构 typeIdExists → getTypeOrThrow，新增 updateAlertConfig）、DictMetricServiceImpl（内存缓存机制） |
 | v1.1 | 2026-05-16 | `[240739a]` | AlertServiceImpl 重大更新：新增3个告警统计方法（getStatsByDeviceId/getStatsByTimeRange/listDeviceAlertCountByTimeRange）、新增 DeviceService 注入、findUnhandled/findByDeviceId 简化排序、batchHandle 空集合防御；AlertRuleEngine 改用 getDeviceOrThrow；DeviceDataServiceImpl.getStatistics 新增设备校验；DeviceServiceImpl 新增 getOnlineDetection |
 | v2.0 | 2026-05-17 | — | AlertRuleEngine.getEffectiveRuleConfig() 添加 NPE 防御（deviceConfig.getRules()!=null, typeConfig.getRules()!=null）；告警升级方向修正为 rule.getLevel() < existingAlert.getAlertLevel()（级别数字越小越紧急）；AlertServiceImpl 新增 createOfflineAlertsForDevices 方法（@Transactional + 去重逻辑）、deviceService 字段改为 private final；DeviceServiceImpl.save() 添加 @Transactional(rollbackFor=Exception.class)、新增 pageByCondition 方法；DeviceDataServiceImpl 新增 saveBatchWithAlertCheck/pageByDeviceId/pageByCondition 方法 |
+| v3.0 | 2026-05-24 | — | 新增 AuthServiceImpl 认证服务实现（login 登录认证含IP频率限制、账号锁定/停用检查、BCrypt密码校验、JWT签发、审计日志记录）；新增 SysUserServiceImpl 用户服务实现（9个自定义方法：findByUsername/getUserOrThrow/createUser/updateUser/resetPassword/updateStatus/pageUsers/resetLoginFailCount/incrementLoginFailCount，含SQL原子递增并发安全、BCrypt密码加密、更新字段白名单防注入）；新增 SysAuditLogServiceImpl 审计日志服务实现（3个自定义方法：pageLogs/cleanExpiredLogs/log，含多条件动态查询） |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >

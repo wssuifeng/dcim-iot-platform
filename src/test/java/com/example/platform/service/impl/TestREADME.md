@@ -1,6 +1,6 @@
 # service/impl — Service 实现类测试包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -30,7 +30,8 @@
 service/impl/
 ├── DeviceServiceImplTest.java    # Mapper 层基础 CRUD 集成测试
 ├── DeviceServiceTest.java        # Service 层业务逻辑集成测试
-└── AlertServiceImplTest.java     # AlertServiceImpl 纯单元测试（Mockito）
+├── AlertServiceImplTest.java     # AlertServiceImpl 纯单元测试（Mockito）
+└── AlertServiceTest.java         # AlertService 集成测试（空类，待补充）
 ```
 
 ---
@@ -99,34 +100,101 @@ service/impl/
 
 该测试类使用 Mockito 纯单元测试方式验证 `AlertServiceImpl` 的全部 6 个业务方法，无需启动 Spring 上下文。
 
-#### 测试方法列表
+#### 初始化机制
+
+- `@BeforeEach` 中通过反射设置 `baseMapper` 字段为 Mock 对象
+- 通过 `MybatisConfiguration` + `MapperBuilderAssistant` + `TableInfoHelper` 初始化 Lambda 缓存，使 `LambdaQueryWrapper` 在纯 Mockito 环境下正常工作
+
+#### 测试方法列表（按 Nested 分组）
+
+**FindUnhandledTests（2个）**
 
 | 方法名 | 测试目标 | 验证内容 |
 |--------|----------|----------|
-| `testFindUnhandled()` | `findUnhandled()` | 查询未处理告警，返回未处理告警列表 |
-| `testFindUnhandled_empty()` | `findUnhandled()` | 无未处理告警时返回空列表 |
-| `testFindByDeviceId()` | `findByDeviceId()` | 按设备ID查询告警，返回对应设备的告警列表 |
-| `testFindByDeviceId_empty()` | `findByDeviceId()` | 设备无告警时返回空列表 |
-| `testBatchHandle()` | `batchHandle()` | 批量处理告警，验证更新操作被调用 |
-| `testBatchHandle_emptyIds()` | `batchHandle()` | 空ID列表时不执行更新操作 |
-| `testGetStatsByDeviceId()` | `getStatsByDeviceId()` | 按设备ID获取告警统计，返回统计数据 |
-| `testGetStatsByDeviceId_noAlerts()` | `getStatsByDeviceId()` | 设备无告警时返回零值统计 |
-| `testGetStatsByTimeRange()` | `getStatsByTimeRange()` | 按时间范围获取告警统计，返回统计数据 |
-| `testGetStatsByTimeRange_noAlerts()` | `getStatsByTimeRange()` | 时间范围内无告警时返回零值统计 |
-| `testListDeviceAlertCountByTimeRange()` | `listDeviceAlertCountByTimeRange()` | 按时间范围列出设备告警计数，返回设备告警计数列表 |
-| `testListDeviceAlertCountByTimeRange_empty()` | `listDeviceAlertCountByTimeRange()` | 时间范围内无告警时返回空列表 |
-| `testBatchHandle_partialSuccess()` | `batchHandle()` | 部分ID存在时仅更新存在的告警 |
-| `testGetStatsByTimeRange_invalidRange()` | `getStatsByTimeRange()` | 时间范围无效时返回零值统计 |
-| `testFindUnhandled_withPaging()` | `findUnhandled()` | 分页查询未处理告警，返回分页结果 |
-| `testFindByDeviceId_withPaging()` | `findByDeviceId()` | 分页按设备ID查询告警，返回分页结果 |
-| `testBatchHandle_verifyMapperCalled()` | `batchHandle()` | 验证批量处理时 Mapper 的更新方法被正确调用 |
+| `should_returnOnlyUnhandledAlerts_when_mixedAlertsExist()` | `findUnhandled()` | 返回所有未处理告警，排除已处理告警 |
+| `should_returnEmptyList_when_noUnhandledAlerts()` | `findUnhandled()` | 无未处理告警时返回空列表 |
+
+**FindByDeviceIdTests（3个）**
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `should_returnAlertsForDevice_when_deviceIdIsValid()` | `findByDeviceId()` | 返回指定设备的告警列表 |
+| `should_returnEmptyList_when_deviceIdIsNull()` | `findByDeviceId()` | deviceId 为 null 时返回空集合且不调用 Mapper |
+| `should_returnEmptyList_when_deviceHasNoAlerts()` | `findByDeviceId()` | 设备无告警时返回空列表 |
+
+**BatchHandleTests（5个）**
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `should_handleAlertsAndRecordUser_when_idsAreValid()` | `batchHandle()` | 成功批量处理未处理告警并记录处理人 |
+| `should_returnZero_when_idsIsNull()` | `batchHandle()` | ids 为 null 时返回 0 且不执行 SQL |
+| `should_returnZero_when_idsIsEmpty()` | `batchHandle()` | ids 为空集合时返回 0 且不执行 SQL |
+| `should_onlyHandleUnhandledAlerts_when_mixedStatusExists()` | `batchHandle()` | 只处理未处理的告警，跳过已处理的 |
+| `should_returnZero_when_idsContainNonExistentId()` | `batchHandle()` | ids 中包含不存在的 ID 时返回 0 |
+
+**GetStatsByDeviceIdTests（3个）**
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `should_returnCorrectStats_when_deviceExistsWithAlerts()` | `getStatsByDeviceId()` | 设备存在且有告警时返回正确的统计数据 |
+| `should_throwDeviceNotFoundException_when_deviceDoesNotExist()` | `getStatsByDeviceId()` | 设备不存在时抛出 DeviceNotFoundException |
+| `should_returnZeroCount_when_deviceHasNoAlerts()` | `getStatsByDeviceId()` | 设备存在但无告警时返回 alertCount 为 0 |
+
+**GetStatsByTimeRangeTests（2个）**
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `should_returnStats_when_timeRangeIsValid()` | `getStatsByTimeRange()` | 有效时间区间应返回统计数据 |
+| `should_returnZeroCount_when_noDataInTimeRange()` | `getStatsByTimeRange()` | 无数据的时间区间应返回 alertCount 为 0 |
+
+**ListDeviceAlertCountByTimeRangeTests（2个）**
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `should_returnDeviceAlertCountsInDescOrder()` | `listDeviceAlertCountByTimeRange()` | 多设备告警应按 alertCount 降序排列 |
+| `should_returnEmptyList_when_noDataInTimeRange()` | `listDeviceAlertCountByTimeRange()` | 无数据的时间区间应返回空列表 |
+
+> **合计**：17 个测试方法，覆盖 AlertServiceImpl 全部 6 个业务方法。
 
 #### 特点
 
 - 使用 `@ExtendWith(MockitoExtension.class)` 纯 Mockito 测试，无需 Spring 上下文
-- 通过 `@Mock` 模拟 `AlertMapper` 等依赖，`@InjectMocks` 注入被测对象
+- 通过 `@Mock` 模拟 `AlertMapper` 和 `DeviceService`，`@InjectMocks` 注入被测对象
+- 使用 `@Nested` + `@DisplayName` 按方法分组，测试结构清晰
+- 通过反射初始化 `baseMapper` 和 Lambda 缓存，解决 ServiceImpl 在纯 Mockito 环境下的兼容性问题
 - 测试覆盖正常路径、空值/边界场景和交互验证
 - 运行速度快，不依赖数据库
+
+### 2.4 AlertServiceTest — AlertService 集成测试
+
+**完整类名**: `com.example.platform.service.impl.AlertServiceTest`
+**注解**: `@SpringBootTest` + `@Transactional`
+
+> **当前状态**：空类，待补充测试方法。已注入 `AlertService` 依赖，框架搭建完成。
+
+### 2.5 DeviceMapperTest — DeviceMapper 集成测试
+
+**完整类名**: `com.example.platform.mapper.DeviceMapperTest`
+**注解**: `@SpringBootTest` + `@Transactional`
+
+该测试类验证 `DeviceMapper` 的自定义 SQL 方法，使用 `@Transactional` 确保测试数据自动回滚。
+
+#### 测试方法列表
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `testFindByNameLike()` | `findByNameLike()` | 模糊查询，结果中所有设备名称包含关键词 |
+| `testFindByNameLikeNoMatch()` | `findByNameLike()` | 无匹配时返回空列表 |
+| `testCountByStatus()` | `countByStatus()` | 按状态分组统计，每条记录包含 status 和 count 字段，count >= 0 |
+| `testGetOnlineDetection()` | `getOnlineDetection()` | 离线检测，结果设备的 lastOnlineTime 早于阈值时间，status != 0 |
+| `testGetOnlineDetectionWithFutureTime()` | `getOnlineDetection()` | 未来时间阈值查询，结果不为 null |
+| `testInsertAndFindByNameLike()` | `insert()` + `findByNameLike()` | 插入设备后通过模糊查询能找到，ID 自动填充 |
+
+#### 特点
+
+- 直接注入 `DeviceMapper`，测试 Mapper 层自定义 SQL
+- 使用 `@Transactional` 自动回滚，测试数据不污染数据库
+- `testInsertAndFindByNameLike()` 验证插入 + 查询的完整流程
 
 ---
 
@@ -178,10 +246,11 @@ mvn test -Dtest="DeviceServiceTest#testGetDeviceOrThrow"
 |------|------|----------|
 | v1.0 | 2026-05-09 | 初始版本，包含 DeviceServiceImplTest（7 个测试方法）和 DeviceServiceTest（11 个测试方法） |
 | v2.0 | 2026-05-17 | 新增 AlertServiceImplTest（17 个 Mockito 纯单元测试），覆盖 AlertServiceImpl 全部 6 个方法 |
+| v3.0 | 2026-05-24 | AlertServiceImplTest 方法名更新为 BDD 风格命名（should_xxx_when_xxx），使用 @Nested + @DisplayName 按方法分组，新增反射初始化 baseMapper 和 Lambda 缓存机制说明；新增 AlertServiceTest 集成测试（空类，待补充）；新增 DeviceMapperTest 集成测试（6个测试方法，覆盖 findByNameLike/countByStatus/getOnlineDetection/insert+findByNameLike） |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >

@@ -1,6 +1,6 @@
 # controller — 控制器包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -28,7 +28,7 @@
 - **调用 Service**：Controller 不直接操作数据库，而是调用 Service 层方法
 - **使用 common**：通过 `Result.success()` / `Result.error()` 封装响应；抛出 `BusinessException` 子类
 - **接收 entity**：请求参数使用 entity 类接收，配合 `@Validated` 分组校验
-- **接收 dto**：复杂请求参数使用 DTO 类接收，如 `AlertRuleConfig`、`DeviceDataBatchDTO`
+- **接收 dto**：复杂请求参数使用 DTO 类接收，如 `AlertRuleConfig`、`DeviceDataBatchDTO`、`LoginDTO`、`BatchHandleAlertDTO`、`PasswordResetDTO`
 
 ---
 
@@ -235,6 +235,194 @@ private final DeviceService deviceService;
 - 所有接口已统一使用 `Result<T>` 响应包装（v2.0 修复，旧版直接返回 `Page` 和 `boolean`）
 - `refreshCache` URL 已改为 `POST /cache/refresh`（v2.0 修复，旧版为 `POST /refreshCache`）
 
+### 2.5 AlertController — 告警管理控制器
+
+**完整类名**: `com.example.platform.controller.AlertController`
+
+**URL前缀**: `/alerts`
+
+**当前状态**：✅ 已实现 7 个接口
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `GET` | `/alerts` | 分页查询告警列表 | `Result<Page<Alert>>` | 可选 deviceId、isHandled、alertLevel、startTime、endTime 筛选 |
+| `GET` | `/alerts/{id}` | 根据 ID 查询告警 | `Result<Alert>` | 无 |
+| `GET` | `/alerts/unhandled` | 查询所有未处理告警 | `Result<List<Alert>>` | 无 |
+| `PUT` | `/alerts/batch-handle` | 批量处理告警 | `Result<Integer>` | `@Validated @RequestBody BatchHandleAlertDTO` |
+| `GET` | `/alerts/stats/device/{deviceId}` | 按设备统计告警 | `Result<Map<String, Object>>` | 无 |
+| `GET` | `/alerts/stats/time-range` | 按时间段统计告警 | `Result<Map<String, Object>>` | startTime、endTime 必填 |
+| `GET` | `/alerts/stats/device-ranking` | 设备告警排名 | `Result<List<Map<String, Object>>>` | startTime、endTime 必填 |
+
+#### 接口详细说明
+
+**GET /alerts**
+
+- 多条件分页查询，参数：`current`（默认1）、`size`（默认10）、`deviceId`、`isHandled`、`alertLevel`、`startTime`、`endTime`
+- 时间参数格式：`yyyy-MM-dd HH:mm:ss`
+- 查询逻辑已下沉到 Service 层 `pageByCondition` 方法
+
+**PUT /alerts/batch-handle**
+
+- 请求体为 `BatchHandleAlertDTO`，包含 `ids`（告警ID列表）和 `handleUser`（处理人）
+- 返回成功处理的告警数量
+
+**GET /alerts/stats/device/{deviceId}**
+
+- 返回指定设备的告警统计数据（总数、已处理数、未处理数、各级别数量）
+
+**GET /alerts/stats/time-range**
+
+- 返回指定时间段内的告警统计数据
+
+**GET /alerts/stats/device-ranking**
+
+- 返回指定时间段内各设备的告警数量排名
+
+#### 注入方式
+
+```java
+private final AlertService alertService;
+```
+
+### 2.6 AuthController — 认证控制器
+
+**完整类名**: `com.example.platform.controller.AuthController`
+
+**URL前缀**: `/auth`
+
+**当前状态**：✅ 已实现 1 个接口
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `POST` | `/auth/login` | 用户登录 | `Result<LoginResponseDTO>` | `@Validated @RequestBody LoginDTO` |
+
+#### 接口详细说明
+
+**POST /auth/login**
+
+- 请求体为 `LoginDTO`，包含 `username` 和 `password`
+- 内部调用 `authService.login()` 验证凭据并返回 JWT Token
+- 自动提取客户端真实 IP 地址（支持 `X-Forwarded-For`、`X-Real-IP` 代理转发场景）
+- 登录失败时抛出 `UserNotFoundException` 或 `AccountLockedException`
+- 此端点在 SecurityConfig 中配置为 `permitAll()`，无需认证
+
+#### IP 提取逻辑
+
+```
+1. X-Forwarded-For 请求头（取第一个IP，多级代理时用逗号分隔）
+2. X-Real-IP 请求头（Nginx 等反向代理设置）
+3. request.getRemoteAddr()（直连场景）
+```
+
+#### 注入方式
+
+```java
+private final AuthService authService;
+```
+
+### 2.7 SysUserController — 用户管理控制器
+
+**完整类名**: `com.example.platform.controller.SysUserController`
+
+**URL前缀**: `/users`
+
+**当前状态**：✅ 已实现 7 个接口
+
+**权限要求**：ADMIN 角色（SecurityConfig 配置 `/users/**` 仅 ADMIN 可访问）
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `GET` | `/users/page` | 分页查询用户列表 | `Result<Page<SysUser>>` | 可选 keyword 搜索 |
+| `GET` | `/users/search?username=` | 按用户名查找 | `Result<SysUser>` | 无 |
+| `GET` | `/users/{id}` | 根据 ID 查询用户 | `Result<SysUser>` | 无 |
+| `POST` | `/users` | 创建用户 | `Result<Void>` | `@Validated(CreateGroup.class)` |
+| `PUT` | `/users/{id}` | 更新用户信息 | `Result<Void>` | `@Validated(UpdateGroup.class)` |
+| `PUT` | `/users/{id}/password` | 重置密码 | `Result<Void>` | `@Validated @RequestBody PasswordResetDTO` |
+| `PUT` | `/users/{id}/status?status=` | 启用/停用账号 | `Result<Void>` | 手动校验 status 范围 0-1 |
+| `DELETE` | `/users/{id}` | 删除用户 | `Result<Void>` | 无 |
+
+#### 接口详细说明
+
+**GET /users/page**
+
+- 支持按 `keyword` 模糊搜索用户名
+- 参数：`current`（默认1）、`size`（默认10）、`keyword`（可选）
+
+**GET /users/search**
+
+- 按用户名精确查找，未找到时抛出 `UserNotFoundException`
+
+**POST /users**
+
+- 创建用户，密码由 Service 层 BCrypt 加密后存储
+- 用户名重复时抛出 `UsernameAlreadyExistsException`
+
+**PUT /users/{id}**
+
+- 更新用户基本信息（昵称、角色），不支持密码变更
+- 防御性校验：请求体 ID 与路径 ID 不一致时返回 400 错误
+
+**PUT /users/{id}/password**
+
+- 重置密码，新密码由 Service 层 BCrypt 加密后存储
+- 请求体为 `PasswordResetDTO`
+
+**PUT /users/{id}/status**
+
+- 启用（0）或停用（1）账号，超出范围返回 400 错误
+
+**DELETE /users/{id}**
+
+- 先调用 `getUserOrThrow(id)` 确保用户存在，再执行删除
+
+#### 注入方式
+
+```java
+private final SysUserService sysUserService;
+```
+
+### 2.8 SysAuditLogController — 审计日志控制器
+
+**完整类名**: `com.example.platform.controller.SysAuditLogController`
+
+**URL前缀**: `/audit-logs`
+
+**当前状态**：✅ 已实现 2 个接口
+
+**权限要求**：ADMIN 或 OPERATOR 角色可查询；仅 ADMIN 可执行 DELETE 清理
+
+#### 接口列表
+
+| HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
+|-----------|------|------|----------|----------|
+| `GET` | `/audit-logs/page` | 分页查询审计日志 | `Result<Page<SysAuditLog>>` | 可选 userId、operation、startTime、endTime 筛选 |
+| `DELETE` | `/audit-logs/cleanup?beforeTime=` | 清理过期日志 | `Result<Integer>` | beforeTime 必填 |
+
+#### 接口详细说明
+
+**GET /audit-logs/page**
+
+- 多条件分页查询，参数：`current`（默认1）、`size`（默认10）、`userId`、`operation`、`startTime`、`endTime`
+- 时间参数格式：`yyyy-MM-dd HH:mm:ss`
+
+**DELETE /audit-logs/cleanup**
+
+- 清理指定时间之前的过期审计日志（数据保留策略）
+- 返回删除的记录条数
+- 此端点受 SecurityConfig 中 `HttpMethod.DELETE → hasRole("ADMIN")` 规则控制，仅 ADMIN 可执行
+
+#### 注入方式
+
+```java
+private final SysAuditLogService sysAuditLogService;
+```
+
 ---
 
 ## 三、使用示例
@@ -404,10 +592,11 @@ PUT /api/devices/1/status?status=0
 | v1.3 | 2026-05-15 | `[05b8ff81]` | DeviceController 新增 `PUT /devices/{id}/alert-config` 告警配置接口（共 10 个）；新增 DeviceDataController（7 个接口：数据上报/批量上报/历史查询/最新数据/时间段查询/统计/分页）；新增 DeviceTypeController（1 个接口：类型级告警配置）；新增 DictMetricController（5 个接口：指标字典 CRUD + 缓存刷新） |
 | v1.4 | 2026-05-16 | `[240739a]` | DeviceDataController/DeviceController 注释风格统一为块注释；DeviceDataController.getStatistics 新增设备存在性校验（委托 DeviceService.getDeviceOrThrow） |
 | v2.0 | 2026-05-17 | — | 代码审查修复：DeviceController.updateAlertConfig 返回类型改为 `Result<Void>`；DeviceDataController.reportData 改用 `@Validated(CreateGroup.class)`；批量上报下沉到 Service 层 `saveBatchWithAlertCheck`；分页查询下沉到 Service 层 `pageByCondition`/`pageByDeviceId`；DeviceTypeController URL 前缀去掉 `/api`，返回类型改为 `Result<Void>`；DictMetricController URL 前缀去掉 `/api`，所有接口统一 `Result<T>` 响应包装，refreshCache URL 改为 `POST /cache/refresh`；所有 Controller 添加类级 `@Validated` |
+| v3.0 | 2026-05-24 | — | 新增 AlertController（7个接口：告警分页查询/详情/未处理列表/批量处理/设备统计/时间段统计/设备排名）；新增 AuthController（1个接口：登录认证，支持代理IP提取）；新增 SysUserController（7个接口：用户分页查询/搜索/详情/创建/更新/密码重置/状态管理/删除，仅ADMIN可访问）；新增 SysAuditLogController（2个接口：审计日志分页查询/过期清理） |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >

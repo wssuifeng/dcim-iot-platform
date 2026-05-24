@@ -1,6 +1,6 @@
 # entity — 实体类包
 
-> **版本**: v2.0 | **更新日期**: 2026-05-17
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -144,6 +144,52 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 | `device_types` → `devices` | 一个设备类型可对应多个设备（通过 `type_id` 关联） |
 | `devices` → `device_data` | 一个设备可产生多条采集数据（通过 `device_id` 关联） |
 | `devices` → `alerts` | 一个设备可产生多条告警记录（通过 `device_id` 关联） |
+| `sys_user` → `sys_audit_log` | 一个用户可产生多条审计日志（通过 `user_id` 关联） |
+
+### 2.8 SysUser — 用户实体
+
+**完整类名**: `com.example.platform.entity.SysUser`
+**对应表名**: `sys_user`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 校验规则 | 说明 |
+|--------|-----------|-----------|------|--------|----------|------|
+| `id` | `Long` | `id` | 更新时必填 | 自增 | `@NotNull(groups=UpdateGroup)` | 用户ID（主键） |
+| `username` | `String` | `username` | 创建时必填 | - | `@NotBlank(groups=Create)` `@Size(min=4,max=20,groups=Create)` `@Pattern(^[a-zA-Z0-9_]+$,groups=Create)` | 用户名（登录账号，4-20位字母数字下划线） |
+| `password` | `String` | `password` | 创建时必填 | - | `@NotBlank(groups=Create)` `@Size(min=8,max=32,groups=Create)` `@Pattern(含大小写字母和数字,groups=Create)` | 密码（BCrypt 加密存储，`@JsonIgnore` 不返回前端） |
+| `nickname` | `String` | `nickname` | 否 | - | `@Size(max=50,groups={Create,Update})` | 昵称（展示用） |
+| `role` | `String` | `role` | 是 | - | `@NotBlank(groups={Create,Update})` `@Pattern(^(ADMIN|OPERATOR|VIEWER)$,groups={Create,Update})` | 角色标识：ADMIN/OPERATOR/VIEWER |
+| `status` | `Integer` | `status` | 否 | - | `@Min(0)` `@Max(1)` | 状态：0-正常，1-停用（`@JsonIgnore` 不返回前端） |
+| `loginFailCount` | `Integer` | `login_fail_count` | 否 | - | 无（`@JsonIgnore`） | 连续登录失败次数（连续5次失败锁定） |
+| `lockTime` | `LocalDateTime` | `lock_time` | 否 | - | 无（`@JsonIgnore`） | 账号锁定截止时间（锁定30分钟） |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 无 | 创建时间 |
+| `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 无 | 更新时间 |
+
+#### 安全设计
+
+- `password`、`status`、`loginFailCount`、`lockTime` 字段标注 `@JsonIgnore`，不会在 API 响应中返回
+- 密码存储使用 BCrypt 加密，不存储明文
+- 连续5次登录失败后账号锁定30分钟（REQ-SEC-FR-001 业务规则1）
+
+### 2.9 SysAuditLog — 审计日志实体
+
+**完整类名**: `com.example.platform.entity.SysAuditLog`
+**对应表名**: `sys_audit_log`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
+|--------|-----------|-----------|------|--------|------|
+| `id` | `Long` | `id` | 是 | 自增 | 主键ID |
+| `userId` | `Long` | `user_id` | 否 | - | 操作人ID |
+| `username` | `String` | `username` | 否 | - | 操作人账号 |
+| `operation` | `String` | `operation` | 否 | - | 操作类型（如 LOGIN_SUCCESS、LOGIN_FAIL、CREATE_USER） |
+| `ip` | `String` | `ip` | 否 | - | 操作IP地址 |
+| `detail` | `String` | `detail` | 否 | - | 操作详情（如"密码错误1次"） |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 操作时间 |
+
+> **说明**：`SysAuditLog` 无校验注解，由 Service 层在认证/授权操作时自动写入，不通过 Controller 接收用户输入。
 
 ### 2.7 常用注解说明
 
@@ -256,10 +302,11 @@ alertService.save(alert);
 | v1.2 | 2026-05-15 | `[05b8ff81]` | Device/DeviceType 新增 `alertRuleConfig` JSON 字段（JacksonTypeHandler）；DeviceData 新增 `metric` 字段替代 `dataUnit`，新增校验注解（@NotNull/@DecimalMin/@DecimalMax），`collectTime` 改为自动填充；Alert 告警级别更新为 1-5 级，`createTime` 改为自动填充；新增 DictMetric 指标字典实体；新增 JSON 字段和 autoResultMap 注解说明 |
 | v1.3 | 2026-05-16 | `[240739a]` | 标注 Alert alertLevel 源码注释（3级）与业务逻辑（5级）不一致问题 |
 | v2.0 | 2026-05-17 | — | Alert alertLevel 注释已修正为"1-紧急，2-严重，3-一般，4-警告，5-提示"；DeviceData 校验注解已添加 `groups=CreateGroup.class`；DictMetric 已补全 `implements Serializable`、`@Serial serialVersionUID`、`@TableId(value="id")` |
+| v3.0 | 2026-05-24 | — | 新增 SysUser 用户实体（含 BCrypt 密码加密、登录失败锁定、@JsonIgnore 敏感字段保护）；新增 SysAuditLog 审计日志实体（记录登录/操作日志）；实体间关系新增 sys_user → sys_audit_log |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-17。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >
