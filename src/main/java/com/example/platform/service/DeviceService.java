@@ -61,4 +61,6 @@ public interface DeviceService extends IService<Device> {
      * 返回数据:Page<Device>-分页设备数据
      * */
     Page<Device> pageByCondition(Integer current, Integer size, Integer status, String name);
+
+    void updateLastOnlineTime(Integer deviceId);
 }

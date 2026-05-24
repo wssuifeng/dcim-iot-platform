@@ -70,4 +70,7 @@ public interface DeviceDataService extends IService<DeviceData> {
      * 返回数据:Page<DeviceData>-分页设备数据
      * */
     Page<DeviceData> pageByCondition(Integer deviceId, Integer current, Integer size);
+
+    List<Map<String, Object>> aggregate(Integer deviceId, LocalDateTime startTime,
+                                         LocalDateTime endTime, String granularity);
 }

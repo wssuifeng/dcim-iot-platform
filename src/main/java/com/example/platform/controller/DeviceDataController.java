@@ -127,4 +127,13 @@ public class DeviceDataController {
             @RequestParam(required = false) Integer deviceId) {
         return Result.success(deviceDataService.pageByCondition(deviceId, current, size));
     }
+
+    @GetMapping("/device/{deviceId}/aggregate")
+    public Result<List<Map<String, Object>>> aggregate(
+            @PathVariable Integer deviceId,
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            @RequestParam(defaultValue = "day") String granularity) {
+        return Result.success(deviceDataService.aggregate(deviceId, startTime, endTime, granularity));
+    }
 }

@@ -7,6 +7,7 @@ import com.example.platform.entity.DeviceData;
 import com.example.platform.mapper.DeviceDataMapper;
 import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.Map;
  * 类功能:设备数据服务实现类，负责设备数据的持久化、查询、统计以及结合告警引擎的保存与告警触发
  * */
 @Service
+@Slf4j
 public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceData> implements DeviceDataService {
 
     private final AlertRuleEngine alertRuleEngine;
@@ -63,6 +65,7 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
     @Override
     public List<DeviceData> findByDeviceIdAndTimeRange(Integer deviceId,
                                                        LocalDateTime startTime, LocalDateTime endTime) {
+        validateTimeRange(startTime, endTime);
         LambdaQueryWrapper<DeviceData> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceData::getDeviceId, deviceId)
                 .between(DeviceData::getCollectTime, startTime, endTime)
@@ -78,6 +81,7 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
     @Override
     public Map<String, Object> getStatistics(Integer deviceId,
                                              LocalDateTime startTime, LocalDateTime endTime) {
+        validateTimeRange(startTime, endTime);
         // 先校验设备存在性
         deviceService.getDeviceOrThrow(deviceId);
 
@@ -99,27 +103,43 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
      * 参数:deviceData-待保存的设备数据对象
      * 返回数据:无
      * */
+    private static final int MAX_BATCH_SIZE = 100;
+    private static final int MAX_TIME_RANGE_DAYS = 30;
+
+    private void validateTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("起始时间和结束时间不能为空");
+        }
+        if (startTime.isAfter(endTime)) {
+            throw new IllegalArgumentException("起始时间不能晚于结束时间");
+        }
+        if (java.time.Duration.between(startTime, endTime).toDays() > MAX_TIME_RANGE_DAYS) {
+            throw new IllegalArgumentException("查询时间范围不能超过" + MAX_TIME_RANGE_DAYS + "天");
+        }
+    }
+
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveWithAlertCheck(DeviceData deviceData) {
-        // 1. 校验设备存在（同时取出 typeId 供告警引擎使用）
         deviceService.getDeviceOrThrow(deviceData.getDeviceId());
 
-        // 2. 保存数据（collectTime 由 MyBatis-Plus 自动填充，前端不传则自动填当前时间）
         save(deviceData);
 
-        // 3. 触发告警规则评估
-        alertRuleEngine.evaluate(deviceData.getDeviceId(), deviceData);
+        deviceService.updateLastOnlineTime(deviceData.getDeviceId());
+
+        try {
+            alertRuleEngine.evaluate(deviceData.getDeviceId(), deviceData);
+        } catch (Exception e) {
+            log.error("告警评估失败，设备ID={}，数据ID={}：{}", deviceData.getDeviceId(), deviceData.getId(), e.getMessage(), e);
+        }
     }
 
-    /*
-     * 方法功能:批量保存设备数据并逐条触发告警规则评估，整体在同一事务内
-     * 参数:dataList-待保存的设备数据列表
-     * 返回数据:无
-     * */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveBatchWithAlertCheck(List<DeviceData> dataList) {
+        if (dataList != null && dataList.size() > MAX_BATCH_SIZE) {
+            throw new IllegalArgumentException("批量上报单次上限" + MAX_BATCH_SIZE + "条，当前" + dataList.size() + "条");
+        }
         for (DeviceData data : dataList) {
             saveWithAlertCheck(data);
         }
@@ -153,5 +173,18 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         }
         wrapper.orderByDesc(DeviceData::getCollectTime);
         return page(page, wrapper);
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregate(Integer deviceId, LocalDateTime startTime,
+                                                LocalDateTime endTime, String granularity) {
+        validateTimeRange(startTime, endTime);
+        deviceService.getDeviceOrThrow(deviceId);
+        return switch (granularity.toLowerCase()) {
+            case "hour" -> baseMapper.aggregateByHour(deviceId, startTime, endTime);
+            case "day" -> baseMapper.aggregateByDay(deviceId, startTime, endTime);
+            case "week" -> baseMapper.aggregateByWeek(deviceId, startTime, endTime);
+            default -> throw new IllegalArgumentException("不支持的聚合粒度: " + granularity + "，可选值: hour/day/week");
+        };
     }
 }
