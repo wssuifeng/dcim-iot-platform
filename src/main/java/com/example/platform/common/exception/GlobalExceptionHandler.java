@@ -103,6 +103,13 @@ public class GlobalExceptionHandler {
         return Result.error(e.getCode(), e.getMessage());
     }
 
+    @ExceptionHandler(DeviceTypeCodeAlreadyExistsException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleDeviceTypeCodeAlreadyExists(DeviceTypeCodeAlreadyExistsException e) {
+        log.warn("设备类型编码已存在: {}", e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
     /*
      * 方法功能:处理用户未找到异常
      * 参数:e-用户未找到异常
