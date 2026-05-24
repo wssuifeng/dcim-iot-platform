@@ -172,4 +172,13 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         wrapper.orderByDesc(Device::getUpdateTime);
         return page(page, wrapper);
     }
+
+    @Override
+    public void updateLastOnlineTime(Integer deviceId) {
+        LambdaUpdateWrapper<Device> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(Device::getId, deviceId)
+                .set(Device::getLastOnlineTime, LocalDateTime.now())
+                .set(Device::getStatus, 1);
+        update(wrapper);
+    }
 }
