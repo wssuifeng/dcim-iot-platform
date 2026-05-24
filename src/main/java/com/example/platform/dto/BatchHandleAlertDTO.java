@@ -15,7 +15,7 @@ public class BatchHandleAlertDTO {
 
     /** 待处理的告警ID列表 */
     @NotEmpty(message = "告警ID列表不能为空")
-    @Size(max = 100, message = "单次最多处理100条告警")
+    @Size(max = 50, message = "单次最多处理50条告警")
     private List<Integer> ids;
 
     /** 处理人姓名 */

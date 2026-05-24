@@ -137,7 +137,10 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveBatchWithAlertCheck(List<DeviceData> dataList) {
-        if (dataList != null && dataList.size() > MAX_BATCH_SIZE) {
+        if (dataList == null || dataList.isEmpty()) {
+            return;
+        }
+        if (dataList.size() > MAX_BATCH_SIZE) {
             throw new IllegalArgumentException("批量上报单次上限" + MAX_BATCH_SIZE + "条，当前" + dataList.size() + "条");
         }
         for (DeviceData data : dataList) {

@@ -136,11 +136,12 @@ public class AlertRuleEngine {
             // 已有告警，判断是否需要升级（级别数字越小越紧急）
             Alert existingAlert = existingAlerts.get(0);
             if (rule.getLevel() < existingAlert.getAlertLevel()) {
+                int oldLevel = existingAlert.getAlertLevel();
                 existingAlert.setAlertLevel(rule.getLevel());
                 existingAlert.setAlertMessage(buildAlertMessage(rule, deviceData));
                 alertService.updateById(existingAlert);
                 log.info("⬆️ 告警升级: 设备={}, 类型={}, 旧级别={}, 新级别={}",
-                        deviceId, rule.getMetricKey(), existingAlert.getAlertLevel(), rule.getLevel());
+                        deviceId, rule.getMetricKey(), oldLevel, rule.getLevel());
             }
         }
     }
