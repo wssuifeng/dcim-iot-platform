@@ -6,12 +6,15 @@ import com.example.platform.entity.Alert;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.entity.DeviceType;
+import com.example.platform.entity.DictMetric;
 import com.example.platform.service.AlertService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
+import com.example.platform.service.DictMetricService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -27,6 +30,7 @@ public class AlertRuleEngine {
     private final DeviceService deviceService;
     private final DeviceTypeService deviceTypeService;
     private final AlertService alertService;
+    private final DictMetricService dictMetricService;
 
     /*
      * 方法功能:评估指定设备的采集数据是否触发告警规则
@@ -147,8 +151,30 @@ public class AlertRuleEngine {
      * 返回数据:String-格式化后的告警消息
      * */
     private String buildAlertMessage(AlertRuleDefinition rule, DeviceData deviceData) {
-        return rule.getMessageTemplate()
-                .replace("{value}", deviceData.getDataValue().toString())
-                .replace("{threshold}", rule.getThreshold().toString());
+        String metricName = rule.getMetricKey();
+        String metricUnit = "";
+        try {
+            DictMetric metricInfo = dictMetricService.getFromCache(rule.getMetricKey());
+            if (metricInfo != null) {
+                if (StringUtils.hasText(metricInfo.getMetricName())) {
+                    metricName = metricInfo.getMetricName();
+                }
+                if (StringUtils.hasText(metricInfo.getMetricUnit())) {
+                    metricUnit = metricInfo.getMetricUnit();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取指标字典失败，使用原始metricKey: {}", rule.getMetricKey());
+        }
+
+        String template = rule.getMessageTemplate();
+        if (template != null && !template.isEmpty()) {
+            return template
+                    .replace("{value}", deviceData.getDataValue().toString())
+                    .replace("{threshold}", rule.getThreshold().toString())
+                    .replace("{metricName}", metricName)
+                    .replace("{unit}", metricUnit);
+        }
+        return metricName + "当前值" + deviceData.getDataValue() + metricUnit + "，超过阈值" + rule.getThreshold() + metricUnit;
     }
 }
