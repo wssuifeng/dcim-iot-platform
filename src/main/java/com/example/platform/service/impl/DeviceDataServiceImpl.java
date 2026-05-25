@@ -98,11 +98,6 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         return stats;
     }
 
-    /*
-     * 方法功能:保存单条设备数据并触发告警规则评估
-     * 参数:deviceData-待保存的设备数据对象
-     * 返回数据:无
-     * */
     private static final int MAX_BATCH_SIZE = 100;
     private static final int MAX_TIME_RANGE_DAYS = 30;
 
@@ -118,6 +113,11 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         }
     }
 
+    /*
+     * 方法功能:保存单条设备数据，校验设备存在性后保存数据、更新在线时间并触发告警评估
+     * 参数:deviceData-待保存的设备数据对象
+     * 返回数据:无
+     * */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveWithAlertCheck(DeviceData deviceData) {
@@ -134,6 +134,11 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         }
     }
 
+    /*
+     * 方法功能:批量保存设备数据，逐条校验设备存在性、保存并触发告警评估
+     * 参数:dataList-待保存的设备数据列表
+     * 返回数据:无
+     * */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveBatchWithAlertCheck(List<DeviceData> dataList) {
@@ -178,6 +183,11 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         return page(page, wrapper);
     }
 
+    /*
+     * 方法功能:按时间粒度聚合统计设备数据（支持按小时/天/周聚合）
+     * 参数:deviceId-设备ID, startTime-开始时间, endTime-结束时间, granularity-聚合粒度(hour/day/week)
+     * 返回数据:List<Map<String, Object>>-聚合统计数据列表
+     * */
     @Override
     public List<Map<String, Object>> aggregate(Integer deviceId, LocalDateTime startTime,
                                                 LocalDateTime endTime, String granularity) {

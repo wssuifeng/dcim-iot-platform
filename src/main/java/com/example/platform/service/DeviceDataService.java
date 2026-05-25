@@ -71,6 +71,11 @@ public interface DeviceDataService extends IService<DeviceData> {
      * */
     Page<DeviceData> pageByCondition(Integer deviceId, Integer current, Integer size);
 
+    /*
+     * 方法功能:按时间粒度聚合统计设备数据（支持按小时/天/周聚合）
+     * 参数:deviceId-设备ID, startTime-开始时间, endTime-结束时间, granularity-聚合粒度(hour/day/week)
+     * 返回数据:List<Map<String, Object>>-聚合统计数据列表
+     * */
     List<Map<String, Object>> aggregate(Integer deviceId, LocalDateTime startTime,
                                          LocalDateTime endTime, String granularity);
 }

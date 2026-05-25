@@ -62,5 +62,12 @@ public interface DeviceService extends IService<Device> {
      * */
     Page<Device> pageByCondition(Integer current, Integer size, Integer status, String name);
 
+    /*
+     * 方法功能:根据设备类型ID查询设备列表
+     * 参数:typeId-设备类型ID
+     * 返回数据:List<Device>-该类型下的设备列表
+     * */
+    List<Device> findByTypeId(Integer typeId);
+
     void updateLastOnlineTime(Integer deviceId);
 }

@@ -103,6 +103,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
      * 参数:typeId-设备类型ID
      * 返回数据:List<Device>-该类型下的设备列表
      * */
+    @Override
     public List<Device> findByTypeId(Integer typeId) {
         LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Device::getTypeId, typeId);
@@ -173,6 +174,11 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         return page(page, wrapper);
     }
 
+    /*
+     * 方法功能:更新设备最后在线时间并设置状态为在线
+     * 参数:deviceId-设备ID
+     * 返回数据:无
+     * */
     @Override
     public void updateLastOnlineTime(Integer deviceId) {
         LambdaUpdateWrapper<Device> wrapper = new LambdaUpdateWrapper<>();
