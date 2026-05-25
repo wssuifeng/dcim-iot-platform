@@ -1,6 +1,6 @@
 # entity — 实体类包
 
-> **版本**: v1.1 | **更新日期**: 2026-05-08
+> **版本**: v3.0 | **更新日期**: 2026-05-24
 
 ---
 
@@ -51,6 +51,7 @@
 | `lastOnlineTime` | `LocalDateTime` | `last_online_time` | 否 | - | 无（系统自动记录） | 最后在线时间 |
 | `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 无 | 创建时间 |
 | `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 无 | 更新时间 |
+| `alertRuleConfig` | `AlertRuleConfig` | `alert_rule_config` | 否 | - | 无 | 设备级告警规则配置（JSON 格式，使用 `JacksonTypeHandler`） |
 
 #### 校验注解详解
 
@@ -77,6 +78,7 @@
 | `description` | `String` | `description` | 否 | - | 类型描述 |
 | `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 创建时间 |
 | `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 更新时间 |
+| `alertRuleConfig` | `AlertRuleConfig` | `alert_rule_config` | 否 | - | 设备类型级告警规则配置（JSON 格式，使用 `JacksonTypeHandler`） |
 
 ### 2.3 DeviceData — 设备数据实体
 
@@ -88,10 +90,10 @@
 | 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
 |--------|-----------|-----------|------|--------|------|
 | `id` | `Long` | `id` | 是 | 自增 | 数据ID（主键，BIGINT 类型） |
-| `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表） |
-| `dataValue` | `BigDecimal` | `data_value` | 否 | - | 数据值（保留两位小数） |
-| `dataUnit` | `String` | `data_unit` | 否 | - | 数据单位（如 ℃、%） |
-| `collectTime` | `LocalDateTime` | `collect_time` | 否 | - | 采集时间 |
+| `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表），`@NotNull(groups=CreateGroup.class)` |
+| `metric` | `String` | `metric` | 否 | - | 数据指标标识（如 temperature、humidity），关联 `DictMetric.metricKey`，通过字典服务获取中文单位 |
+| `dataValue` | `BigDecimal` | `data_value` | 是 | - | 数据值，`@NotNull(groups=CreateGroup.class)` + `@DecimalMin(-999.99, groups=CreateGroup.class)` + `@DecimalMax(999.99, groups=CreateGroup.class)` |
+| `collectTime` | `LocalDateTime` | `collect_time` | 否 | 自动填充 | 采集时间 |
 
 ### 2.4 Alert — 告警实体
 
@@ -105,14 +107,31 @@
 | `id` | `Integer` | `id` | 是 | 自增 | 告警ID（主键） |
 | `deviceId` | `Integer` | `device_id` | 是 | - | 设备ID（关联 devices 表） |
 | `alertType` | `String` | `alert_type` | 是 | - | 告警类型（如"高温告警"） |
-| `alertLevel` | `Integer` | `alert_level` | 否 | 1 | 告警级别：1-一般，2-严重，3-紧急 |
+| `alertLevel` | `Integer` | `alert_level` | 否 | 1 | 告警级别：1-紧急，2-严重，3-一般，4-警告，5-提示 |
 | `alertMessage` | `String` | `alert_message` | 否 | - | 告警详细描述 |
 | `isHandled` | `Integer` | `is_handled` | 否 | 0 | 是否处理：0-未处理，1-已处理 |
 | `handleTime` | `LocalDateTime` | `handle_time` | 否 | - | 处理时间 |
 | `handleUser` | `String` | `handle_user` | 否 | - | 处理人 |
-| `createTime` | `LocalDateTime` | `create_time` | 否 | - | 告警产生时间 |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 告警产生时间 |
 
-### 2.5 实体间关系
+### 2.5 DictMetric — 指标字典实体
+
+**完整类名**: `com.example.platform.entity.DictMetric`
+**对应表名**: `dict_metric`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
+|--------|-----------|-----------|------|--------|------|
+| `id` | `Integer` | `id` | 是 | 自增 | 主键，`@TableId(value = "id", type = IdType.AUTO)` |
+| `metricKey` | `String` | `metric_key` | 是 | - | 指标标识（如 temperature） |
+| `metricName` | `String` | `metric_name` | 是 | - | 指标中文名（如 温度） |
+| `metricUnit` | `String` | `metric_unit` | 否 | - | 数据单位（如 ℃） |
+| `description` | `String` | `description` | 否 | - | 描述说明 |
+
+> **补充说明**：`DictMetric` 已实现 `Serializable` 接口，声明 `@Serial private static final long serialVersionUID = 1L`，主键字段使用 `@TableId(value = "id", type = IdType.AUTO)` 显式标注。
+
+### 2.6 实体间关系
 
 ```
 device_types (1) ──── (N) devices (1) ──── (N) device_data
@@ -125,8 +144,54 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 | `device_types` → `devices` | 一个设备类型可对应多个设备（通过 `type_id` 关联） |
 | `devices` → `device_data` | 一个设备可产生多条采集数据（通过 `device_id` 关联） |
 | `devices` → `alerts` | 一个设备可产生多条告警记录（通过 `device_id` 关联） |
+| `sys_user` → `sys_audit_log` | 一个用户可产生多条审计日志（通过 `user_id` 关联） |
 
-### 2.6 常用注解说明
+### 2.8 SysUser — 用户实体
+
+**完整类名**: `com.example.platform.entity.SysUser`
+**对应表名**: `sys_user`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 校验规则 | 说明 |
+|--------|-----------|-----------|------|--------|----------|------|
+| `id` | `Long` | `id` | 更新时必填 | 自增 | `@NotNull(groups=UpdateGroup)` | 用户ID（主键） |
+| `username` | `String` | `username` | 创建时必填 | - | `@NotBlank(groups=Create)` `@Size(min=4,max=20,groups=Create)` `@Pattern(^[a-zA-Z0-9_]+$,groups=Create)` | 用户名（登录账号，4-20位字母数字下划线） |
+| `password` | `String` | `password` | 创建时必填 | - | `@NotBlank(groups=Create)` `@Size(min=8,max=32,groups=Create)` `@Pattern(含大小写字母和数字,groups=Create)` | 密码（BCrypt 加密存储，`@JsonIgnore` 不返回前端） |
+| `nickname` | `String` | `nickname` | 否 | - | `@Size(max=50,groups={Create,Update})` | 昵称（展示用） |
+| `role` | `String` | `role` | 是 | - | `@NotBlank(groups={Create,Update})` `@Pattern(^(ADMIN|OPERATOR|VIEWER)$,groups={Create,Update})` | 角色标识：ADMIN/OPERATOR/VIEWER |
+| `status` | `Integer` | `status` | 否 | - | `@Min(0)` `@Max(1)` | 状态：0-正常，1-停用（`@JsonIgnore` 不返回前端） |
+| `loginFailCount` | `Integer` | `login_fail_count` | 否 | - | 无（`@JsonIgnore`） | 连续登录失败次数（连续5次失败锁定） |
+| `lockTime` | `LocalDateTime` | `lock_time` | 否 | - | 无（`@JsonIgnore`） | 账号锁定截止时间（锁定30分钟） |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 无 | 创建时间 |
+| `updateTime` | `LocalDateTime` | `update_time` | 否 | 自动填充 | 无 | 更新时间 |
+
+#### 安全设计
+
+- `password`、`status`、`loginFailCount`、`lockTime` 字段标注 `@JsonIgnore`，不会在 API 响应中返回
+- 密码存储使用 BCrypt 加密，不存储明文
+- 连续5次登录失败后账号锁定30分钟（REQ-SEC-FR-001 业务规则1）
+
+### 2.9 SysAuditLog — 审计日志实体
+
+**完整类名**: `com.example.platform.entity.SysAuditLog`
+**对应表名**: `sys_audit_log`
+
+#### 字段说明
+
+| 字段名 | Java 类型 | 数据库字段 | 必填 | 默认值 | 说明 |
+|--------|-----------|-----------|------|--------|------|
+| `id` | `Long` | `id` | 是 | 自增 | 主键ID |
+| `userId` | `Long` | `user_id` | 否 | - | 操作人ID |
+| `username` | `String` | `username` | 否 | - | 操作人账号 |
+| `operation` | `String` | `operation` | 否 | - | 操作类型（如 LOGIN_SUCCESS、LOGIN_FAIL、CREATE_USER） |
+| `ip` | `String` | `ip` | 否 | - | 操作IP地址 |
+| `detail` | `String` | `detail` | 否 | - | 操作详情（如"密码错误1次"） |
+| `createTime` | `LocalDateTime` | `create_time` | 否 | 自动填充 | 操作时间 |
+
+> **说明**：`SysAuditLog` 无校验注解，由 Service 层在认证/授权操作时自动写入，不通过 Controller 接收用户输入。
+
+### 2.7 常用注解说明
 
 #### MyBatis-Plus 注解
 
@@ -137,6 +202,8 @@ device_types (1) ──── (N) devices (1) ──── (N) device_data
 | `@TableId` | 标记主键字段 | `@TableId(value = "id", type = IdType.AUTO)` |
 | `@TableField` | 映射数据库字段名 | `@TableField("device_name")` |
 | `@TableField(fill = ...)` | 自动填充字段 | `@TableField(value = "create_time", fill = FieldFill.INSERT)` |
+| `@TableField(typeHandler = ...)` | 指定字段类型处理器 | `@TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)` |
+| `@TableName(autoResultMap = true)` | 启用自动结果映射（typeHandler 必需） | `@TableName(value = "devices", autoResultMap = true)` |
 | `@TableLogic` | 逻辑删除标记 | 当前已注释，未启用 |
 
 #### Jakarta Validation 注解
@@ -219,7 +286,10 @@ alertService.save(alert);
 | 逻辑删除未启用 | `deleted` 字段已预留但被注释 | 取消注释并修改 `application.yaml` 配置即可启用 |
 | 时间自动填充 | `createTime`/`updateTime` 由 `MyMetaObjectHandler` 自动填充 | ✅ 已实现，无需手动设置 |
 | BigDecimal 精度 | `DeviceData.dataValue` 使用 `BigDecimal` | 避免使用 `double`，防止浮点精度丢失 |
+| JSON 字段存储 | `alertRuleConfig` 使用 `JacksonTypeHandler` | `@TableName` 必须设置 `autoResultMap = true`，否则查询时 JSON 不会反序列化 |
+| 指标标识替代单位 | `DeviceData` 新增 `metric` 字段替代原 `dataUnit` | `metric` 关联 `DictMetric.metricKey`，通过字典服务获取中文单位 |
 | Lombok 不生效 | IDE 未安装 Lombok 插件 | IntelliJ IDEA 需安装 Lombok 插件并开启注解处理 |
+| DictMetric 序列化 | `DictMetric` 已补全 `Serializable` 接口及 `@Serial serialVersionUID` | ✅ 已修复，支持序列化/反序列化场景 |
 
 ---
 
@@ -229,10 +299,14 @@ alertService.save(alert);
 |------|------|--------|----------|
 | v1.0 | 2026-05-04 | — | 初始版本，包含 4 个实体类基本字段说明 |
 | v1.1 | 2026-05-08 | `[f88934db]` | Device 实体新增 Jakarta Validation 校验注解（@NotBlank/@NotNull/@Size/@Pattern/@Min/@Max）及分组校验说明；更新字段必填状态；新增校验注解详解章节 |
+| v1.2 | 2026-05-15 | `[05b8ff81]` | Device/DeviceType 新增 `alertRuleConfig` JSON 字段（JacksonTypeHandler）；DeviceData 新增 `metric` 字段替代 `dataUnit`，新增校验注解（@NotNull/@DecimalMin/@DecimalMax），`collectTime` 改为自动填充；Alert 告警级别更新为 1-5 级，`createTime` 改为自动填充；新增 DictMetric 指标字典实体；新增 JSON 字段和 autoResultMap 注解说明 |
+| v1.3 | 2026-05-16 | `[240739a]` | 标注 Alert alertLevel 源码注释（3级）与业务逻辑（5级）不一致问题 |
+| v2.0 | 2026-05-17 | — | Alert alertLevel 注释已修正为"1-紧急，2-严重，3-一般，4-警告，5-提示"；DeviceData 校验注解已添加 `groups=CreateGroup.class`；DictMetric 已补全 `implements Serializable`、`@Serial serialVersionUID`、`@TableId(value="id")` |
+| v3.0 | 2026-05-24 | — | 新增 SysUser 用户实体（含 BCrypt 密码加密、登录失败锁定、@JsonIgnore 敏感字段保护）；新增 SysAuditLog 审计日志实体（记录登录/操作日志）；实体间关系新增 sys_user → sys_audit_log |
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-08。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-24。*
 
 > ---
 >
