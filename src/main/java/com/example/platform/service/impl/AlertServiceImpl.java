@@ -160,6 +160,11 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         return newAlerts.size();
     }
 
+    /*
+     * 方法功能:按条件分页查询告警列表，支持按设备ID、处理状态、告警级别、时间范围筛选
+     * 参数:current-当前页码, size-每页大小, deviceId-设备ID（可选）, isHandled-处理状态（可选）, alertLevel-告警级别（可选）, startTime-开始时间（可选）, endTime-结束时间（可选）
+     * 返回数据:Page<Alert>-分页告警数据
+     * */
     @Override
     public Page<Alert> pageByCondition(Integer current, Integer size, Integer deviceId,
                                         Integer isHandled, Integer alertLevel,

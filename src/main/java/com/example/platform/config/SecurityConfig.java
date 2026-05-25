@@ -39,16 +39,31 @@ public class SecurityConfig {
         this.corsConfigurationSource = corsConfigurationSource;
     }
 
+    /*
+     * 方法功能:创建BCrypt密码编码器Bean
+     * 参数:无
+     * 返回数据:PasswordEncoder-BCrypt密码编码器实例
+     * */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /*
+     * 方法功能:创建未认证入口点Bean（手动实例化，避免循环依赖）
+     * 参数:无
+     * 返回数据:CustomAuthenticationEntryPoint-未认证入口点实例
+     * */
     @Bean
     public CustomAuthenticationEntryPoint customAuthenticationEntryPoint() {
         return new CustomAuthenticationEntryPoint();
     }
 
+    /*
+     * 方法功能:创建权限不足处理器Bean（手动实例化，避免循环依赖）
+     * 参数:无
+     * 返回数据:CustomAccessDeniedHandler-权限不足处理器实例
+     * */
     @Bean
     public CustomAccessDeniedHandler customAccessDeniedHandler() {
         return new CustomAccessDeniedHandler();

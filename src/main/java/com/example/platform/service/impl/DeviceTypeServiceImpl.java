@@ -93,6 +93,11 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
         removeById(id);
     }
 
+    /*
+     * 方法功能:校验设备类型编码唯一性，排除指定ID（用于更新场景）
+     * 参数:typeCode-待校验的类型编码, excludeId-排除的设备类型ID（更新时排除自身）
+     * 返回数据:无（编码重复时抛出DeviceTypeCodeAlreadyExistsException）
+     * */
     private void validateTypeCodeUnique(String typeCode, Integer excludeId) {
         if (typeCode == null || typeCode.trim().isEmpty()) {
             return;

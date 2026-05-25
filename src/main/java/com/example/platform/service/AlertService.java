@@ -14,20 +14,60 @@ import java.util.Map;
  * */
 public interface AlertService extends IService<Alert> {
 
+    /*
+     * 方法功能:查询所有未处理的告警记录
+     * 参数:无
+     * 返回数据:List<Alert>-未处理告警集合
+     * */
     List<Alert> findUnhandled();
 
+    /*
+     * 方法功能:根据设备ID查询该设备的所有告警记录
+     * 参数:deviceId-设备ID
+     * 返回数据:List<Alert>-告警集合
+     * */
     List<Alert> findByDeviceId(Integer deviceId);
 
+    /*
+     * 方法功能:批量处理指定ID的告警，标记为已处理并记录处理人和处理时间
+     * 参数:ids-待处理的告警ID列表, handleUser-处理人姓名
+     * 返回数据:int-成功处理的告警条数
+     * */
     int batchHandle(List<Integer> ids, String handleUser);
 
+    /*
+     * 方法功能:获取指定设备的告警统计信息
+     * 参数:deviceId-设备ID
+     * 返回数据:Map<String, Object>-统计结果
+     * */
     Map<String, Object> getStatsByDeviceId(Integer deviceId);
 
+    /*
+     * 方法功能:获取指定时间段内的全局告警统计信息
+     * 参数:startTime-开始时间, endTime-结束时间
+     * 返回数据:Map<String, Object>-统计结果
+     * */
     Map<String, Object> getStatsByTimeRange(LocalDateTime startTime, LocalDateTime endTime);
 
+    /*
+     * 方法功能:按时间段统计各设备的告警数量
+     * 参数:startTime-开始时间, endTime-结束时间
+     * 返回数据:List<Map<String, Object>>-每个Map包含设备ID和告警数量
+     * */
     List<Map<String, Object>> listDeviceAlertCountByTimeRange(LocalDateTime startTime, LocalDateTime endTime);
 
+    /*
+     * 方法功能:为离线设备批量创建离线告警，跳过已有未处理离线告警的设备
+     * 参数:offlineDevices-离线设备列表, offlineThresholdMinutes-离线阈值（分钟）
+     * 返回数据:int-新生成的告警条数
+     * */
     int createOfflineAlertsForDevices(List<Device> offlineDevices, int offlineThresholdMinutes);
 
+    /*
+     * 方法功能:按条件分页查询告警列表
+     * 参数:current-当前页码, size-每页大小, deviceId-设备ID（可选）, isHandled-处理状态（可选）, alertLevel-告警级别（可选）, startTime-开始时间（可选）, endTime-结束时间（可选）
+     * 返回数据:Page<Alert>-分页告警数据
+     * */
     Page<Alert> pageByCondition(Integer current, Integer size, Integer deviceId,
                                  Integer isHandled, Integer alertLevel,
                                  LocalDateTime startTime, LocalDateTime endTime);

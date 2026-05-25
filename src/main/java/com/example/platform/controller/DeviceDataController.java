@@ -128,6 +128,11 @@ public class DeviceDataController {
         return Result.success(deviceDataService.pageByCondition(deviceId, current, size));
     }
 
+    /*
+     * 方法功能:按时间粒度聚合统计设备数据（支持按小时/天/周聚合）
+     * 参数:deviceId-设备ID（路径参数）, startTime-开始时间, endTime-结束时间, granularity-聚合粒度(hour/day/week)
+     * 返回数据:Result<List<Map<String, Object>>>-聚合统计数据列表
+     * */
     @GetMapping("/device/{deviceId}/aggregate")
     public Result<List<Map<String, Object>>> aggregate(
             @PathVariable Integer deviceId,
