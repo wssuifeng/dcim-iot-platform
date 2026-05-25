@@ -1,33 +1,48 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.example.platform.common.group.CreateGroup;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:设备数据实体类，映射device_data表，记录设备上报的采集数据及指标值
+ * */
 @Data
 @TableName("device_data")
 public class DeviceData implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
 
-    /** 数据ID（主键，BIGINT 类型，用于海量数据） */
+    /** 数据ID（主键） */
     @TableId(value = "id", type = IdType.AUTO)
-    private Long id;               // 对应数据库 BIGINT
+    private Long id;
 
-    /** 设备ID（关联 devices 表） */
+    /** 设备ID */
     @TableField("device_id")
+    @NotNull(message = "设备ID不能为空", groups = CreateGroup.class)
     private Integer deviceId;
 
+    /** 指标标识（如 temperature） */
+    @TableField("metric")
+    private String metric;
+
     /** 数据值（保留两位小数） */
+    @NotNull(message = "数据值不能为空", groups = CreateGroup.class)
+    @DecimalMin(value = "-999.99", message = "数据值不能小于-999.99", groups = CreateGroup.class)
+    @DecimalMax(value = "999.99", message = "数据值不能超过999.99", groups = CreateGroup.class)
     @TableField("data_value")
     private BigDecimal dataValue;
 
-    /** 数据单位（如 ℃、%） */
-    @TableField("data_unit")
-    private String dataUnit;
-
-    /** 采集时间（默认当前时间） */
-    @TableField("collect_time")
+    /** 采集时间 */
+    @TableField(value = "collect_time", fill = FieldFill.INSERT)
     private LocalDateTime collectTime;
 
     /*
@@ -38,4 +53,5 @@ public class DeviceData implements Serializable {
      */
     // @TableLogic(value = "0", delval = "1")
     // private Integer deleted;
+
 }

@@ -2,13 +2,19 @@ package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:告警实体类，映射alerts表，记录设备产生的告警信息及其处理状态
+ * */
 @Data
 @TableName("alerts")
 public class Alert implements Serializable {
-
+    @Serial
+    private static final long serialVersionUID = 1L;
     /** 告警ID（主键，自增） */
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
@@ -17,11 +23,11 @@ public class Alert implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    /** 告警类型（如“高温告警”） */
+    /** 告警类型（如"高温告警"） */
     @TableField("alert_type")
     private String alertType;
 
-    /** 告警级别：1-一般，2-严重，3-紧急 */
+    /** 告警级别：1-紧急，2-严重，3-一般，4-警告，5-提示 */
     @TableField("alert_level")
     private Integer alertLevel;
 
@@ -34,7 +40,7 @@ public class Alert implements Serializable {
     private Integer isHandled;
 
     /** 处理时间 */
-    @TableField("handle_time")
+    @TableField(value = "handle_time")
     private LocalDateTime handleTime;
 
     /** 处理人（用户名或工号） */
@@ -42,7 +48,7 @@ public class Alert implements Serializable {
     private String handleUser;
 
     /** 告警产生时间 */
-    @TableField("create_time")
+    @TableField(value = "create_time" , fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     /*

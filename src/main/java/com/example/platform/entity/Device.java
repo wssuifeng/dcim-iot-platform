@@ -1,15 +1,20 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
+import com.example.platform.dto.AlertRuleConfig;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:设备实体类，映射devices表，包含设备基本信息、状态及设备级告警规则配置
+ * */
 @Data
-@TableName("devices")
+@TableName(value = "devices" , autoResultMap = true)
 public class Device implements Serializable {
 
     /** 设备ID（主键，自增） */
@@ -62,6 +67,10 @@ public class Device implements Serializable {
     /** 更新时间（插入和更新时自动填充） */
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+
+    /** 设备级告警规则（JSON格式存储，设备级优先于类型级） */
+    @TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)
+    private AlertRuleConfig alertRuleConfig;
 
     /*
      * 逻辑删除字段（当前未启用）
