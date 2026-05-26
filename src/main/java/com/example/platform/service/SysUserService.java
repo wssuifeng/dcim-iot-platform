@@ -26,16 +26,16 @@ public interface SysUserService extends IService<SysUser> {
     /*
      * 方法功能:创建新用户，校验用户名唯一性并对密码进行BCrypt加密
      * 参数:user-待创建的用户对象（含明文密码）
-     * 返回数据:boolean-创建是否成功
+     * 返回数据:无
      * */
-    boolean createUser(SysUser user);
+    void createUser(SysUser user);
 
     /*
      * 方法功能:更新用户基本信息（昵称、角色），不涉及密码变更
      * 参数:user-待更新的用户对象
-     * 返回数据:boolean-更新是否成功
+     * 返回数据:无
      * */
-    boolean updateUser(SysUser user);
+    void updateUser(SysUser user);
 
     /*
      * 方法功能:重置用户密码，新密码经BCrypt加密后存储

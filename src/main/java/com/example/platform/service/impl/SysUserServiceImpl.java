@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.exception.UsernameAlreadyExistsException;
 import com.example.platform.entity.SysUser;
@@ -52,11 +53,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     /*
      * 方法功能:创建新用户，校验用户名唯一性并对密码进行BCrypt加密
      * 参数:user-待创建的用户对象（含明文密码）
-     * 返回数据:boolean-创建是否成功
+     * 返回数据:无
      * */
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public boolean createUser(SysUser user) {
+    public void createUser(SysUser user) {
         checkUsernameUnique(user.getUsername());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         if (user.getStatus() == null) {
@@ -65,17 +66,19 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getRole() == null) {
             user.setRole("VIEWER");
         }
-        return super.save(user);
+        if (!super.save(user)) {
+            throw new BusinessException("创建用户失败，请稍后重试");
+        }
     }
 
     /*
      * 方法功能:更新用户基本信息（昵称、角色），不涉及密码变更
      * 参数:user-待更新的用户对象
-     * 返回数据:boolean-更新是否成功
+     * 返回数据:无
      * */
     @Transactional(rollbackFor = Exception.class)
     @Override
-    public boolean updateUser(SysUser user) {
+    public void updateUser(SysUser user) {
         // 校验用户存在性
         getUserOrThrow(user.getId());
         // 使用LambdaUpdateWrapper仅更新允许的字段，防止通过请求体注入password/status等敏感字段
@@ -87,7 +90,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getRole() != null) {
             wrapper.set(SysUser::getRole, user.getRole());
         }
-        return update(wrapper);
+        if (!update(wrapper)) {
+            throw new BusinessException("更新用户失败，数据可能已被他人修改");
+        }
     }
 
     /*
