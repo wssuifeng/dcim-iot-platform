@@ -5,8 +5,6 @@ package com.example.platform.common.exception;
  * */
 public class DeviceTypeCodeAlreadyExistsException extends RuntimeException {
 
-    private final int code = 4051;
-
     /*
      * 方法功能:根据重复的类型编码构造异常
      * 参数:typeCode-重复的设备类型编码
@@ -22,6 +20,6 @@ public class DeviceTypeCodeAlreadyExistsException extends RuntimeException {
      * 返回数据:int-错误码4051
      * */
     public int getCode() {
-        return code;
+        return 4051;
     }
 }

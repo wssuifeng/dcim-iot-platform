@@ -37,6 +37,6 @@ public interface DeviceMapper extends BaseMapper<Device> {
      * 参数:checkTime-判定阈值时间
      * 返回数据:List<Device>-离线设备列表
      * */
-    @Select("SELECT * FROM devices WHERE last_online_time < #{checkTime} AND status != 0 ORDER BY last_online_time ASC")
+    @Select("SELECT * FROM devices WHERE last_online_time < #{checkTime} AND status != 0 ORDER BY last_online_time")
     List<Device> getOnlineDetection(@Param("checkTime") LocalDateTime checkTime);
 }

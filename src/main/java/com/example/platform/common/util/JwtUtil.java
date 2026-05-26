@@ -3,6 +3,7 @@ package com.example.platform.common.util;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,11 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
 
+    /*
+     * 方法功能:获取Token有效时长（秒）
+     * 返回数据:Long-有效时长
+     * */
+    @Getter
     @Value("${jwt.expiration}")
     private Long expiration;
 
@@ -95,11 +101,4 @@ public class JwtUtil {
         return claims.get("role", String.class);
     }
 
-    /*
-     * 方法功能:获取Token有效时长（秒）
-     * 返回数据:Long-有效时长
-     * */
-    public Long getExpiration() {
-        return expiration;
-    }
 }

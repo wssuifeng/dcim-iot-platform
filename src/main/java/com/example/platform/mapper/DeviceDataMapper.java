@@ -35,7 +35,7 @@ public interface DeviceDataMapper extends BaseMapper<DeviceData> {
             "COUNT(*) AS count, MIN(data_value) AS min_val, MAX(data_value) AS max_val, AVG(data_value) AS avg_val " +
             "FROM device_data WHERE device_id = #{deviceId} " +
             "AND collect_time BETWEEN #{startTime} AND #{endTime} " +
-            "GROUP BY time_bucket ORDER BY time_bucket ASC")
+            "GROUP BY time_bucket ORDER BY time_bucket")
     List<Map<String, Object>> aggregateByHour(@Param("deviceId") Integer deviceId,
                                                @Param("startTime") LocalDateTime startTime,
                                                @Param("endTime") LocalDateTime endTime);
@@ -49,7 +49,7 @@ public interface DeviceDataMapper extends BaseMapper<DeviceData> {
             "COUNT(*) AS count, MIN(data_value) AS min_val, MAX(data_value) AS max_val, AVG(data_value) AS avg_val " +
             "FROM device_data WHERE device_id = #{deviceId} " +
             "AND collect_time BETWEEN #{startTime} AND #{endTime} " +
-            "GROUP BY time_bucket ORDER BY time_bucket ASC")
+            "GROUP BY time_bucket ORDER BY time_bucket")
     List<Map<String, Object>> aggregateByDay(@Param("deviceId") Integer deviceId,
                                               @Param("startTime") LocalDateTime startTime,
                                               @Param("endTime") LocalDateTime endTime);
@@ -63,7 +63,7 @@ public interface DeviceDataMapper extends BaseMapper<DeviceData> {
             "COUNT(*) AS count, MIN(data_value) AS min_val, MAX(data_value) AS max_val, AVG(data_value) AS avg_val " +
             "FROM device_data WHERE device_id = #{deviceId} " +
             "AND collect_time BETWEEN #{startTime} AND #{endTime} " +
-            "GROUP BY time_bucket ORDER BY time_bucket ASC")
+            "GROUP BY time_bucket ORDER BY time_bucket")
     List<Map<String, Object>> aggregateByWeek(@Param("deviceId") Integer deviceId,
                                                @Param("startTime") LocalDateTime startTime,
                                                @Param("endTime") LocalDateTime endTime);

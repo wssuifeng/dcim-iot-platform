@@ -70,7 +70,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理设备未找到异常
      * 参数:e-设备未找到异常
-     * 返回数据:Result<Void>-404状态码的错误响应
+     * 返回数据:Result<Void>-404 状态码的错误响应
      * */
     @ExceptionHandler(DeviceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -82,7 +82,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理设备代码已存在异常
      * 参数:e-设备代码已存在异常
-     * 返回数据:Result<Void>-400状态码的错误响应
+     * 返回数据:Result<Void>-400 状态码的错误响应
      * */
     @ExceptionHandler(DeviceCodeAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -94,7 +94,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理设备类型未找到异常
      * 参数:e-设备类型未找到异常
-     * 返回数据:Result<Void>-404状态码的错误响应
+     * 返回数据:Result<Void>-404 状态码的错误响应
      * */
     @ExceptionHandler(DeviceTypeNotFound.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -106,7 +106,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理设备类型编码已存在异常
      * 参数:e-设备类型编码已存在异常
-     * 返回数据:Result<Void>-400状态码的错误响应
+     * 返回数据:Result<Void>-400 状态码的错误响应
      * */
     @ExceptionHandler(DeviceTypeCodeAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -118,7 +118,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理用户未找到异常
      * 参数:e-用户未找到异常
-     * 返回数据:Result<Void>-404状态码的错误响应
+     * 返回数据:Result<Void>-404 状态码的错误响应
      * */
     @ExceptionHandler(UserNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -130,7 +130,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理用户名已存在异常
      * 参数:e-用户名已存在异常
-     * 返回数据:Result<Void>-400状态码的错误响应
+     * 返回数据:Result<Void>-400 状态码的错误响应
      * */
     @ExceptionHandler(UsernameAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -142,7 +142,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:处理账号锁定异常
      * 参数:e-账号锁定异常
-     * 返回数据:Result<Void>-400状态码的错误响应
+     * 返回数据:Result<Void>-400 状态码的错误响应
      * */
     @ExceptionHandler(AccountLockedException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -181,9 +181,9 @@ public class GlobalExceptionHandler {
     }
 
     /*
-     * 方法功能:处理缺少必需请求参数异常
+     * 方法功能:处理缺少必需 请求参数异常
      * 参数:e-缺少请求参数异常
-     * 返回数据:Result<Void>-400状态码的错误响应
+     * 返回数据:Result<Void>-400 状态码的错误响应
      * */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -221,7 +221,7 @@ public class GlobalExceptionHandler {
     /*
      * 方法功能:兜底处理所有未精确匹配的异常，记录完整堆栈并返回脱敏错误信息
      * 参数:e-未捕获的异常
-     * 返回数据:Result<Void>-500状态码的通用错误响应
+     * 返回数据:Result<Void>-500 状态码的通用错误响应
      * */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
