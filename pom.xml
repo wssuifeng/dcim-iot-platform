@@ -107,6 +107,17 @@
             <version>2.21.2</version>
         </dependency>
 
+        <!-- Spring Data Redis：Lettuce客户端 + RedisTemplate -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- commons-pool2：Lettuce连接池依赖，不引入则lettuce.pool配置全部失效 -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
 
     </dependencies>
 

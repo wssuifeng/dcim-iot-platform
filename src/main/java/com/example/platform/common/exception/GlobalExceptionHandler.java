@@ -152,6 +152,20 @@ public class GlobalExceptionHandler {
     }
 
     /*
+     * 方法功能:处理缓存层类型转换异常（ClassCastException）
+     * 场景:调用CacheService.get(key, Integer.class)但缓存中实际存储的是String类型
+     * 这是调用方编程错误（传入了错误的Class参数），应返回400而非500
+     * 参数:e-类型转换异常
+     * 返回数据:Result<Void>-400状态码的错误响应
+     * */
+    @ExceptionHandler(ClassCastException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleClassCastException(ClassCastException e) {
+        log.warn("缓存类型转换失败: {}", e.getMessage());
+        return Result.error(400, "缓存数据类型不匹配，请检查调用代码");
+    }
+
+    /*
      * 方法功能:处理请求体缺失或JSON格式错误异常
      * 场景:用户未输入账号密码直接提交、请求体不是合法JSON、Content-Type不正确
      * 参数:e-HTTP消息不可读异常

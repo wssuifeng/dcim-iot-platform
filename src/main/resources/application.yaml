@@ -78,6 +78,34 @@ spring:
     # 序列化时自动过滤为 null 的属性，减少数据量
     default-property-inclusion: non_null
 
+  # Redis 配置（Lettuce 客户端）
+  data:
+    redis:
+      # Redis 服务地址，环境变量优先，默认 localhost
+      host: ${REDIS_HOST:localhost}
+      # Redis 服务端口，环境变量优先，默认 6379
+      port: ${REDIS_PORT:6379}
+      # Redis 密码，环境变量优先，默认无密码
+      password: ${REDIS_PASSWORD:}
+      # 使用的数据库索引（0-15），默认 0
+      database: ${REDIS_DATABASE:0}
+      # 连接超时时间（毫秒），建立 TCP 连接的最大等待时间
+      connect-timeout: 2000
+      # Lettuce 客户端配置
+      lettuce:
+        # 命令执行超时（毫秒），单条 Redis 命令的最大等待时间
+        shutdown-timeout: 3000
+        # 连接池配置（必须引入 commons-pool2 依赖，否则以下配置全部失效）
+        pool:
+          # 连接池最大活跃连接数
+          max-active: 20
+          # 连接池最大空闲连接数
+          max-idle: 10
+          # 连接池最小空闲连接数
+          min-idle: 5
+          # 获取连接的最大等待时间（毫秒），-1 表示无限等待
+          max-wait: 3000
+
 # ==================== MyBatis-Plus配置 ====================
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
