@@ -8,6 +8,7 @@ import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.mapper.DeviceTypeMapper;
+import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,11 @@ import java.util.List;
 public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceType> implements DeviceTypeService {
 
     private final DeviceService deviceService;
+    private final AlertConfigService alertConfigService;
 
-    public DeviceTypeServiceImpl(DeviceService deviceService) {
+    public DeviceTypeServiceImpl(DeviceService deviceService, AlertConfigService alertConfigService) {
         this.deviceService = deviceService;
+        this.alertConfigService = alertConfigService;
     }
 
     @Override
@@ -40,6 +43,7 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
         DeviceType type = getTypeOrThrow(id);
         type.setAlertRuleConfig(alertRuleConfig);
         updateById(type);
+        alertConfigService.evictTypeAlertConfig(id);
     }
 
     @Override

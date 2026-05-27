@@ -9,6 +9,7 @@ import com.example.platform.common.exception.DeviceNotFoundException;
 import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 import com.example.platform.mapper.DeviceMapper;
+import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.stereotype.Service;
@@ -25,9 +26,11 @@ import java.util.Map;
 public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> implements DeviceService {
 
     private final DeviceTypeService deviceTypeService;
+    private final AlertConfigService alertConfigService;
 
-    public DeviceServiceImpl(DeviceTypeService deviceTypeService) {
+    public DeviceServiceImpl(DeviceTypeService deviceTypeService, AlertConfigService alertConfigService) {
         this.deviceTypeService = deviceTypeService;
+        this.alertConfigService = alertConfigService;
     }
 
     /*
@@ -143,6 +146,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         Device device = getDeviceOrThrow(id);
         device.setAlertRuleConfig(alertRuleConfig);
         this.updateById(device);
+        alertConfigService.evictDeviceAlertConfig(id);
     }
 
     /*

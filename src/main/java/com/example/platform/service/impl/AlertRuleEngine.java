@@ -7,6 +7,7 @@ import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.DictMetric;
+import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.AlertService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
@@ -31,6 +32,7 @@ public class AlertRuleEngine {
     private final DeviceTypeService deviceTypeService;
     private final AlertService alertService;
     private final DictMetricService dictMetricService;
+    private final AlertConfigService alertConfigService;
 
     /*
      * 方法功能:评估指定设备的采集数据是否触发告警规则
@@ -71,19 +73,21 @@ public class AlertRuleEngine {
      * 方法功能:获取生效的告警规则配置，设备级配置优先于类型级配置
      * 参数:deviceId-设备ID
      * 返回数据:AlertRuleConfig-生效的告警规则配置；设备级和类型级均无配置时返回null
+     *
+     * 【缓存读取策略】
+     * 通过AlertConfigService从Redis缓存获取配置，避免每次评估都查DB：
+     *   - 设备级缓存Key: config:alert:device:{deviceId}，TTL=1h
+     *   - 类型级缓存Key: config:alert:type:{typeId}，TTL=1h
      * */
     private AlertRuleConfig getEffectiveRuleConfig(Integer deviceId) {
-        // 优先使用设备级配置
-        Device device = deviceService.getDeviceOrThrow(deviceId);
-        AlertRuleConfig deviceConfig = device.getAlertRuleConfig();
+        AlertRuleConfig deviceConfig = alertConfigService.getDeviceAlertConfig(deviceId);
         if (deviceConfig != null && deviceConfig.getRules() != null
                 && !deviceConfig.getRules().isEmpty()) {
             return deviceConfig;
         }
 
-        // 降级使用类型级配置
-        DeviceType type = deviceTypeService.getTypeOrThrow(device.getTypeId());
-        AlertRuleConfig typeConfig = type.getAlertRuleConfig();
+        Device device = deviceService.getDeviceOrThrow(deviceId);
+        AlertRuleConfig typeConfig = alertConfigService.getTypeAlertConfig(device.getTypeId());
         if (typeConfig != null && typeConfig.getRules() != null
                 && !typeConfig.getRules().isEmpty()) {
             return typeConfig;

@@ -1,5 +1,7 @@
 package com.example.platform.service;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +22,32 @@ import java.util.concurrent.TimeUnit;
  *   - dict:metric:temperature → 指标字典
  * */
 public interface CacheService {
+
+    /*
+     * 类功能:缓存空值占位标记，用于防止缓存穿透
+     *
+     * 【为什么不能用 "NULL" 字符串？】
+     * 序列化器是 Jackson2JsonRedisSerializer + activateDefaultTyping：
+     *   - 存 "NULL" 字符串 → 反序列化得到 String → clazz.cast() 转 DictMetric 时 ClassCastException
+     *   - 存 NullValue 对象 → 反序列化得到 NullValue → instanceof 判断 → 返回 null
+     *
+     * 【instanceof 判断的好处】
+     *   1. 类型安全：不依赖字符串约定，不会被误判为正常业务数据
+     *   2. 编译期检查：NullValue 是具体类型，IDE 能追踪所有使用点
+     *   3. 序列化兼容：@class 字段精确标识类型，反序列化不会混淆
+     *
+     * 【为什么不能是 final class？为什么需要 marker 字段？】
+     * RedisConfig 中 ObjectMapper 配置了 DefaultTyping.NON_FINAL，
+     *   - final 类型不会嵌入 @class 信息 → 反序列化后丢失类型 → 无法 instanceof 判断
+     *   - marker 字段为 Jackson 提供可序列化的属性，否则空类抛出 InvalidDefinitionException
+     * */
+    static class NullValue implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        @SuppressWarnings("unused")
+        private String marker = "__NULL__";
+    }
 
     /*
      * 方法功能:缓存键值对，永不过期（需手动调用expire设置TTL）
