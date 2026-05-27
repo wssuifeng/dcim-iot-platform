@@ -225,21 +225,9 @@ public class CacheServiceImpl implements CacheService {
      * 不需要强原子性，Pipeline的性能优势更实际
      * */
     @Override
-    @SuppressWarnings("unchecked")
     public void multiSet(Map<String, Object> map, long timeout, TimeUnit unit) {
         try {
-            RedisCallback<Void> callback = (connection) -> {
-                RedisSerializer<Object> valueSerializer = (RedisSerializer<Object>) redisTemplate.getValueSerializer();
-                for (Map.Entry<String, Object> entry : map.entrySet()) {
-                    byte[] keyBytes = redisTemplate.getStringSerializer().serialize(entry.getKey());
-                    byte[] valueBytes = valueSerializer.serialize(entry.getValue());
-                    if (keyBytes != null && valueBytes != null) {
-                        connection.setEx(keyBytes, unit.toSeconds(timeout), valueBytes);
-                    }
-                }
-                return null;
-            };
-            redisTemplate.executePipelined(callback);
+            map.forEach((key, value) -> redisTemplate.opsForValue().set(key, value, timeout, unit));
         } catch (Exception e) {
             log.warn("Redis批量写入失败, keyCount={}", map.size(), e);
         }
