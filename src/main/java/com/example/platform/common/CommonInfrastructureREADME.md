@@ -40,6 +40,7 @@ common/
 │   ├── UserNotFoundException.java     # 用户未找到异常
 │   ├── UsernameAlreadyExistsException.java  # 用户名已存在异常
 │   ├── AccountLockedException.java    # 账号锁定异常
+│   ├── CacheOperationException.java   # 缓存操作异常（v4.0 新增）
 │   └── GlobalExceptionHandler.java    # 全局异常处理器
 ├── util/                              # 工具类
 │   └── JwtUtil.java                   # JWT工具类
@@ -128,6 +129,7 @@ common/
 | `UserNotFoundException` | 4004 | 404 | 查询/操作不存在的用户 | `"用户不存在:{id/username}"` |
 | `UsernameAlreadyExistsException` | 4005 | 400 | 创建用户时用户名已存在 | `"用户名已存在:{username}"` |
 | `AccountLockedException` | 4006 | 400 | 登录时账号处于锁定状态 | `"账号已被锁定，请于 {lockTime} 后重试"` |
+| `CacheOperationException` | 5001 | 500 | **v4.0 新增**：缓存操作异常（计数器类操作不可降级） | `"缓存计数器操作异常:{key}"` |
 
 > **v2.0 修正**：`DeviceTypeNotFound` 异常返回 HTTP 状态码从 400 改为 404，语义更准确（资源不存在）。
 
@@ -142,6 +144,7 @@ common/
 | `UserNotFoundException` | `Integer id` 或 `String username` |
 | `UsernameAlreadyExistsException` | `String username` |
 | `AccountLockedException` | `LocalDateTime lockTime` |
+| `CacheOperationException` | `String message` 或 `String message, Throwable cause` |
 
 ### 2.4 GlobalExceptionHandler — 全局异常处理器
 
@@ -163,6 +166,7 @@ common/
 | `UserNotFoundException` | 404 | 4004 | 用户未找到 |
 | `UsernameAlreadyExistsException` | 400 | 4005 | 用户名已存在 |
 | `AccountLockedException` | 400 | 4006 | 账号锁定 |
+| `CacheOperationException` | 500 | 5001 | 缓存计数器操作异常（v4.0 新增） |
 | `Exception`（兜底） | 500 | 500 | 所有未匹配的异常，返回模糊错误信息防止泄露系统细节 |
 
 > **v2.0 新增**：`ConstraintViolationException` 处理器。当 `@Validated` 注解标注在 `@RequestParam` 或 `@PathVariable` 参数上时，校验失败会抛出 `ConstraintViolationException` 而非 `MethodArgumentNotValidException`，新增处理器确保此类场景也能返回统一格式。
@@ -219,6 +223,7 @@ private String deviceName;  // 创建和更新时都必填
 | `USERNAME_EXISTS` | 4005 | 用户名已存在 | `UsernameAlreadyExistsException` |
 | `ACCOUNT_LOCKED` | 4006 | 账号锁定 | `AccountLockedException` |
 | `DEVICE_TYPE_CODE_EXISTS` | 4051 | 设备类型编码已存在 | `DeviceTypeCodeAlreadyExistsException` |
+| `CACHE_OPERATION_ERROR` | 5001 | 缓存操作异常 | `CacheOperationException` |
 
 ### 2.7 JwtUtil — JWT工具类
 
@@ -366,6 +371,7 @@ public Result<List<Device>> search(
 | v1.2 | 2026-05-09 | `[0e2c8e48]` | DeviceNotFoundException 构造参数从 `String deviceName` 改为 `Integer id`；更新使用示例为 `getDeviceOrThrow` 调用方式 |
 | v2.0 | 2026-05-17 | — | GlobalExceptionHandler 新增 `ConstraintViolationException` 处理器（@Validated 在 @RequestParam/@PathVariable 上时）；DeviceTypeNotFound 异常返回 HTTP 状态码从 400 改为 404；BusinessException.code 字段改为 `private final`；ResultCode 已定义常量（SUCCESS=200, BAD_REQUEST=400, NOT_FOUND=404, INTERNAL_ERROR=500, DEVICE_TYPE_NOT_FOUND=4001, DEVICE_CODE_EXISTS=4002, DEVICE_NOT_FOUND=4003） |
 | v3.0 | 2026-05-24 | — | 新增异常类：`DeviceTypeCodeAlreadyExistsException`(4051)、`UserNotFoundException`(4004)、`UsernameAlreadyExistsException`(4005)、`AccountLockedException`(4006)；新增 `JwtUtil` 工具类（Token生成/解析/验证）；GlobalExceptionHandler 新增4个异常处理器；ResultCode 新增4个常量（USER_NOT_FOUND=4004, USERNAME_EXISTS=4005, ACCOUNT_LOCKED=4006, DEVICE_TYPE_CODE_EXISTS=4051）；修正异常消息格式 |
+| v4.0 | 2026-05-28 | `3d96056` | 新增异常类 `CacheOperationException`(5001)：缓存计数器操作不可降级场景专用异常；GlobalExceptionHandler 新增对应处理器（HTTP 500）；ResultCode 新增 `CACHE_OPERATION_ERROR=5001` 常量 |
 
 ---
 

@@ -37,7 +37,8 @@ dto/
 ├── HandleAlertDTO.java        # 单条告警处理请求
 ├── LoginDTO.java              # 登录请求DTO
 ├── LoginResponseDTO.java      # 登录成功响应DTO
-└── PasswordResetDTO.java      # 密码重置请求DTO
+├── PasswordResetDTO.java      # 密码重置请求DTO
+└── DashboardStatsDTO.java      # 仪表盘统计响应 DTO（v4.0 新增）
 ```
 
 ---
@@ -165,6 +166,45 @@ dto/
 
 ---
 
+### 2.9 DashboardStatsDTO — 仪表盘统计响应 DTO（v4.0 新增）
+
+**完整类名**: `com.example.platform.dto.DashboardStatsDTO`
+
+封装仪表盘统计接口的响应数据。
+
+#### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `totalDevices` | `long` | 设备总数 |
+| `onlineDevices` | `long` | 在线设备数（status = 1） |
+| `statusDistribution` | `Map<Integer, Long>` | 设备状态分布 `{status: count}` |
+| `totalAlerts` | `long` | 历史告警总数 |
+| `unhandledAlerts` | `long` | 未处理告警数（isHandled = 0） |
+
+#### JSON 序列化示例
+
+```json
+{
+  "totalDevices": 42,
+  "onlineDevices": 35,
+  "statusDistribution": {
+    "1": 35,
+    "0": 7
+  },
+  "totalAlerts": 128,
+  "unhandledAlerts": 5
+}
+```
+
+#### 使用场景
+
+- `DashboardStatsServiceImpl.getDashboardStats()` 构建并返回
+- `DashboardController.stats()` 通过 `Result.success(dto)` 封装响应
+- 缓存 Key：`stats:dashboard`（TTL 30s）
+
+---
+
 ## 三、使用示例
 
 ### 示例 1：配置设备告警规则
@@ -255,6 +295,7 @@ Content-Type: application/json
 | v1.0 | 2026-05-15 | `[05b8ff81]` | 初始版本，包含 AlertRuleConfig、AlertRuleDefinition、BatchHandleAlertDTO、DeviceDataBatchDTO、HandleAlertDTO 五个 DTO 类 |
 | v2.0 | 2026-05-17 | — | AlertRuleDefinition 字段名 `metric` → `metricKey`；`operator` 正则改为 GT/LT/GTE/LTE/EQ；`threshold` 类型由 `BigDecimal` 改为 `Double`；删除 `alertType` 字段；`messageTemplate` 占位符改为 `{metricName}/{unit}/{value}/{threshold}`；BatchHandleAlertDTO `ids` 字段移除无效类型注解，改为 `List<Integer>`；DeviceDataBatchDTO `dataList` 校验改为 `@NotEmpty` + `@Valid`；HandleAlertDTO 补充 `alertId` 字段说明 |
 | v3.0 | 2026-05-24 | — | 新增 LoginDTO（用户名+密码登录请求）；新增 LoginResponseDTO（Token+用户信息响应）；新增 PasswordResetDTO（密码重置请求，含复杂度校验） |
+| v4.0 | 2026-05-28 | `3d96056` | 新增 DashboardStatsDTO（仪表盘统计响应 DTO：totalDevices/onlineDevices/statusDistribution/totalAlerts/unhandledAlerts，30s Redis 缓存） |
 
 ---
 

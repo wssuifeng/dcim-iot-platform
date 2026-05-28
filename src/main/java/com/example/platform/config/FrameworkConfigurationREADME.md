@@ -14,6 +14,18 @@
 - **行为定制**：通过配置类调整框架的默认行为
 - **统一管理**：所有框架级配置集中存放，便于维护
 
+#### 目录结构
+
+```
+config/
+├── MybatisPlusConfig.java      # MyBatis-Plus 配置类（分页插件、乐观锁插件）
+├── MyMetaObjectHandler.java    # 自动填充处理器（createTime/updateTime）
+├── RedisConfig.java            # Redis 配置类（序列化策略/Lettuce连接池）
+├── SecurityConfig.java         # Spring Security 配置类（JWT过滤链/RBAC权限/密码加密）
+├── WebConfig.java              # CORS 跨域配置类（允许来源/方法/头信息）
+└── GlobalExceptionHandler.java # 全局异常处理器
+```
+
 ### 与其他模块的关系
 
 ```
@@ -179,6 +191,61 @@ interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
 
 - `CustomAuthenticationEntryPoint` 和 `CustomAccessDeniedHandler` 通过 `@Bean` 方法在 `SecurityConfig` 中创建，而非 `@Component` 自动扫描，避免 `ObjectMapper` 构造注入导致的循环依赖
 - JWT 过滤器在 Token 过期或无效时不抛出异常，仅不设置 `SecurityContext`，由后续 `AuthenticationEntryPoint` 返回 401
+
+### 2.4.1 RedisConfig — Redis 配置类（v4.0 新增）
+
+**完整类名**: `com.example.platform.config.RedisConfig`
+**注解**: `@Configuration` + `@Slf4j`
+
+#### 核心配置
+
+| 配置项 | 类型 | 环境变量 | 默认值 | 说明 |
+|--------|------|----------|--------|------|
+| `host` | String | `REDIS_HOST` | `localhost` | Redis 服务器地址 |
+| `port` | int | `REDIS_PORT` | `6379` | Redis 服务器端口 |
+| `password` | String | `REDIS_PASSWORD` | 空 | Redis 连接密码 |
+| `database` | int | `REDIS_DATABASE` | `0` | 数据库索引 |
+| `timeout` | int | `REDIS_TIMEOUT` | `3000ms` | 连接超时时间 |
+
+#### Bean 定义
+
+| Bean 名称 | 类型 | 说明 |
+|-----------|------|------|
+| `redisConnectionFactory` | `LettuceConnectionFactory` | Lettuce 客户端连接工厂 |
+| `redisTemplate` | `RedisTemplate<String, Object>` | **统一 Redis 操作模板**，供 `CacheService` 使用 |
+| `lettuceClientResources` | `LettuceClientResources` | Lettuce 客户端资源配置（可选） |
+
+#### 序列化策略
+
+| 对象 | 序列化器 | 说明 |
+|------|----------|------|
+| **Key** | `StringRedisSerializer` | UTF-8 字符串，确保 Key 可读性 |
+| **Value** | `Jackson2JsonRedisSerializer(Object.class)` | JSON 序列化，支持任意 Object 类型 |
+| **Hash Key** | `StringRedisSerializer` | 同上 |
+| **Hash Value** | `Jackson2JsonRedisSerializer(Object.class)` | 同上 |
+
+**设计决策**：Value 序列化器配置 `activateDefaultTyping` 以保留类型信息（`@class` 字段），确保反序列化时能还原正确的 Java 类型。
+
+#### 连接池配置
+
+使用 `commons-pool2` 管理 Lettuce 连接池：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| 最大活跃连接数 | 8 | `spring.redis.lettuce.pool.max-active` |
+| 最大空闲连接数 | 8 | `spring.redis.lettuce.pool.max-idle` |
+| 最小空闲连接数 | 0 | `spring.redis.lettuce.pool.min-idle` |
+| 最大阻塞等待时间 | -1ms（无限制） | `spring.redis.lettuce.pool.max-wait` |
+
+#### 使用规范
+
+```java
+// ✅ 正确：通过 CacheService 统一接口操作
+cacheService.set("key", value, 30, TimeUnit.SECONDS);
+
+// ❌ 禁止：直接注入 RedisTemplate
+redisTemplate.opsForValue().set("key", value);
+```
 
 ### 2.5 security 子包 — JWT 认证与鉴权组件
 
@@ -371,6 +438,7 @@ Access-Control-Max-Age: 3600
 | v1.4 | 2026-05-16 | `[240739a]` | 新增 `@EnableScheduling` 定时任务调度启用说明；新增 `application.yaml` 中 `task.check-device-cron` 配置说明 |
 | v2.0 | 2026-05-17 | — | MybatisPlusConfig 新增 `OptimisticLockerInnerInterceptor` 乐观锁插件（IoT 设备状态更新防丢失更新）；CorsConfig `allowedOrigins` 改为从配置文件动态读取 `@Value("${cors.allowed-origins}")`，不再硬编码；MyMetaObjectHandler `createTime` 改用 `strictInsertFill`（仅 null 时填充），`updateTime` 仍用 `setFieldValByName` 强制覆盖；`application.yaml` 新增 `cors.allowed-origins` 和 `task.offline-threshold-seconds` 配置项 |
 | v3.0 | 2026-05-24 | — | 新增 SecurityConfig 文档（JWT 过滤链、RBAC 鉴权、BCrypt 密码加密）；新增 security 子包文档（JwtAuthenticationFilter、CustomAuthenticationEntryPoint、CustomAccessDeniedHandler）；CorsConfig 改为提供 `CorsConfigurationSource` Bean 供 Spring Security 引用（不再注册 CorsFilter）；新增 JWT 相关配置项说明 |
+| v4.0 | 2026-05-28 | `3d96056` | 新增 RedisConfig 全文（Lettuce 客户端连接池配置、序列化策略：StringRedisSerializer Key + Jackson2JsonRedisSerializer Value、commons-pool2 连接池参数、环境变量注入适配、使用规范） |
 
 ---
 
