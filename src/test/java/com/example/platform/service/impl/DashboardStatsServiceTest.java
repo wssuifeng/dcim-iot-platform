@@ -1,7 +1,6 @@
 package com.example.platform.service.impl;
 
 import com.example.platform.dto.DashboardStatsDTO;
-import com.example.platform.entity.Alert;
 import com.example.platform.service.AlertService;
 import com.example.platform.service.CacheService;
 import com.example.platform.service.DeviceService;
