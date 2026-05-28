@@ -3,6 +3,7 @@ package com.example.platform.service;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -139,4 +140,23 @@ public interface CacheService {
      * 返回数据:long-剩余时间，键不存在返回-2，键无过期时间返回-1
      * */
     long getExpire(String key, TimeUnit unit);
+
+    /*
+     * 方法功能:执行Lua脚本，保证脚本内所有Redis命令的原子性
+     *
+     * 【为什么需要Lua脚本？】
+     * 当"读取-判断-写回"必须作为不可分割的整体时，Java应用层的多线程并发
+     * 会导致竞态条件（两个线程同时读到旧值，各自写回，后写覆盖前写）。
+     * Redis单线程执行Lua脚本时，脚本内的所有命令不会被其他客户端插队，
+     * 天然保证原子性，无需加分布式锁。
+     *
+     * 【禁忌：Lua脚本内禁止调用redis.call('TIME')】
+     * Redis主从复制要求Lua脚本在所有节点产生相同的执行结果（确定性），
+     * TIME命令在不同节点返回不同值，会导致主从数据不一致。
+     * 所有时间相关数据必须由Java端计算后通过ARGV传入。
+     *
+     * 参数:script-Lua脚本字符串, resultType-返回值类型, keys-KEYS列表, args-ARGV参数
+     * 返回数据:T-脚本执行结果
+     * */
+    <T> T executeLua(String script, Class<T> resultType, List<String> keys, Object... args);
 }
