@@ -5,14 +5,8 @@ import com.example.platform.dto.AlertRuleDefinition;
 import com.example.platform.entity.Alert;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceData;
-import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.DictMetric;
-import com.example.platform.service.AlertConfigService;
-import com.example.platform.service.AlertService;
-import com.example.platform.service.DeviceService;
-import com.example.platform.service.DeviceTypeService;
-import com.example.platform.service.DictMetricService;
-import com.example.platform.service.NotificationDedupService;
+import com.example.platform.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -30,7 +24,6 @@ import java.util.List;
 public class AlertRuleEngine {
 
     private final DeviceService deviceService;
-    private final DeviceTypeService deviceTypeService;
     private final AlertService alertService;
     private final DictMetricService dictMetricService;
     private final AlertConfigService alertConfigService;
