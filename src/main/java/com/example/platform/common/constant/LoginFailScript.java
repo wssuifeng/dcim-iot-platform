@@ -60,48 +60,49 @@ public final class LoginFailScript {
      * 6. 若未达阈值 → 更新TTL，返回[0, count, 0]
      * */
     public static final String RECORD_FAIL =
-            "-- 步骤1：从Hash中读取当前状态，不存在的field返回nil，or '0'兜底\n" +
-            "local count = tonumber(redis.call('HGET', KEYS[1], 'count') or '0')\n" +
-            "local lock_until = tonumber(redis.call('HGET', KEYS[1], 'lock_until') or '0')\n" +
-            "local window_start = tonumber(redis.call('HGET', KEYS[1], 'window_start') or '0')\n" +
-            "\n" +
-            "-- 步骤2：从ARGV提取Java端传入的时间参数（禁止在Lua内调用TIME）\n" +
-            "local now_ms      = tonumber(ARGV[1])\n" +
-            "local window_ms   = tonumber(ARGV[2])\n" +
-            "local max_retries = tonumber(ARGV[3])\n" +
-            "local lock_ms     = tonumber(ARGV[4])\n" +
-            "local buffer_sec  = 10\n" +
-            "\n" +
-            "-- 步骤3：判断是否处于锁定期且未到期\n" +
-            "if lock_until > now_ms then\n" +
-            "  local lock_remain_sec = math.ceil((lock_until - now_ms) / 1000)\n" +
-            "  redis.call('EXPIRE', KEYS[1], lock_remain_sec + buffer_sec)\n" +
-            "  return {1, count, lock_remain_sec}\n" +
-            "end\n" +
-            "\n" +
-            "-- 步骤4：判断滑动窗口是否过期，过期则重置计数，否则递增\n" +
-            "if window_start + window_ms <= now_ms then\n" +
-            "  count = 1\n" +
-            "  redis.call('HSET', KEYS[1], 'count', count, 'window_start', now_ms)\n" +
-            "else\n" +
-            "  count = count + 1\n" +
-            "  redis.call('HINCRBY', KEYS[1], 'count', 1)\n" +
-            "end\n" +
-            "\n" +
-            "-- 步骤5：若达到阈值，触发锁定\n" +
-            "if count >= max_retries then\n" +
-            "  lock_until = now_ms + lock_ms\n" +
-            "  redis.call('HSET', KEYS[1], 'lock_until', lock_until)\n" +
-            "  local lock_sec = math.ceil(lock_ms / 1000)\n" +
-            "  redis.call('EXPIRE', KEYS[1], lock_sec + buffer_sec)\n" +
-            "  return {2, count, lock_sec}\n" +
-            "end\n" +
-            "\n" +
-            "-- 步骤6：未达阈值，正常失败，更新TTL防止僵尸Key\n" +
-            "local window_remain_ms = window_start + window_ms - now_ms\n" +
-            "local window_remain_sec = math.ceil(window_remain_ms / 1000)\n" +
-            "redis.call('EXPIRE', KEYS[1], window_remain_sec + buffer_sec)\n" +
-            "return {0, count, 0}";
+            """
+                    -- 步骤1：从Hash中读取当前状态，不存在的field返回nil，or '0'兜底
+                    local count = tonumber(redis.call('HGET', KEYS[1], 'count') or '0')
+                    local lock_until = tonumber(redis.call('HGET', KEYS[1], 'lock_until') or '0')
+                    local window_start = tonumber(redis.call('HGET', KEYS[1], 'window_start') or '0')
+
+                    -- 步骤2：从ARGV提取Java端传入的时间参数（禁止在Lua内调用TIME）
+                    local now_ms      = tonumber(ARGV[1])
+                    local window_ms   = tonumber(ARGV[2])
+                    local max_retries = tonumber(ARGV[3])
+                    local lock_ms     = tonumber(ARGV[4])
+                    local buffer_sec  = 10
+
+                    -- 步骤3：判断是否处于锁定期且未到期
+                    if lock_until > now_ms then
+                      local lock_remain_sec = math.ceil((lock_until - now_ms) / 1000)
+                      redis.call('EXPIRE', KEYS[1], lock_remain_sec + buffer_sec)
+                      return {1, count, lock_remain_sec}
+                    end
+
+                    -- 步骤4：判断滑动窗口是否过期，过期则重置计数，否则递增
+                    if window_start + window_ms <= now_ms then
+                      count = 1
+                      redis.call('HSET', KEYS[1], 'count', count, 'window_start', now_ms)
+                    else
+                      count = count + 1
+                      redis.call('HINCRBY', KEYS[1], 'count', 1)
+                    end
+
+                    -- 步骤5：若达到阈值，触发锁定
+                    if count >= max_retries then
+                      lock_until = now_ms + lock_ms
+                      redis.call('HSET', KEYS[1], 'lock_until', lock_until)
+                      local lock_sec = math.ceil(lock_ms / 1000)
+                      redis.call('EXPIRE', KEYS[1], lock_sec + buffer_sec)
+                      return {2, count, lock_sec}
+                    end
+
+                    -- 步骤6：未达阈值，正常失败，更新TTL防止僵尸Key
+                    local window_remain_ms = window_start + window_ms - now_ms
+                    local window_remain_sec = math.ceil(window_remain_ms / 1000)
+                    redis.call('EXPIRE', KEYS[1], window_remain_sec + buffer_sec)
+                    return {0, count, 0}""";
 
     /*
      * 类功能:Lua脚本返回值的领域对象封装

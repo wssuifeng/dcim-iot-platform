@@ -94,9 +94,7 @@ class CacheServiceTest {
     void get_typeMismatch_shouldThrowClassCastException() {
         String key = PREFIX + "get:type";
         cacheService.set(key, "not-a-number");
-        assertThrows(ClassCastException.class, () -> {
-            cacheService.get(key, Integer.class);
-        }, "存入String后用Integer.class获取应抛出ClassCastException");
+        assertThrows(ClassCastException.class, () -> cacheService.get(key, Integer.class), "存入String后用Integer.class获取应抛出ClassCastException");
     }
 
     @Test
