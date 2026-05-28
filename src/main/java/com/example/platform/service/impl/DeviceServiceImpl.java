@@ -118,6 +118,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
      * 参数:无
      * 返回数据:List<Map<String, Object>>-每个Map包含status和count两个字段
      * */
+    @Override
     public List<Map<String, Object>> countByStatus() {
         return baseMapper.countByStatus();
     }

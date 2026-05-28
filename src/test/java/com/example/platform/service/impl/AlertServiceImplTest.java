@@ -9,6 +9,7 @@ import com.example.platform.entity.Alert;
 import com.example.platform.entity.Device;
 import com.example.platform.mapper.AlertMapper;
 import com.example.platform.service.DeviceService;
+import com.example.platform.service.NotificationDedupService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,9 @@ class AlertServiceImplTest {
 
     @Mock
     private DeviceService deviceService;
+
+    @Mock
+    private NotificationDedupService notificationDedupService;
 
     @InjectMocks
     private AlertServiceImpl alertService;
@@ -167,6 +171,8 @@ class AlertServiceImplTest {
 
             assertEquals(2, count, "应成功处理2条告警");
             verify(alertMapper, times(1)).update(isNull(), any(LambdaUpdateWrapper.class));
+            verify(notificationDedupService).releaseDedupMark(1);
+            verify(notificationDedupService).releaseDedupMark(2);
         }
 
         @Test
@@ -176,6 +182,7 @@ class AlertServiceImplTest {
 
             assertEquals(0, count, "ids为null时应返回0");
             verify(alertMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
+            verify(notificationDedupService, never()).releaseDedupMark(anyInt());
         }
 
         @Test
@@ -185,6 +192,7 @@ class AlertServiceImplTest {
 
             assertEquals(0, count, "ids为空集合时应返回0");
             verify(alertMapper, never()).update(any(), any(LambdaUpdateWrapper.class));
+            verify(notificationDedupService, never()).releaseDedupMark(anyInt());
         }
 
         @Test
@@ -206,6 +214,18 @@ class AlertServiceImplTest {
             int count = alertService.batchHandle(List.of(99999), "admin");
 
             assertEquals(0, count, "不存在的ID应返回0");
+            verify(notificationDedupService, never()).releaseDedupMark(anyInt());
+        }
+
+        @Test
+        @DisplayName("DB更新返回0时不应调用releaseDedupMark")
+        void shouldNotReleaseDedupMark_when_NoRowsUpdated() {
+            when(alertMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(0);
+
+            int count = alertService.batchHandle(List.of(1, 2), "admin");
+
+            assertEquals(0, count);
+            verify(notificationDedupService, never()).releaseDedupMark(anyInt());
         }
     }
 

@@ -12,6 +12,7 @@ import com.example.platform.service.AlertService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import com.example.platform.service.DictMetricService;
+import com.example.platform.service.NotificationDedupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,6 +34,7 @@ public class AlertRuleEngine {
     private final AlertService alertService;
     private final DictMetricService dictMetricService;
     private final AlertConfigService alertConfigService;
+    private final NotificationDedupService notificationDedupService;
 
     /*
      * 方法功能:评估指定设备的采集数据是否触发告警规则
@@ -121,13 +123,11 @@ public class AlertRuleEngine {
      * 返回数据:无
      * */
     private void createOrUpgradeAlert(Integer deviceId, AlertRuleDefinition rule, DeviceData deviceData) {
-        // 查找该设备同类型且未处理的告警
         List<Alert> existingAlerts = alertService.findByDeviceId(deviceId).stream()
                 .filter(a -> a.getAlertType().equals(rule.getMetricKey()) && a.getIsHandled() == 0)
                 .toList();
 
         if (existingAlerts.isEmpty()) {
-            // 无已有告警，创建新告警
             Alert alert = new Alert();
             alert.setDeviceId(deviceId);
             alert.setAlertType(rule.getMetricKey());
@@ -136,8 +136,9 @@ public class AlertRuleEngine {
             alert.setIsHandled(0);
             alertService.save(alert);
             log.info("🚨 生成告警: 设备={}, 类型={}, 级别={}", deviceId, rule.getMetricKey(), rule.getLevel());
+
+            sendNotificationIfAllowed(alert.getId());
         } else {
-            // 已有告警，判断是否需要升级（级别数字越小越紧急）
             Alert existingAlert = existingAlerts.get(0);
             if (rule.getLevel() < existingAlert.getAlertLevel()) {
                 int oldLevel = existingAlert.getAlertLevel();
@@ -147,6 +148,28 @@ public class AlertRuleEngine {
                 log.info("⬆️ 告警升级: 设备={}, 类型={}, 旧级别={}, 新级别={}",
                         deviceId, rule.getMetricKey(), oldLevel, rule.getLevel());
             }
+        }
+    }
+
+    /*
+     * 方法功能:通过去重服务判断是否发送通知，去重通过时记录日志（模拟发送）
+     * 参数:alertId-告警ID
+     * 返回数据:无
+     *
+     * 【去重逻辑】
+     * 调用NotificationDedupService.shouldSendNotification()进行SETNX原子去重：
+     *   - 返回true → 首次通知该告警，发送
+     *   - 返回false → 已发过，跳过
+     *   - 异常降级 → 放行通知（宁可重复不可遗漏）
+     * */
+    private void sendNotificationIfAllowed(Integer alertId) {
+        try {
+            if (notificationDedupService.shouldSendNotification(alertId)) {
+                log.info("📢 发送告警通知: alertId={}", alertId);
+            }
+        } catch (Exception e) {
+            log.warn("告警通知去重检查异常，降级发送通知: alertId={}", alertId, e);
+            log.info("📢 发送告警通知(降级): alertId={}", alertId);
         }
     }
 

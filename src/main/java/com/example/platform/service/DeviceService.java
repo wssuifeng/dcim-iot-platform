@@ -7,6 +7,7 @@ import com.example.platform.entity.Device;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /*
  * 类功能:设备服务接口，定义设备的查询、状态管理、告警配置及离线检测等业务方法
@@ -68,6 +69,13 @@ public interface DeviceService extends IService<Device> {
      * 返回数据:List<Device>-该类型下的设备列表
      * */
     List<Device> findByTypeId(Integer typeId);
+
+    /*
+     * 方法功能:按状态分组统计设备数量
+     * 参数:无
+     * 返回数据:List<Map<String, Object>>-每个Map包含status和count两个字段
+     * */
+    List<Map<String, Object>> countByStatus();
 
     void updateLastOnlineTime(Integer deviceId);
 }
