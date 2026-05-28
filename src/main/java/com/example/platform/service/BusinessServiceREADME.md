@@ -30,21 +30,30 @@ Service    → 抛出 BusinessException 子类（由 GlobalExceptionHandler 统�
 ```
 service/
 ├── AlertService.java           # 告警服务接口
+├── AlertConfigService.java     # 告警规则配置缓存服务接口
 ├── AuthService.java            # 认证服务接口
+├── CacheService.java           # 缓存服务统一接口
+├── DashboardStatsService.java  # 仪表盘统计服务接口
 ├── DeviceDataService.java      # 设备数据服务接口
 ├── DeviceService.java          # 设备服务接口
 ├── DeviceTypeService.java      # 设备类型服务接口
 ├── DictMetricService.java      # 指标字典服务接口
+├── NotificationDedupService.java # 通知去重服务接口
 ├── SysAuditLogService.java     # 审计日志服务接口
 ├── SysUserService.java         # 用户服务接口
+├── TokenBlacklistService.java  # Token 黑名单服务接口
 └── impl/                       # 实现类目录
     ├── AlertRuleEngine.java    # 告警规则引擎
     ├── AlertServiceImpl.java
+    ├── AlertConfigServiceImpl.java
     ├── AuthServiceImpl.java
+    ├── CacheServiceImpl.java
+    ├── DashboardStatsServiceImpl.java
     ├── DeviceDataServiceImpl.java
     ├── DeviceServiceImpl.java
     ├── DeviceTypeServiceImpl.java
     ├── DictMetricServiceImpl.java
+    ├── NotificationDedupServiceImpl.java
     ├── SysAuditLogServiceImpl.java
     └── SysUserServiceImpl.java
 ```
@@ -333,6 +342,124 @@ public AlertServiceImpl(DeviceService deviceService) {
 
 ---
 
+### 2.10 CacheService — 统一缓存服务接口
+
+**完整类名**: `com.example.platform.service.CacheService`
+
+> ⚠️ **重要**：所有 Redis 缓存操作必须通过此接口，禁止直接使用 `RedisTemplate`。
+
+#### 方法列表
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `set(String key, Object value, long timeout, TimeUnit unit)` | `void` | 写入缓存（设置 TTL） |
+| `get(String key, Class<T> clazz)` | `T` | 读取缓存，自动反序列化为指定类型 |
+| `delete(String key)` | `boolean` | 删除缓存 |
+| `exists(String key)` | `boolean` | 判断 Key 是否存在 |
+| `setIfAbsent(String key, Object value, long timeout, TimeUnit unit)` | `boolean` | SETNX 原子写入（返回是否设置成功） |
+| `getAndSet(String key, Object value, long timeout, TimeUnit unit)` | `<T> T` | 获取旧值并设置新值 |
+| `deleteByPattern(String pattern)` | `long` | SCAN 批量删除，返回删除数 |
+| `executeLua(String script, Class<T> resultType, List<String> keys, Object... args)` | `<T> T` | 执行 Lua 脚本（原子操作） |
+| `multiSet(Map<String, Object> map, long timeout, TimeUnit unit)` | `void` | 批量写入 |
+
+#### 防御策略
+
+| 策略 | 实现方式 | 目标场景 |
+|------|----------|----------|
+| 缓存穿透防御 | `NullValue` 占位对象 + 短 TTL（5min） | 查询不存在的数据 |
+| 缓存雪崩防御 | 随机 TTL（±20% 浮动） | 大量 Key 同时过期 |
+| 缓存击穿防御 | 互斥锁（SETNX）+ 重试机制 | 热点 Key 过期瞬间高并发 |
+| 降级策略 | 非计数器操作异常时返回 null/静默降级 | Redis 不可用保障业务可用 |
+| 计数器安全 | 计数器操作异常直接抛出，不做降级 | 避免拿到错误计数值 |
+
+**实现类**: `CacheServiceImpl`
+**注解**: `@Service` ✅
+
+---
+
+### 2.11 AlertConfigService — 告警规则配置缓存服务接口
+
+**完整类名**: `com.example.platform.service.AlertConfigService`
+
+#### 方法列表
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `getAlertRuleConfig(Integer deviceId)` | `AlertRuleConfig` | 获取设备级告警规则（缓存→DB→回填） |
+| `getTypeAlertRuleConfig(Integer typeId)` | `AlertRuleConfig` | 获取类型级告警规则（缓存→DB→回填） |
+| `evictAlertRuleConfig(Integer deviceId)` | `void` | 清除设备级规则缓存 |
+| `evictTypeAlertRuleConfig(Integer typeId)` | `void` | 清除类型级规则缓存 |
+
+**实现类**: `AlertConfigServiceImpl`
+**注解**: `@Service` ✅
+
+#### 缓存策略
+
+- Key 格式：`alert:config:device:{deviceId}` / `alert:config:type:{typeId}`
+- Cache-Aside 模式：读（缓存命中直接返回 → 未命中查 DB → 回填缓存），写（更新 DB → 删除缓存）
+- NullValue 占位防穿透 + 随机 TTL 防雪崩
+
+---
+
+### 2.12 DashboardStatsService — 仪表盘统计服务接口
+
+**完整类名**: `com.example.platform.service.DashboardStatsService`
+
+#### 方法列表
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `getDashboardStats()` | `DashboardStatsDTO` | 获取仪表盘聚合统计（设备状态分布 + 告警统计） |
+
+**实现类**: `DashboardStatsServiceImpl`
+**注解**: `@Service` ✅
+
+**缓存设计**:
+- 缓存 Key：`stats:dashboard` ｜ TTL：30 秒
+- 防击穿：互斥锁 `stats:dashboard:lock`（TTL 3s），失败重试 3 次（间隔 100ms）
+- 降级：锁竞争失败后直接查 DB（不缓存）
+
+---
+
+### 2.13 NotificationDedupService — 通知去重服务接口
+
+**完整类名**: `com.example.platform.service.NotificationDedupService`
+
+#### 方法列表
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `shouldSendNotification(Integer alertId)` | `boolean` | 检查是否应发送通知（首次返回 true） |
+| `releaseDedupMark(Integer alertId)` | `void` | 手动释放去重标记（告警处理时调用） |
+
+**实现类**: `NotificationDedupServiceImpl`
+**注解**: `@Service` ✅
+
+**去重策略**:
+- **粒度**: AlertId 级别（每条告警独立去重）
+- **Key 格式**: `notify:alert:{alertId}`
+- **TTL**: 48 小时（兜底防护，正常由 `releaseDedupMark` 提前清除）
+- **删除机制**: 事件驱动手动删除（告警处理时调用 `releaseDedupMark`）
+- **降级策略**: Redis 异常时降级放行（返回 true），避免阻塞告警通知
+
+---
+
+### 2.14 TokenBlacklistService — Token 黑名单服务接口
+
+**完整类名**: `com.example.platform.service.TokenBlacklistService`
+
+#### 方法列表
+
+| 方法签名 | 返回类型 | 说明 |
+|----------|----------|------|
+| `blacklist(String token, long ttlMillis)` | `void` | 将 Token 加入黑名单（用户登出/密码重置时调用） |
+| `isBlacklisted(String token)` | `boolean` | 检查 Token 是否在黑名单中 |
+
+**Key 格式**: `token:blacklist:{token前8位}`
+**TTL**: Token 剩余有效期（黑名单条目在 Token 过期后自动清理）
+
+---
+
 ## 三、使用示例
 
 ### 示例 1：在 Controller 中注入并使用 Service
@@ -460,6 +587,7 @@ List<Map<String, Object>> deviceCounts = alertServiceImpl.listDeviceAlertCountBy
 | v1.4 | 2026-05-16 | `[240739a]` | AlertServiceImpl 重大更新：新增3个告警统计方法（getStatsByDeviceId/getStatsByTimeRange/listDeviceAlertCountByTimeRange）、新增 batchHandle 批量处理、新增 DeviceService 注入、findUnhandled/findByDeviceId 简化排序；DeviceService 新增 getOnlineDetection |
 | v2.0 | 2026-05-17 | — | DeviceService 新增 `pageByCondition` 方法；`updateAlertConfig` 参数名从 `typeId` 改为 `id`；DeviceDataService 新增 `saveBatchWithAlertCheck`、`pageByDeviceId`、`pageByCondition` 方法；AlertService 新增 `createOfflineAlertsForDevices(List<Device>, int)` 方法；DeviceTypeService.getTypeOrThrow 参数类型从 `int` 改为 `Integer` |
 | v3.0 | 2026-05-24 | — | 新增 AuthService 认证服务接口（login 登录认证，不继承 IService）；新增 SysUserService 用户服务接口（9个自定义方法：findByUsername/getUserOrThrow/createUser/updateUser/resetPassword/updateStatus/pageUsers/resetLoginFailCount/incrementLoginFailCount）；新增 SysAuditLogService 审计日志服务接口（3个自定义方法：pageLogs/cleanExpiredLogs/log） |
+| v4.0 | 2026-05-28 | `3d96056` | 新增 CacheService 统一缓存服务接口（9 个方法，含穿透/击穿/雪崩防御策略、NullValue 占位/随机 TTL/互斥锁/SETNX/SCAN/Lua）；新增 AlertConfigService 告警规则配置缓存服务接口（4 个方法，Cache-Aside 模式）；新增 DashboardStatsService 仪表盘统计服务接口（互斥锁防缓存击穿）；新增 NotificationDedupService 通知去重服务接口（AlertId 粒度 + 事件驱动删除 + 48h TTL）；新增 TokenBlacklistService Token 黑名单服务接口（登出/密码重置场景） |
 
 ---
 

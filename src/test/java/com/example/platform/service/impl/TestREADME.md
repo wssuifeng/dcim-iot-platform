@@ -198,6 +198,90 @@ service/impl/
 
 ---
 
+### 2.6 AlertConfigServiceTest — AlertConfigService 单元测试（v4.0 新增）
+
+**完整类名**: `com.example.platform.service.impl.AlertConfigServiceTest`
+**测试框架**: Mockito + JUnit 5
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `testGetDeviceRuleConfig_CacheHit` | 缓存命中 | 缓存有数据时直接返回，不查 DB |
+| `testGetDeviceRuleConfig_CacheMiss` | 缓存未命中 | 查 DB 后回填缓存 |
+| `testGetDeviceRuleConfig_NullValue` | NullValue 防穿透 | 缓存中查到 NullValue → 返回 null |
+| `testGetTypeRuleConfig_CacheHit` | 类型级规则缓存命中 | 同设备级逻辑 |
+| `testEvictDeviceRuleConfig` | 清除设备级缓存 | delete 被调用 |
+| `testEvictTypeRuleConfig` | 清除类型级缓存 | delete 被调用 |
+
+---
+
+### 2.7 DashboardStatsServiceTest — DashboardStatsService 单元测试（v4.0 新增）
+
+**完整类名**: `com.example.platform.service.impl.DashboardStatsServiceTest`
+**测试框架**: Mockito + JUnit 5
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `testGetDashboardStats_CacheHit` | 缓存命中 | 直接返回缓存中的 DashboardStatsDTO |
+| `testGetDashboardStats_CacheMiss_LockAcquired` | 缓存未命中 + 获取锁成功 | 查 DB 构建数据 → 写入缓存 → 返回 |
+| `testGetDashboardStats_CacheMiss_LockFailed_RetrySuccess` | 锁竞争 → 重试命中 | 锁获取失败 → 重试期间缓存被填充 → 返回 |
+| `testGetDashboardStats_CacheMiss_LockFailed_AllRetryFailed` | 锁竞争 → 全部重试失败 | 降级：直接查 DB（不缓存） |
+| `testGetDashboardStats_NullCount` | DB 返回 null 统计 | 使用默认值 0L 防御 |
+
+---
+
+### 2.8 DictMetricServiceTest — DictMetricService 单元测试（v4.0 新增）
+
+**完整类名**: `com.example.platform.service.impl.DictMetricServiceTest`
+**测试框架**: Mockito + JUnit 5
+
+| 方法名 | 测试目标 | 说明 |
+|--------|----------|------|
+| `testGetFromCache_CacheHit` | Redis 缓存命中 | CacheService.get() 返回值 → 直接返回 |
+| `testGetFromCache_CacheMiss_DBHit` | 缓存未命中，DB 有数据 | 查 DB → 回填缓存 → 返回 |
+| `testSaveUpdateCache` | 新增指标 → 同步缓存 | 调用 save() 后验证 CacheService.set() 被调用 |
+| `testUpdateUpdateCache` | 更新指标 → 同步缓存 | 调用 updateById() 后验证 CacheService.set() 被调用 |
+| `testRemoveUpdateCache` | 删除指标 → 同步缓存 | 调用 removeById() 后验证 CacheService.delete() 被调用 |
+
+---
+
+### 2.9 NotificationDedupServiceTest — 通知去重单元测试（v4.0 新增）
+
+**完整类名**: `com.example.platform.service.impl.NotificationDedupServiceTest`
+**测试框架**: Mockito + JUnit 5
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `testShouldSendNotification_FirstTime` | 首次调用 | CacheService.setIfAbsent 返回 true → shouldSendNotification 返回 true |
+| `testShouldSendNotification_Duplicate` | 重复调用 | CacheService.setIfAbsent 返回 false → shouldSendNotification 返回 false |
+| `testShouldSendNotification_RedisException` | Redis 异常降级 | 抛异常 → 返回 true（放行通知） |
+| `testReleaseDedupMark` | 释放去重标记 | 调用 delete 删除对应 Key |
+| `testReleaseDedupMark_RedisException` | 释放失败降级 | 抛异常 → 记录 WARN 日志后静默返回 |
+
+---
+
+### 2.10 AuthServiceImplTest — AuthServiceImpl 单元测试（v4.0 新增）
+
+**完整类名**: `com.example.platform.service.impl.AuthServiceImplTest`
+**测试框架**: Mockito + JUnit 5
+
+| 方法名 | 测试目标 | 验证内容 |
+|--------|----------|----------|
+| `testLogin_Success` | 登录成功 | Token 黑名单检查通过 → 密码匹配 → 返回 JWT Token + UserInfoVO |
+| `testLogin_InvalidPassword` | 密码错误 | 抛出 BusinessException(4003) |
+| `testLogin_UserNotFound` | 用户不存在 | 抛出 BusinessException(4003) |
+| `testLogin_AccountLocked` | 账号已锁定 | 抛出 AccountLockedException |
+| `testLogin_TokenBlacklisted` | Token 已失效 | 黑名单包含当前 Token → 返回空或提示重新登录 |
+| `testLogin_IPFreqLimit` | IP 频率限制 | 超出频率限制 → 抛出 BusinessException(4003) |
+
+#### service/ 子包测试
+
+| 测试类 | 位置 | 说明 |
+|--------|------|------|
+| `CacheServiceTest` | `service/CacheServiceTest.java` | CacheService 单元测试（set/get/delete/setIfAbsent/deleteByPattern/executeLua/降级） |
+| `TokenBlacklistServiceTest` | `service/TokenBlacklistServiceTest.java` | TokenBlacklistService 单元测试（blacklist/isBlacklisted/过期清理） |
+
+---
+
 ## 三、使用方法
 
 ### 运行全部测试
@@ -247,6 +331,7 @@ mvn test -Dtest="DeviceServiceTest#testGetDeviceOrThrow"
 | v1.0 | 2026-05-09 | 初始版本，包含 DeviceServiceImplTest（7 个测试方法）和 DeviceServiceTest（11 个测试方法） |
 | v2.0 | 2026-05-17 | 新增 AlertServiceImplTest（17 个 Mockito 纯单元测试），覆盖 AlertServiceImpl 全部 6 个方法 |
 | v3.0 | 2026-05-24 | AlertServiceImplTest 方法名更新为 BDD 风格命名（should_xxx_when_xxx），使用 @Nested + @DisplayName 按方法分组，新增反射初始化 baseMapper 和 Lambda 缓存机制说明；新增 AlertServiceTest 集成测试（空类，待补充）；新增 DeviceMapperTest 集成测试（6个测试方法，覆盖 findByNameLike/countByStatus/getOnlineDetection/insert+findByNameLike） |
+| v4.0 | 2026-05-28 | `3d96056` | 新增 AlertConfigServiceTest（6个测试方法：Cache-Aside 缓存命中/未命中/NullValue）；新增 DashboardStatsServiceTest（5个测试方法：缓存命中/互斥锁竞争/重试/降级/null 统计防御）；新增 DictMetricServiceTest（5个测试方法：Redis 缓存命中/未命中/CRUD 缓存同步）；新增 NotificationDedupServiceTest（5个测试方法：首次/重复/Redis 异常降级/释放去重标记）；新增 AuthServiceImplTest（6个测试方法：登录成功/密码错误/用户不存在/账号锁定/Token 黑名单/IP 频率限制）；新增 service/ 子包 CacheServiceTest 和 TokenBlacklistServiceTest |
 
 ---
 

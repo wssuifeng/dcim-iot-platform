@@ -20,6 +20,9 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | 安全认证 | JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、BCrypt 密码加密 |
 | 用户管理 | 用户 CRUD、账号锁定（连续3次失败锁定30分钟）、IP频率限制、密码重置 |
 | 审计日志 | 登录/操作审计记录、多条件分页查询、过期日志自动清理 |
+| 缓存服务 | Redis 多层缓存、穿透/击穿/雪崩防御、通知去重、统一 CacheService 接口 |
+| Token 黑名单 | 登出/密码重置时 Token 失效控制，黑名单自动过期清理 |
+| 仪表盘统计 | 设备/告警聚合统计、互斥锁防缓存击穿 |
 
 ---
 
@@ -37,6 +40,9 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | Jakarta Validation | - | 声明式参数校验，支持分组校验 |
 | Lombok | - | 减少样板代码（getter/setter/构造器） |
 | Jackson | - | JSON 序列化，`JacksonTypeHandler` 处理 JSON 字段 |
+| Redis | 7.x | 缓存数据库，支持字符串/哈希等多种数据结构 |
+| Lettuce | 6.x | Redis 客户端，基于 Netty 的异步非阻塞连接 |
+| commons-pool2 | 2.x | Lettuce 连接池依赖 |
 
 ---
 
@@ -59,10 +65,11 @@ iot-platform/
 │   │   │   │   │   ├── DeviceCodeAlreadyExistsException.java  # 设备编码重复异常(4002)
 │   │   │   │   │   ├── DeviceTypeNotFound.java          # 设备类型不存在异常(4001)
 │   │   │   │   │   ├── DeviceTypeCodeAlreadyExistsException.java  # 设备类型编码重复异常(4051)
-│   │   │   │   │   ├── UserNotFoundException.java       # 用户不存在异常(4004)
-│   │   │   │   │   ├── UsernameAlreadyExistsException.java  # 用户名已存在异常(4005)
-│   │   │   │   │   ├── AccountLockedException.java      # 账号锁定异常(4006)
-│   │   │   │   │   └── GlobalExceptionHandler.java      # 全局异常处理器
+│   │   │   │   ├── UserNotFoundException.java       # 用户不存在异常(4004)
+│   │   │   │   ├── UsernameAlreadyExistsException.java  # 用户名已存在异常(4005)
+│   │   │   │   ├── AccountLockedException.java      # 账号锁定异常(4006)
+│   │   │   │   ├── CacheOperationException.java     # 缓存操作异常(5001)
+│   │   │   │   └── GlobalExceptionHandler.java      # 全局异常处理器
 │   │   │   │   ├── util/                      # 工具类
 │   │   │   │   │   └── JwtUtil.java           # JWT 工具类（Token 生成/解析/验证）
 │   │   │   │   └── group/                     # 校验分组接口
@@ -70,6 +77,7 @@ iot-platform/
 │   │   │   │       └── UpdateGroup.java
 │   │   │   ├── config/                        # 框架配置
 │   │   │   │   ├── SecurityConfig.java        # Spring Security 配置（JWT过滤链/RBAC/密码加密）
+│   │   │   │   ├── RedisConfig.java           # Redis 配置（序列化策略/Lettuce连接池）
 │   │   │   │   ├── MybatisPlusConfig.java     # 分页+乐观锁插件配置
 │   │   │   │   ├── MyMetaObjectHandler.java   # 自动填充（createTime/updateTime/collectTime）
 │   │   │   │   ├── CorsConfig.java            # 跨域配置（支持配置文件动态读取）
@@ -87,6 +95,7 @@ iot-platform/
 │   │   │   │   ├── AuthController.java        # 认证（1 个接口：登录）
 │   │   │   │   ├── SysUserController.java     # 用户管理（7 个接口，ADMIN 专属）
 │   │   │   │   ├── SysAuditLogController.java # 审计日志（2 个接口）
+│   │   │   │   ├── DashboardController.java   # 仪表盘统计（1 个接口）
 │   │   │   │   └── Controller接口文档.md       # 模块文档
 │   │   │   ├── dto/                           # 数据传输对象
 │   │   │   │   ├── AlertRuleConfig.java       # 告警规则配置（含规则列表）
@@ -97,6 +106,7 @@ iot-platform/
 │   │   │   │   ├── LoginDTO.java              # 登录请求 DTO
 │   │   │   │   ├── LoginResponseDTO.java      # 登录成功响应 DTO（含 JWT Token）
 │   │   │   │   ├── PasswordResetDTO.java      # 密码重置请求 DTO
+│   │   │   │   ├── DashboardStatsDTO.java      # 仪表盘统计响应 DTO
 │   │   │   │   └── 数据传输对象文档.md          # 模块文档
 │   │   │   ├── entity/                        # 实体类
 │   │   │   │   ├── Device.java                # 设备（含 alertRuleConfig JSON 字段）
@@ -121,7 +131,12 @@ iot-platform/
 │   │   │   │   ├── DeviceDataService.java
 │   │   │   │   ├── DeviceTypeService.java
 │   │   │   │   ├── AlertService.java
+│   │   │   │   ├── AlertConfigService.java     # 告警规则配置缓存服务
 │   │   │   │   ├── DictMetricService.java
+│   │   │   │   ├── CacheService.java           # 统一缓存服务接口
+│   │   │   │   ├── DashboardStatsService.java  # 仪表盘统计服务
+│   │   │   │   ├── NotificationDedupService.java # 通知去重服务
+│   │   │   │   ├── TokenBlacklistService.java  # Token 黑名单服务
 │   │   │   │   ├── AuthService.java           # 认证服务接口
 │   │   │   │   ├── SysUserService.java        # 用户服务接口
 │   │   │   │   ├── SysAuditLogService.java    # 审计日志服务接口
@@ -131,8 +146,12 @@ iot-platform/
 │   │   │   │       ├── DeviceDataServiceImpl.java   # saveWithAlertCheck 事务方法
 │   │   │   │       ├── DeviceTypeServiceImpl.java
 │   │   │   │       ├── AlertServiceImpl.java        # 含离线告警生成+6个统计方法
+│   │   │   │       ├── AlertConfigServiceImpl.java  # 告警规则配置缓存实现
 │   │   │   │       ├── AlertRuleEngine.java         # 告警规则引擎核心
-│   │   │   │       ├── DictMetricServiceImpl.java   # ConcurrentHashMap 内存缓存
+│   │   │   │       ├── DictMetricServiceImpl.java   # Redis 分布式缓存
+│   │   │   │       ├── CacheServiceImpl.java        # 统一缓存服务实现
+│   │   │   │       ├── DashboardStatsServiceImpl.java # 仪表盘统计（互斥锁防击穿）
+│   │   │   │       ├── NotificationDedupServiceImpl.java # 通知去重实现
 │   │   │   │       ├── AuthServiceImpl.java         # 认证实现（IP频率限制/账号锁定/JWT签发）
 │   │   │   │       ├── SysUserServiceImpl.java      # 用户管理（BCrypt加密/SQL原子递增/字段白名单）
 │   │   │   │       ├── SysAuditLogServiceImpl.java  # 审计日志（多条件查询/过期清理）
@@ -146,11 +165,19 @@ iot-platform/
 │       ├── service/impl/
 │       │   ├── AlertServiceImplTest.java      # 17个Mockito纯单元测试
 │       │   ├── AlertServiceTest.java          # AlertService 集成测试
+│       │   ├── AlertConfigServiceTest.java    # AlertConfigService 单元测试
+│       │   ├── DashboardStatsServiceTest.java # DashboardStatsService 单元测试
+│       │   ├── DictMetricServiceTest.java     # DictMetricService 单元测试
+│       │   ├── NotificationDedupServiceTest.java # 通知去重单元测试
 │       │   ├── DeviceServiceImplTest.java     # Mapper基础集成测试
-│       │   └── DeviceServiceTest.java         # Service业务逻辑集成测试
+│       │   ├── DeviceServiceTest.java         # Service业务逻辑集成测试
+│       │   ├── AuthServiceImplTest.java       # AuthService 单元测试
+│       │   └── TestREADME.md                  # 测试模块文档
+│       ├── service/
+│       │   ├── CacheServiceTest.java          # CacheService 单元测试
+│       │   └── TokenBlacklistServiceTest.java # TokenBlacklist 单元测试
 │       ├── mapper/
 │       │   └── DeviceMapperTest.java          # DeviceMapper 自定义SQL集成测试
-│       └── 测试文档.md                          # 测试模块文档
 ├── docs/                                      # 项目文档
 │   ├── README.md                              # 文档目录索引
 │   ├── audit-record.md                        # 审查问题记录
@@ -425,6 +452,12 @@ Druid监控：http://localhost:8080/api/druid
 | GET | `/audit-logs/page` | 分页查询审计日志（支持多条件筛选） | ADMIN, OPERATOR |
 | DELETE | `/audit-logs/cleanup?beforeTime=` | 清理过期日志 | ADMIN |
 
+### 6.9 仪表盘 `/dashboard`
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | `/dashboard/stats` | 获取仪表盘聚合统计（设备状态分布 + 告警统计） | 已认证 |
+
 ---
 
 ## 七、RBAC 权限模型
@@ -461,6 +494,7 @@ Druid监控：http://localhost:8080/api/druid
 | v1.4 | 2026-05-16 | `240739a` | AlertServiceImpl 告警统计方法、AlertMapper 自定义 SQL、DeviceMonitorTask 定时任务、@EnableScheduling |
 | v2.0 | 2026-05-17 | - | 代码审查修复：DictMetricController统一响应、URL前缀去重、@Validated分组校验、ConstraintViolationException处理器、乐观锁插件、CORS配置外部化、告警升级方向修正、NPE防御、事务注解、Controller逻辑下沉Service |
 | v3.0 | 2026-05-24 | - | 安全与认证模块：Spring Security + JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、SecurityConfig 安全过滤链、JwtAuthenticationFilter/CustomAuthenticationEntryPoint/CustomAccessDeniedHandler、BCrypt 密码加密；用户管理：SysUser 实体（含账号锁定/停用机制）、SysUserController 7个接口、SysUserServiceImpl（SQL原子递增/更新字段白名单防注入）；认证服务：AuthController 登录接口、AuthServiceImpl（IP频率限制/账号锁定检查/JWT签发/审计日志）；审计日志：SysAuditLog 实体、SysAuditLogController 2个接口、SysAuditLogServiceImpl（多条件查询/过期清理）；新增异常类：UserNotFoundException/UsernameAlreadyExistsException/AccountLockedException/DeviceTypeCodeAlreadyExistsException；新增 DTO：LoginDTO/LoginResponseDTO/PasswordResetDTO；新增工具类：JwtUtil |
+| v4.0 | 2026-05-28 | `3d96056` | 缓存体系与安全防护模块：CacheService 统一缓存接口（穿透/击穿/雪崩防御）、RedisConfig 序列化与连接池配置、CacheOperationException 缓存异常体系；告警通知去重模块：NotificationDedupService 基于 AlertId 粒度 + 事件驱动删除 + 48h TTL 方案；仪表盘统计模块：DashboardStatsService 互斥锁防缓存击穿；Token 黑名单：TokenBlacklistService 登出与密码重置场景；告警配置缓存：AlertConfigService 设备/类型级规则缓存迁移至 Redis；指标字典缓存迁移：DictMetricServiceImpl 从本地内存迁移至 Redis 分布式缓存；安全增强：AuthServiceImpl 重构、JwtAuthenticationFilter 集成 Token 黑名单校验、JwtUtil 增强 |
 
 ---
 

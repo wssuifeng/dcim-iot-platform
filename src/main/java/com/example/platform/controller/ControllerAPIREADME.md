@@ -425,6 +425,57 @@ private final SysAuditLogService sysAuditLogService;
 
 ---
 
+### 2.9 DashboardController — 仪表盘统计控制器（v4.0 新增）
+
+**完整类名**: `com.example.platform.controller.DashboardController`
+**路径前缀**: `/api/dashboard`
+**注解**: `@RestController` + `@RequestMapping("/api/dashboard")`
+
+#### 接口清单
+
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | `/stats` | 获取仪表盘聚合统计（设备状态分布 + 告警统计） | 已认证 |
+
+#### 请求示例
+
+```
+GET /api/dashboard/stats
+Authorization: Bearer <token>
+```
+
+#### 响应示例
+
+```json
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": {
+    "totalDevices": 42,
+    "onlineDevices": 35,
+    "statusDistribution": {
+      "1": 35,
+      "0": 7
+    },
+    "totalAlerts": 128,
+    "unhandledAlerts": 5
+  }
+}
+```
+
+#### 依赖关系
+
+```
+DashboardController
+    → DashboardStatsService.getDashboardStats()
+        → CacheService (Redis 缓存)
+        → DeviceMapper / AlertMapper (数据库)
+```
+
+**缓存策略**：使用 `stats:dashboard` Key（TTL 30s），互斥锁 `stats:dashboard:lock` 防缓存击穿
+
+---
+
 ## 三、使用示例
 
 ### 示例 1：新增设备（带分组校验）
@@ -593,6 +644,7 @@ PUT /api/devices/1/status?status=0
 | v1.4 | 2026-05-16 | `[240739a]` | DeviceDataController/DeviceController 注释风格统一为块注释；DeviceDataController.getStatistics 新增设备存在性校验（委托 DeviceService.getDeviceOrThrow） |
 | v2.0 | 2026-05-17 | — | 代码审查修复：DeviceController.updateAlertConfig 返回类型改为 `Result<Void>`；DeviceDataController.reportData 改用 `@Validated(CreateGroup.class)`；批量上报下沉到 Service 层 `saveBatchWithAlertCheck`；分页查询下沉到 Service 层 `pageByCondition`/`pageByDeviceId`；DeviceTypeController URL 前缀去掉 `/api`，返回类型改为 `Result<Void>`；DictMetricController URL 前缀去掉 `/api`，所有接口统一 `Result<T>` 响应包装，refreshCache URL 改为 `POST /cache/refresh`；所有 Controller 添加类级 `@Validated` |
 | v3.0 | 2026-05-24 | — | 新增 AlertController（7个接口：告警分页查询/详情/未处理列表/批量处理/设备统计/时间段统计/设备排名）；新增 AuthController（1个接口：登录认证，支持代理IP提取）；新增 SysUserController（7个接口：用户分页查询/搜索/详情/创建/更新/密码重置/状态管理/删除，仅ADMIN可访问）；新增 SysAuditLogController（2个接口：审计日志分页查询/过期清理） |
+| v4.0 | 2026-05-28 | `3d96056` | 新增 DashboardController（1个接口：仪表盘聚合统计，含设备状态分布 + 告警统计，互斥锁防缓存击穿） |
 
 ---
 
