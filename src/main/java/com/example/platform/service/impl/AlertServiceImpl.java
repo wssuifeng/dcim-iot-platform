@@ -9,6 +9,7 @@ import com.example.platform.entity.Device;
 import com.example.platform.mapper.AlertMapper;
 import com.example.platform.service.AlertService;
 import com.example.platform.service.DeviceService;
+import com.example.platform.service.NotificationDedupService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,9 +29,11 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
     private static final int MAX_BATCH_HANDLE_SIZE = 50;
 
     private final DeviceService deviceService;
+    private final NotificationDedupService notificationDedupService;
 
-    public AlertServiceImpl(DeviceService deviceService) {
+    public AlertServiceImpl(DeviceService deviceService, NotificationDedupService notificationDedupService) {
         this.deviceService = deviceService;
+        this.notificationDedupService = notificationDedupService;
     }
 
     /*
@@ -80,7 +83,13 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                 .set(Alert::getIsHandled, 1)
                 .set(Alert::getHandleTime, LocalDateTime.now())
                 .set(Alert::getHandleUser, handleUser);
-        return baseMapper.update(null, wrapper);
+        int count = baseMapper.update(null, wrapper);
+        if (count > 0) {
+            for (Integer id : ids) {
+                notificationDedupService.releaseDedupMark(id);
+            }
+        }
+        return count;
     }
 
     /*
