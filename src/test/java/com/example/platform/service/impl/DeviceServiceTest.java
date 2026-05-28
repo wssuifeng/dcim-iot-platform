@@ -48,7 +48,7 @@ class DeviceServiceTest {
     void testSaveDevice() {
         Device device = new Device();
         device.setDeviceName("测试设备");
-        device.setDeviceCode("TEST-UNIT-001");
+        device.setDeviceCode("TEST-UNIT-" + System.nanoTime());
         device.setStatus(0);
         device.setTypeId(1);
         boolean saved = deviceService.save(device);
@@ -71,7 +71,7 @@ class DeviceServiceTest {
     void testDeleteDevice() {
         Device device = new Device();
         device.setDeviceName("待删除设备");
-        device.setDeviceCode("TEST-DEL-001");
+        device.setDeviceCode("TEST-DEL-" + System.nanoTime());
         device.setTypeId(1);
         deviceService.save(device);
         Integer id = device.getId();

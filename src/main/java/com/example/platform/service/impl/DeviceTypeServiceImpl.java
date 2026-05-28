@@ -11,6 +11,7 @@ import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,7 +25,7 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
     private final DeviceService deviceService;
     private final AlertConfigService alertConfigService;
 
-    public DeviceTypeServiceImpl(DeviceService deviceService, AlertConfigService alertConfigService) {
+    public DeviceTypeServiceImpl(@Lazy DeviceService deviceService, AlertConfigService alertConfigService) {
         this.deviceService = deviceService;
         this.alertConfigService = alertConfigService;
     }

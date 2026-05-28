@@ -1,5 +1,6 @@
 package com.example.platform.service;
 
+import com.example.platform.common.exception.CacheOperationException;
 import com.example.platform.config.RedisConfig;
 import com.example.platform.service.impl.CacheServiceImpl;
 import org.junit.jupiter.api.*;
@@ -301,5 +302,47 @@ class CacheServiceTest {
         long tolerance = 200;
         assertTrue(Math.abs(ttl - expected) <= tolerance,
                 "设置2秒过期等待500ms后，剩余时间应约1500ms(±200ms)，实际=" + ttl);
+    }
+
+    @Test
+    @DisplayName("increment - Redis不可用时应抛出CacheOperationException而非返回0")
+    void increment_redisUnavailable_shouldThrowCacheOperationException() {
+        org.springframework.data.redis.core.RedisTemplate<String, Object> mockRedisTemplate =
+                org.mockito.Mockito.mock(org.springframework.data.redis.core.RedisTemplate.class);
+        org.springframework.data.redis.core.ValueOperations<String, Object> mockOps =
+                org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+
+        org.mockito.Mockito.when(mockRedisTemplate.opsForValue()).thenReturn(mockOps);
+        org.mockito.Mockito.when(mockOps.increment("fail:key", 1))
+                .thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("Connection refused"));
+
+        CacheServiceImpl fallbackService = new CacheServiceImpl(mockRedisTemplate);
+
+        CacheOperationException ex = assertThrows(CacheOperationException.class,
+                () -> fallbackService.increment("fail:key", 1),
+                "Redis不可用时increment应抛出CacheOperationException");
+        assertTrue(ex.getMessage().contains("fail:key"),
+                "异常消息应包含失败的key");
+    }
+
+    @Test
+    @DisplayName("decrement - Redis不可用时应抛出CacheOperationException而非返回0")
+    void decrement_redisUnavailable_shouldThrowCacheOperationException() {
+        org.springframework.data.redis.core.RedisTemplate<String, Object> mockRedisTemplate =
+                org.mockito.Mockito.mock(org.springframework.data.redis.core.RedisTemplate.class);
+        org.springframework.data.redis.core.ValueOperations<String, Object> mockOps =
+                org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
+
+        org.mockito.Mockito.when(mockRedisTemplate.opsForValue()).thenReturn(mockOps);
+        org.mockito.Mockito.when(mockOps.decrement("fail:key", 1))
+                .thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("Connection refused"));
+
+        CacheServiceImpl fallbackService = new CacheServiceImpl(mockRedisTemplate);
+
+        CacheOperationException ex = assertThrows(CacheOperationException.class,
+                () -> fallbackService.decrement("fail:key", 1),
+                "Redis不可用时decrement应抛出CacheOperationException");
+        assertTrue(ex.getMessage().contains("fail:key"),
+                "异常消息应包含失败的key");
     }
 }

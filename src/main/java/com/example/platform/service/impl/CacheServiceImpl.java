@@ -1,5 +1,6 @@
 package com.example.platform.service.impl;
 
+import com.example.platform.common.exception.CacheOperationException;
 import com.example.platform.service.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,6 +8,9 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.redis.connection.RedisStringCommands.SetOption;
+import org.springframework.data.redis.core.types.Expiration;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
 
@@ -16,11 +20,15 @@ import java.util.concurrent.TimeUnit;
 /*
  * 类功能:缓存服务实现类，封装RedisTemplate的所有操作，提供统一的缓存访问接口
  *
- * 【降级策略】
- * Redis异常均捕获并记录日志，不向业务层抛出：
- *   - 读操作（get/multiGet/hasKey等）：返回null/false，业务层走数据库
- *   - 写操作（set/delete/increment等）：仅记录日志，不影响业务主流程
- * 这样即使Redis宕机，系统仍可降级运行，只是性能退化为全量查库
+ * 【降级策略——按操作类型区分】
+ * 1. 有DB兜底的操作（静默降级）：Redis异常捕获并记录日志，不向业务层抛出
+ *    - 读操作（get/multiGet/hasKey等）：返回null/false，业务层走数据库
+ *    - 写操作（set/delete/multiSet等）：仅记录日志，DB是主存储不影响业务主流程
+ *    这样即使Redis宕机，系统仍可降级运行，只是性能退化为全量查库
+ *
+ * 2. 无DB兜底的操作（抛异常）：计数器操作失败时抛出CacheOperationException
+ *    - increment/decrement：0是合法业务值，静默返回0会误导业务层
+ *    - 由GlobalExceptionHandler捕获并返回HTTP 503，明确告知客户端服务暂不可用
  *
  * 【类型安全——ClassCastException是故意传播的】
  * get/multiGet在类型不匹配时抛出ClassCastException，这不是降级范围内的Redis异常：
@@ -173,6 +181,8 @@ public class CacheServiceImpl implements CacheService {
      *   1. 幂等控制：setIfAbsent("order:123:submit", "1", 10s) 防止重复提交
      *   2. 分布式锁：setIfAbsent("lock:device:1", "instance-1", 30s) 获取锁
      *   3. 限流计数：配合increment实现滑动窗口限流
+     *  * 【特别注意】
+    *   当键已存在导致设置失败时，不仅 Value 不会被覆盖，已有键的 TTL 也【不会被更新或重置】！
      * */
     @Override
     public boolean setIfAbsent(String key, Object value, long timeout, TimeUnit unit) {
@@ -217,17 +227,35 @@ public class CacheServiceImpl implements CacheService {
      * 参数:map-键值对映射, timeout-过期时长, unit-时间单位
      * 返回数据:无
      *
+     * 【为什么用 Pipeline 而非 forEach 逐个 set？】
+     * Pipeline 将多条 SET 命令打包一次发送，减少网络往返（RTT），
+     * 对大量写入场景性能提升显著（10条数据约节省 9 次网络往返）。
+     *
      * 【为什么非原子？】
-     * Pipeline将多条命令打包一次发送，减少网络往返，但每条命令独立执行：
-     *   - 中间某条SETEX失败不影响其他
+     * Pipeline 将多条命令打包一次发送，减少网络往返，但每条命令独立执行：
+     *   - 中间某条 SET 失败不影响其他
      *   - 不保证"全部成功或全部失败"
-     * 如需原子性，应使用Lua脚本（Redis单线程执行Lua天然原子），但大多数缓存场景
-     * 不需要强原子性，Pipeline的性能优势更实际
+     * 如需原子性，应使用 Lua 脚本（Redis 单线程执行 Lua 天然原子），但大多数缓存场景
+     * 不需要强原子性，Pipeline 的性能优势更实际
      * */
     @Override
+    @SuppressWarnings("unchecked")
     public void multiSet(Map<String, Object> map, long timeout, TimeUnit unit) {
         try {
-            map.forEach((key, value) -> redisTemplate.opsForValue().set(key, value, timeout, unit));
+            redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+                // 统一将 timeout 和 unit 转换为 Expiration 对象
+                Expiration expiration = Expiration.from(timeout, unit);
+
+                map.forEach((key, value) -> {
+                    byte[] keyBytes = redisTemplate.getStringSerializer().serialize(key);
+                    byte[] valueBytes = ((RedisSerializer<Object>) redisTemplate.getValueSerializer()).serialize(value);
+                    if (keyBytes != null && valueBytes != null) {
+                        // 使用 set 替代废弃的 setEx，SetOption.UPSERT 表示正常覆盖写入
+                        connection.set(keyBytes, valueBytes, expiration, SetOption.UPSERT);
+                    }
+                });
+                return null;
+            });
         } catch (Exception e) {
             log.warn("Redis批量写入失败, keyCount={}", map.size(), e);
         }
@@ -237,6 +265,7 @@ public class CacheServiceImpl implements CacheService {
      * 方法功能:递增计数器，键不存在时自动从0开始递增
      * 参数:key-缓存键, delta-递增量（正数）
      * 返回数据:long-递增后的值
+     * 异常:Redis不可用时抛出CacheOperationException（计数器无DB兜底，不可静默降级）
      * */
     @Override
     public long increment(String key, long delta) {
@@ -244,7 +273,7 @@ public class CacheServiceImpl implements CacheService {
             return redisTemplate.opsForValue().increment(key, delta);
         } catch (Exception e) {
             log.warn("Redis递增失败, key={}, delta={}", key, delta, e);
-            return 0;
+            throw new CacheOperationException("Redis递增失败: key=" + key, e);
         }
     }
 
@@ -252,6 +281,7 @@ public class CacheServiceImpl implements CacheService {
      * 方法功能:递减计数器，键不存在时自动从0开始递减
      * 参数:key-缓存键, delta-递减量（正数）
      * 返回数据:long-递减后的值
+     * 异常:Redis不可用时抛出CacheOperationException（计数器无DB兜底，不可静默降级）
      * */
     @Override
     public long decrement(String key, long delta) {
@@ -259,7 +289,7 @@ public class CacheServiceImpl implements CacheService {
             return redisTemplate.opsForValue().decrement(key, delta);
         } catch (Exception e) {
             log.warn("Redis递减失败, key={}, delta={}", key, delta, e);
-            return 0;
+            throw new CacheOperationException("Redis递减失败: key=" + key, e);
         }
     }
 
@@ -291,6 +321,22 @@ public class CacheServiceImpl implements CacheService {
         } catch (Exception e) {
             log.warn("Redis获取过期时间失败, key={}", key, e);
             return -2;
+        }
+    }
+
+    /*
+     * 方法功能:执行Lua脚本，保证脚本内所有Redis命令的原子性
+     * 参数:script-Lua脚本字符串, resultType-返回值类型, keys-KEYS列表, args-ARGV参数
+     * 返回数据:T-脚本执行结果，Redis异常时返回null
+     * */
+    @Override
+    public <T> T executeLua(String script, Class<T> resultType, List<String> keys, Object... args) {
+        try {
+            RedisScript<T> redisScript = RedisScript.of(script, resultType);
+            return redisTemplate.execute(redisScript, keys, args);
+        } catch (Exception e) {
+            log.warn("Redis Lua脚本执行失败, keys={}", keys, e);
+            return null;
         }
     }
 }

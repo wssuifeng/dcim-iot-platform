@@ -152,6 +152,20 @@ public class GlobalExceptionHandler {
     }
 
     /*
+     * 方法功能:处理缓存操作异常（Redis不可用导致计数器等无DB兜底的操作失败）
+     * 场景:increment/decrement等计数器操作在Redis宕机时抛出
+     * 注:与get/set不同，计数器没有数据库兜底，0是合法业务值，不可静默降级
+     * 参数:e-缓存操作异常
+     * 返回数据:Result<Void>-503状态码的错误响应，提示客户端服务暂不可用
+     * */
+    @ExceptionHandler(CacheOperationException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Result<Void> handleCacheOperationException(CacheOperationException e) {
+        log.warn("缓存操作失败: {}", e.getMessage());
+        return Result.error(e.getCode(), "缓存服务暂不可用，请稍后重试");
+    }
+
+    /*
      * 方法功能:处理缓存层类型转换异常（ClassCastException）
      * 场景:调用CacheService.get(key, Integer.class)但缓存中实际存储的是String类型
      * 这是调用方编程错误（传入了错误的Class参数），应返回400而非500

@@ -7,6 +7,7 @@ import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.CacheService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.TimeUnit;
@@ -39,8 +40,8 @@ public class AlertConfigServiceImpl implements AlertConfigService {
     private final DeviceTypeService deviceTypeService;
 
     public AlertConfigServiceImpl(CacheService cacheService,
-                                  DeviceService deviceService,
-                                  DeviceTypeService deviceTypeService) {
+                                  @Lazy DeviceService deviceService,
+                                  @Lazy DeviceTypeService deviceTypeService) {
         this.cacheService = cacheService;
         this.deviceService = deviceService;
         this.deviceTypeService = deviceTypeService;
