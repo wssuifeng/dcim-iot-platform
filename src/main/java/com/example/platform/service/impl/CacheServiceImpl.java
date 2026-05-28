@@ -250,8 +250,9 @@ public class CacheServiceImpl implements CacheService {
                     byte[] keyBytes = redisTemplate.getStringSerializer().serialize(key);
                     byte[] valueBytes = ((RedisSerializer<Object>) redisTemplate.getValueSerializer()).serialize(value);
                     if (keyBytes != null && valueBytes != null) {
-                        // 使用 set 替代废弃的 setEx，SetOption.UPSERT 表示正常覆盖写入
-                        connection.set(keyBytes, valueBytes, expiration, SetOption.UPSERT);
+                        // SetOption.UPSERT 表示正常覆盖写入,使用 set 替代废弃的 setEx
+                        // 此处新的set需要通过stringCommands()进行链式调用否则提交时idea会报弃用
+                        connection.stringCommands().set(keyBytes, valueBytes, expiration, SetOption.UPSERT);
                     }
                 });
                 return null;
