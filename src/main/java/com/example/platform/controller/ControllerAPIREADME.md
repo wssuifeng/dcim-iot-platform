@@ -193,15 +193,44 @@ private final DeviceService deviceService;
 
 **URL前缀**: `/device-types`（已去掉 `/api` 前缀，避免与 `context-path` 重复）
 
-**当前状态**：✅ 已实现 1 个接口
+**当前状态**：✅ 已实现 6 个接口
 
 #### 接口列表
 
 | HTTP 方法 | 路径 | 说明 | 返回类型 | 参数校验 |
 |-----------|------|------|----------|----------|
+| `GET` | `/device-types` | 查询全部设备类型列表 | `Result<List<DeviceType>>` | 无 |
+| `GET` | `/device-types/{id}` | 根据 ID 查询设备类型 | `Result<DeviceType>` | 无 |
+| `POST` | `/device-types` | 新增设备类型 | `Result<DeviceType>` | `@Validated @RequestBody DeviceType` |
+| `PUT` | `/device-types/{id}` | 更新设备类型信息 | `Result<DeviceType>` | `@RequestBody DeviceType` |
+| `DELETE` | `/device-types/{id}` | 删除设备类型（有关联设备时拒绝） | `Result<Void>` | 无 |
 | `PUT` | `/device-types/{id}/alert-config` | 更新设备类型级告警规则 | `Result<Void>` | `@Validated @RequestBody AlertRuleConfig` |
 
 #### 接口详细说明
+
+**GET /device-types**
+
+- 查询所有设备类型列表，按更新时间倒序排列
+- 返回全部设备类型信息，供设备新增/编辑弹窗的选择器使用
+
+**GET /device-types/{id}**
+
+- 根据 ID 查询单个设备类型详情
+- 设备类型不存在时抛出 `DeviceTypeNotFound`
+
+**POST /device-types**
+
+- 创建设备类型，内部校验 type_code 全局唯一性
+- 类型编码仅允许字母数字下划线，名称和编码必填
+
+**PUT /device-types/{id}**
+
+- 更新设备类型基本信息，支持部分字段更新
+- 设备类型不存在时抛出 `DeviceTypeNotFound`
+
+**DELETE /device-types/{id}**
+
+- 删除设备类型，若该类型下存在关联设备则返回 400 拒绝删除
 
 **PUT /device-types/{id}/alert-config**
 
@@ -428,8 +457,8 @@ private final SysAuditLogService sysAuditLogService;
 ### 2.9 DashboardController — 仪表盘统计控制器（v4.0 新增）
 
 **完整类名**: `com.example.platform.controller.DashboardController`
-**路径前缀**: `/api/dashboard`
-**注解**: `@RestController` + `@RequestMapping("/api/dashboard")`
+**路径前缀**: `/dashboard`（实际路径依赖 `context-path: /api`，完整路径为 `/api/dashboard/stats`）
+**注解**: `@RestController` + `@RequestMapping("/dashboard")`
 
 #### 接口清单
 
