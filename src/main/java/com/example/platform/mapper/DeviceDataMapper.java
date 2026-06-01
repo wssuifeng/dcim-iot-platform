@@ -21,6 +21,9 @@ public interface DeviceDataMapper extends BaseMapper<DeviceData> {
      * 参数:deviceId-设备ID, startTime-开始时间, endTime-结束时间
      * 返回数据:Map<String, Object>-包含count/minVal/maxVal/avgVal统计字段
      * */
+    @Select("SELECT COUNT(*) AS count, MIN(data_value) AS minVal, MAX(data_value) AS maxVal, AVG(data_value) AS avgVal " +
+            "FROM device_data WHERE device_id = #{deviceId} " +
+            "AND collect_time BETWEEN #{startTime} AND #{endTime}")
     Map<String, Object> getStatisticsByDeviceIdAndTimeRange(
             @Param("deviceId") Integer deviceId,
             @Param("startTime") LocalDateTime startTime,
