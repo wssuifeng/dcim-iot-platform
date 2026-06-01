@@ -83,10 +83,14 @@ public final class LoginFailScript {
                     -- 步骤4：判断滑动窗口是否过期，过期则重置计数，否则递增
                     if window_start + window_ms <= now_ms then
                       count = 1
-                      redis.call('HSET', KEYS[1], 'count', count, 'window_start', now_ms)
+                      window_start = now_ms
+                      redis.call('HSET', KEYS[1], 'count', count, 'window_start', window_start)
+                      redis.call('HDEL', KEYS[1], 'lock_until')
                     else
-                      count = count + 1
-                      redis.call('HINCRBY', KEYS[1], 'count', 1)
+                      if count < max_retries then
+                        count = count + 1
+                        redis.call('HINCRBY', KEYS[1], 'count', 1)
+                      end
                     end
 
                     -- 步骤5：若达到阈值，触发锁定
@@ -141,8 +145,8 @@ public final class LoginFailScript {
          * 方法功能:计算剩余尝试次数
          * 返回数据:最大失败次数 - 当前重试次数
          * */
-        public int remainingAttempts() {
-            return 5 - retryCount;
+        public int remainingAttempts(int maxRetries) {
+            return maxRetries - retryCount;
         }
     }
 }

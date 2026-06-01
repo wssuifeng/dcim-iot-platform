@@ -4,7 +4,7 @@
  * 【告警级别颜色映射】
  * 使用 constants.js 中的 ALERT_LEVEL 枚举：
  *   1(紧急) → danger(红)  |  2(严重) → warning(橙)
- *   3(一般) → ''(默认蓝)  |  4(警告) → info(灰)  |  5(提示) → info(灰)
+ *   3(一般) → primary(蓝)  |  4(警告) → info(灰)  |  5(提示) → info(灰)
  */
 <template>
   <el-table :data="alerts" v-loading="loading" size="small" max-height="300">
@@ -36,7 +36,7 @@ defineProps({
  * 返回数据:string - ElTag type 值
  */
 function levelType(level) {
-  const map = { 1: 'danger', 2: 'warning', 3: '', 4: 'info', 5: 'info' }
+  const map = { 1: 'danger', 2: 'warning', 3: 'primary', 4: 'info', 5: 'info' }
   return map[level] || ''
 }
 </script>

@@ -76,11 +76,15 @@ let timer = null
  * 因为后端 DashboardStatsDTO 直接返回 statusDistribution Map，
  * 前端计算比遍历 Map 更简洁
  */
-const deviceCards = computed(() => [
-  { label: '设备总数', value: stats.value.totalDevices ?? '-', color: '#409EFF', icon: 'Monitor' },
-  { label: '在线设备', value: stats.value.onlineDevices ?? '-', color: '#67C23A', icon: 'CircleCheck' },
-  { label: '离线设备', value: (stats.value.totalDevices ?? 0) - (stats.value.onlineDevices ?? 0), color: '#909399', icon: 'Remove' },
-])
+const deviceCards = computed(() => {
+  const ds = stats.value.deviceStats || {}
+  return [
+    { label: '设备总数', value: ds.total ?? '-', color: '#409EFF', icon: 'Monitor' },
+    { label: '在线设备', value: ds.online ?? '-', color: '#67C23A', icon: 'CircleCheck' },
+    { label: '离线设备', value: ds.offline ?? '-', color: '#909399', icon: 'Remove' },
+    { label: '故障设备', value: ds.fault ?? '-', color: '#F56C6C', icon: 'WarningFilled' },
+  ]
+})
 
 /*
  * 计算属性功能:根据 stats 对象动态生成告警统计卡片数据
@@ -88,10 +92,13 @@ const deviceCards = computed(() => [
  *
  * 【注意】未处理告警卡片使用红色背景（bgColor: '#FEF0F0'），视觉上突出紧急程度
  */
-const alertCards = computed(() => [
-  { label: '总告警', value: stats.value.totalAlerts ?? '-', color: '#E6A23C', icon: 'Warning' },
-  { label: '未处理告警', value: stats.value.unhandledAlerts ?? '-', color: '#F56C6C', icon: 'Bell', bgColor: '#FEF0F0' },
-])
+const alertCards = computed(() => {
+  const as = stats.value.alertStats || {}
+  return [
+    { label: '总告警', value: as.total ?? '-', color: '#E6A23C', icon: 'Warning' },
+    { label: '未处理告警', value: as.unhandled ?? '-', color: '#F56C6C', icon: 'Bell', bgColor: '#FEF0F0' },
+  ]
+})
 
 /*
  * 方法功能:获取仪表盘核心统计数据（设备 + 告警概览）
@@ -161,7 +168,7 @@ async function fetchTrendData() {
       })
       days.push({
         date: dateStr.slice(5),   // 横轴只显示 MM-DD
-        count: res.data?.count ?? 0,
+        count: res.data?.total ?? 0,
       })
     }
     trendData.value = days

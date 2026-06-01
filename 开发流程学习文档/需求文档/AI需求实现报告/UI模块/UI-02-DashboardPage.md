@@ -34,8 +34,8 @@
 
 | 技术 | 版本 | 用途 |
 |------|:---:|------|
-| ECharts | 5.x | 告警趋势折线图 |
-| vue-echarts | 6.x | ECharts Vue 封装（推荐） |
+| ECharts | 6.x | 告警趋势折线图 |
+| vue-echarts | 8.x | ECharts Vue 封装（推荐） |
 
 ### §0.2 后端接口
 
