@@ -32,6 +32,11 @@ const router = createRouter({
           name: 'dashboard',
           component: () => import('@/views/dashboard/index.vue'),
         },
+        {
+          path: 'alerts',
+          name: 'alerts',
+          component: () => import('@/views/alert/index.vue'),
+        },
       ],
     },
   ],

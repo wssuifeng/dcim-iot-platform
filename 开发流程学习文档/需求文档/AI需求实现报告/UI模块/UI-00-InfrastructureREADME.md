@@ -17,7 +17,7 @@
 | Vue Router | 4.x | **禁止** `this.$router` |
 | Pinia | 2.x | **禁止** Vuex |
 | Element Plus | 2.x | UI 组件库 |
-| ECharts | 5.x | 图表渲染（仅仪表盘/数据监控页使用） |
+| ECharts | 6.x | 图表渲染（仅仪表盘/数据监控页使用） |
 | Axios | 1.x | HTTP 请求 |
 
 ---
