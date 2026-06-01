@@ -111,7 +111,6 @@ public class AuthServiceImpl implements AuthService {
      * 参数:ip-客户端IP, userId-用户ID(可能为null), username-用户名(可能为null), detail-失败详情
      * 返回数据:无（始终抛出BusinessException或AccountLockedException）
      * */
-    @SuppressWarnings("unchecked")
     private void recordFailAndThrow(String ip, Long userId, String username, String detail) {
         sysAuditLogService.log(userId, username, "LOGIN_FAIL", ip, detail);
 
@@ -128,7 +127,7 @@ public class AuthServiceImpl implements AuthService {
 
         throw new BusinessException(
                 ResultCode.INVALID_CREDENTIALS,
-                "用户名或密码错误，剩余尝试次数" + failResult.remainingAttempts() + "次");
+                "用户名或密码错误，剩余尝试次数" + failResult.remainingAttempts(MAX_LOGIN_FAIL_COUNT) + "次");
     }
 
     /*
