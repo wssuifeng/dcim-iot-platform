@@ -109,6 +109,8 @@ public class SecurityConfig {
                         // ADMIN/OPERATOR：设备更新、设备类型更新、指标更新
                         .requestMatchers(HttpMethod.PUT, "/devices/**",
                                 "/device-types/**", "/metric").hasAnyRole("ADMIN", "OPERATOR")
+                        // ADMIN/OPERATOR：告警处理（VIEWER不可处理告警）
+                        .requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole("ADMIN", "OPERATOR")
                         // 已认证用户：所有GET只读查询（VIEWER可访问）
                         .requestMatchers(HttpMethod.GET).authenticated()
                         // 兜底规则：其余请求需认证
