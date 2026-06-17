@@ -42,6 +42,11 @@ const router = createRouter({
           name: 'devices',
           component: () => import('@/views/device/index.vue'),
         },
+        {
+          path: 'data-monitor',
+          name: 'data-monitor',
+          component: () => import('@/views/data-monitor/index.vue'),
+        },
       ],
     },
   ],
