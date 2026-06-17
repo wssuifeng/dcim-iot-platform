@@ -55,6 +55,22 @@
             <el-icon><Bell /></el-icon>
             <span>告警管理</span>
           </el-menu-item>
+          <el-menu-item index="/metric">
+            <el-icon><DataLine /></el-icon>
+            <span>指标字典</span>
+          </el-menu-item>
+          <el-menu-item index="/device-types">
+            <el-icon><Grid /></el-icon>
+            <span>设备类型</span>
+          </el-menu-item>
+          <el-menu-item v-if="isAdmin" index="/users">
+            <el-icon><User /></el-icon>
+            <span>用户管理</span>
+          </el-menu-item>
+          <el-menu-item v-if="canViewAuditLog" index="/audit-logs">
+            <el-icon><Document /></el-icon>
+            <span>审计日志</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
       <!-- 内容区：子页面在此渲染 -->
@@ -76,6 +92,10 @@ const authStore = useAuthStore()
 
 // 当前路由路径，用于侧边栏菜单高亮
 const activeMenu = computed(() => route.path)
+
+// 角色判断
+const isAdmin = computed(() => authStore.role === 'ADMIN')
+const canViewAuditLog = computed(() => authStore.role !== 'VIEWER')
 
 /*
  * 方法功能:处理顶部栏下拉菜单命令
