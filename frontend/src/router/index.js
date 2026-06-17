@@ -37,6 +37,11 @@ const router = createRouter({
           name: 'alerts',
           component: () => import('@/views/alert/index.vue'),
         },
+        {
+          path: 'devices',
+          name: 'devices',
+          component: () => import('@/views/device/index.vue'),
+        },
       ],
     },
   ],
