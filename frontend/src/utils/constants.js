@@ -31,5 +31,11 @@ export const HANDLE_STATUS = {
   1: { label: '已处理', color: '#67C23A' },
 }
 
+export const USER_ROLE = {
+  ADMIN: { label: '管理员', color: '#F56C6C' },
+  OPERATOR: { label: '运维', color: '#E6A23C' },
+  VIEWER: { label: '普通用户', color: '#409EFF' },
+}
+
 export const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 export const DATE_FORMAT_SHORT = 'YYYY-MM-DD'
