@@ -71,8 +71,11 @@ async function handleDelete(device) {
 
 async function handleStatusChange(device, newStatus) {
   const oldStatus = device.status
-  try { await updateDeviceStatus(device.id, newStatus); ElMessage.success('状态已更新') }
-  catch { device.status = oldStatus }
+  try {
+    await updateDeviceStatus(device.id, newStatus)
+    device.status = newStatus  // 乐观更新本地状态，避免开关回弹
+    ElMessage.success('状态已更新')
+  } catch { device.status = oldStatus }
 }
 
 function handleAlertConfig(device) { currentDeviceId.value = device.id; alertConfigVisible.value = true }
