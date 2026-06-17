@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const payload = jwtDecode(token.value)
       role.value = payload.role || ''
-      username.value = payload.sub || ''
+      username.value = payload.username || ''
     } catch {
       token.value = ''
       role.value = ''

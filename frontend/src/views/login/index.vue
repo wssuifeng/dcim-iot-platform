@@ -112,6 +112,7 @@ async function handleLogin() {
 
     // Token 持久化到 localStorage + Pinia Store
     localStorage.setItem('token', res.data.token)
+    authStore.token = res.data.token  // 同步更新 store 中的 token ref，确保 parseToken 读到最新值
     authStore.parseToken()  // 解析 Token 提取 role 和 username
 
     // "记住我"标记（后续可用于自动填充用户名）
