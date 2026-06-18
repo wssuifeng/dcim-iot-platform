@@ -1,0 +1,61 @@
+# ==================== 生产环境配置 ====================
+# 所有敏感信息必须从环境变量注入，禁止在配置文件中硬编码
+
+spring:
+  # 数据源配置（Druid）
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    druid:
+      initial-size: 10
+      min-idle: 10
+      max-active: 50
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      # 连接泄漏检测（生产级）
+      log-abandoned: true
+      remove-abandoned: true
+      remove-abandoned-timeout: 1800
+
+      # 生产环境关闭 Druid 监控面板，避免暴露敏感信息
+      stat-view-servlet:
+        enabled: false
+
+      # Web 请求监控过滤器
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+
+  # Redis 配置（Lettuce 客户端）
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: 2000
+      lettuce:
+        shutdown-timeout: 3000
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+          max-wait: 3000
+
+# ==================== 生产环境日志（WARN 级别，减少磁盘 IO） ====================
+logging:
+  level:
+    root: warn
+    com.example.platform: info
+    com.example.platform.mapper: info
