@@ -45,13 +45,8 @@ public class DeviceData implements Serializable {
     @TableField(value = "collect_time", fill = FieldFill.INSERT)
     private LocalDateTime collectTime;
 
-    /*
-     * 逻辑删除字段（当前未启用）
-     * 如需开启逻辑删除，请：
-     * 1. 在数据库中执行：ALTER TABLE device_data ADD COLUMN deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除';
-     * 2. 取消下方字段及 @TableLogic 注解的注释
-     */
-    // @TableLogic(value = "0", delval = "1")
-    // private Integer deleted;
+    /** 逻辑删除标记：0-未删除，1-已删除 */
+    @TableLogic(value = "0", delval = "1")
+    private Integer deleted;
 
 }
