@@ -29,4 +29,8 @@ public class DictMetric implements Serializable {
 
     /** 指标描述 */
     private String description;
+
+    /** 逻辑删除标记：0-未删除，1-已删除 */
+    @TableLogic(value = "0", delval = "1")
+    private Integer deleted;
 }
