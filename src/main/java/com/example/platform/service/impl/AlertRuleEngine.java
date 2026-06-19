@@ -28,6 +28,8 @@ public class AlertRuleEngine {
     private final DictMetricService dictMetricService;
     private final AlertConfigService alertConfigService;
     private final NotificationDedupService notificationDedupService;
+    private final NotificationService notificationService;
+    private final AlertWebSocketService alertWebSocketService;
 
     /*
      * 方法功能:评估指定设备的采集数据是否触发告警规则
@@ -130,6 +132,7 @@ public class AlertRuleEngine {
             alertService.save(alert);
             log.info("🚨 生成告警: 设备={}, 类型={}, 级别={}", deviceId, rule.getMetricKey(), rule.getLevel());
 
+            alertWebSocketService.pushAlert(alert);
             sendNotificationIfAllowed(alert.getId());
         } else {
             Alert existingAlert = existingAlerts.get(0);
@@ -145,7 +148,7 @@ public class AlertRuleEngine {
     }
 
     /*
-     * 方法功能:通过去重服务判断是否发送通知，去重通过时记录日志（模拟发送）
+     * 方法功能:通过去重服务判断是否发送通知，去重通过时调用通知服务发送邮件
      * 参数:alertId-告警ID
      * 返回数据:无
      *
@@ -158,11 +161,13 @@ public class AlertRuleEngine {
     private void sendNotificationIfAllowed(Integer alertId) {
         try {
             if (notificationDedupService.shouldSendNotification(alertId)) {
-                log.info("📢 发送告警通知: alertId={}", alertId);
+                Alert alert = alertService.getById(alertId);
+                if (alert != null) {
+                    notificationService.sendAlert(alert);
+                }
             }
         } catch (Exception e) {
-            log.warn("告警通知去重检查异常，降级发送通知: alertId={}", alertId, e);
-            log.info("📢 发送告警通知(降级): alertId={}", alertId);
+            log.warn("告警通知发送异常，降级记录: alertId={}", alertId, e);
         }
     }
 
