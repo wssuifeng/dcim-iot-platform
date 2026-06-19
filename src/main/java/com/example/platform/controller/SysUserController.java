@@ -2,9 +2,12 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.ResultCode;
+import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.PasswordResetDTO;
 import com.example.platform.entity.SysUser;
 import com.example.platform.service.SysUserService;
@@ -35,7 +38,8 @@ public class SysUserController {
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String keyword) {
-        return Result.success(sysUserService.pageUsers(current, size, keyword));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(sysUserService.pageUsers(pageParams[0], pageParams[1], keyword));
     }
 
     /*
@@ -68,6 +72,7 @@ public class SysUserController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PostMapping
+    @AuditLog(operation = "CREATE_USER", detail = "用户名:#user.username, 角色:#user.role")
     public Result<Void> create(@Validated(CreateGroup.class) @RequestBody SysUser user) {
         sysUserService.createUser(user);
         return Result.success();
@@ -79,10 +84,11 @@ public class SysUserController {
      * 返回数据:Result<Void>-操作结果，ID不一致时返回错误
      * */
     @PutMapping("/{id}")
+    @AuditLog(operation = "UPDATE_USER", detail = "用户ID:#id, 用户名:#user.username")
     public Result<Void> update(@PathVariable Long id,
                                @Validated(UpdateGroup.class) @RequestBody SysUser user) {
         if (user.getId() != null && !id.equals(user.getId())) {
-            return Result.error(400, "请求ID不一致，无法更新");
+            return Result.error(ResultCode.INVALID_PARAMETER, "请求ID不一致，无法更新");
         }
         user.setId(id);
         sysUserService.updateUser(user);
@@ -95,6 +101,7 @@ public class SysUserController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping("/{id}/password")
+    @AuditLog(operation = "RESET_USER_PASSWORD", detail = "用户ID:#id")
     public Result<Void> resetPassword(@PathVariable Long id,
                                       @Validated @RequestBody PasswordResetDTO dto) {
         sysUserService.resetPassword(id, dto.getNewPassword());
@@ -107,9 +114,10 @@ public class SysUserController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping("/{id}/status")
+    @AuditLog(operation = "UPDATE_USER_STATUS", detail = "用户ID:#id, 状态:#status")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         if (status < 0 || status > 1) {
-            return Result.error(400, "状态值无效，允许值：0-正常，1-停用");
+            return Result.error(ResultCode.INVALID_PARAMETER, "状态值无效，允许值：0-正常，1-停用");
         }
         sysUserService.updateStatus(id, status);
         return Result.success();
@@ -121,6 +129,7 @@ public class SysUserController {
      * 返回数据:Result<Void>-操作结果
      * */
     @DeleteMapping("/{id}")
+    @AuditLog(operation = "DELETE_USER", detail = "用户ID:#id")
     public Result<Void> delete(@PathVariable Long id) {
         sysUserService.getUserOrThrow(id);
         sysUserService.removeById(id);

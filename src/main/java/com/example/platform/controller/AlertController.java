@@ -2,6 +2,8 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.annotation.AuditLog;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.BatchHandleAlertDTO;
 import com.example.platform.entity.Alert;
 import com.example.platform.service.AlertService;
@@ -41,7 +43,8 @@ public class AlertController {
             @RequestParam(required = false) Integer alertLevel,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
-        return Result.success(alertService.pageByCondition(current, size, deviceId, isHandled, alertLevel, startTime, endTime));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(alertService.pageByCondition(pageParams[0], pageParams[1], deviceId, isHandled, alertLevel, startTime, endTime));
     }
 
     /*
@@ -70,6 +73,7 @@ public class AlertController {
      * 返回数据:Result<Integer>-成功处理的告警条数
      * */
     @PutMapping("/batch-handle")
+    @AuditLog(operation = "BATCH_HANDLE_ALERT", detail = "告警ID列表:#dto.ids, 处理人:#dto.handleUser")
     public Result<Integer> batchHandle(@Validated @RequestBody BatchHandleAlertDTO dto) {
         int count = alertService.batchHandle(dto.getIds(), dto.getHandleUser());
         return Result.success(count);
