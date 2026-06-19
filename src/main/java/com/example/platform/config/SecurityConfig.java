@@ -95,6 +95,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 公开端点：登录接口无需认证
                         .requestMatchers("/auth/login").permitAll()
+                        // 公开端点：Actuator 健康检查与 SpringDoc 文档（开发/内网使用）
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // ADMIN专属：Druid监控页面
                         .requestMatchers("/druid/**").hasRole("ADMIN")
                         // ADMIN专属：所有DELETE操作（含审计日志清理）
