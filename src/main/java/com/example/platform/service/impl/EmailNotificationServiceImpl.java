@@ -65,8 +65,9 @@ public class EmailNotificationServiceImpl implements NotificationService {
     private String buildText(Alert alert) {
         String deviceName = "未知设备";
         try {
-            deviceName = deviceService.getDeviceOrThrow(alert.getDeviceId()).getName();
-        } catch (Exception ignored) {
+            deviceName = deviceService.getDeviceOrThrow(alert.getDeviceId()).getDeviceName();
+        } catch (Exception e) {
+            log.warn("获取设备名称失败，使用默认值: deviceId={}, error={}", alert.getDeviceId(), e.getMessage());
         }
         return String.format(
                 "设备名称: %s%n设备ID: %d%n告警类型: %s%n告警级别: %d%n告警时间: %s%n告警详情: %s",
