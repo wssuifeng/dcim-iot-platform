@@ -10,6 +10,14 @@ public final class ResultCode {
     public static final int NOT_FOUND = 404;
     public static final int INTERNAL_ERROR = 500;
 
+    // 通用错误码 400x~500x
+    public static final int INVALID_PARAMETER = 4001;
+    public static final int UNAUTHORIZED = 4010;
+    public static final int FORBIDDEN = 4030;
+    public static final int RESOURCE_NOT_FOUND = 4040;
+    public static final int METHOD_NOT_ALLOWED = 4050;
+    public static final int INTERNAL_SERVER_ERROR = 5000;
+
     // 安全模块 401x
     public static final int USER_NOT_FOUND = 4011;
     public static final int USERNAME_ALREADY_EXISTS = 4012;

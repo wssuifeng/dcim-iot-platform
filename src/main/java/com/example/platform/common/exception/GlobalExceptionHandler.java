@@ -1,6 +1,7 @@
 package com.example.platform.common.exception;
 
 import com.example.platform.common.Result;
+import com.example.platform.common.ResultCode;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
         log.warn("参数校验失败: {}", message);
-        return Result.error(400, message);
+        return Result.error(ResultCode.INVALID_PARAMETER, message);
     }
 
     /*
@@ -52,7 +53,7 @@ public class GlobalExceptionHandler {
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.joining("; "));
         log.warn("参数校验失败: {}", message);
-        return Result.error(400, message);
+        return Result.error(ResultCode.INVALID_PARAMETER, message);
     }
 
     /*
@@ -176,7 +177,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleClassCastException(ClassCastException e) {
         log.warn("缓存类型转换失败: {}", e.getMessage());
-        return Result.error(400, "缓存数据类型不匹配，请检查调用代码");
+        return Result.error(ResultCode.INVALID_PARAMETER, "缓存数据类型不匹配，请检查调用代码");
     }
 
     /*
@@ -193,7 +194,7 @@ public class GlobalExceptionHandler {
             message = "请输入账号和密码";
         }
         log.warn("请求体解析失败: {}", e.getMessage());
-        return Result.error(400, message);
+        return Result.error(ResultCode.INVALID_PARAMETER, message);
     }
 
     /*
@@ -205,7 +206,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
     public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         log.warn("请求方法不支持: {} {}", e.getMethod(), e.getMessage());
-        return Result.error(405, "请求方法不允许，请使用 " + e.getSupportedHttpMethods());
+        return Result.error(ResultCode.METHOD_NOT_ALLOWED, "请求方法不允许，请使用 " + e.getSupportedHttpMethods());
     }
 
     /*
@@ -217,7 +218,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
         log.warn("缺少请求参数: {}", e.getParameterName());
-        return Result.error(400, "缺少必需参数: " + e.getParameterName());
+        return Result.error(ResultCode.INVALID_PARAMETER, "缺少必需参数: " + e.getParameterName());
     }
 
     /*
@@ -231,7 +232,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Result<Void> handleAccessDenied(AccessDeniedException e) {
         log.warn("权限不足: {}", e.getMessage());
-        return Result.error(403, "权限不足，无法访问该资源");
+        return Result.error(ResultCode.FORBIDDEN, "权限不足，无法访问该资源");
     }
 
     /*
@@ -243,7 +244,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
         log.warn("资源不存在: {}", e.getMessage());
-        return Result.error(404, "请求的资源不存在");
+        return Result.error(ResultCode.RESOURCE_NOT_FOUND, "请求的资源不存在");
     }
 
     /*
@@ -255,6 +256,6 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
         log.error("系统异常: ", e);
-        return Result.error(500, "服务器内部错误");
+        return Result.error(ResultCode.INTERNAL_SERVER_ERROR, "服务器内部错误");
     }
 }

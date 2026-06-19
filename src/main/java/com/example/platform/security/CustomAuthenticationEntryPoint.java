@@ -1,7 +1,8 @@
 package com.example.platform.security;
 
 import com.example.platform.common.Result;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.platform.common.ResultCode;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        Result<Void> result = Result.error(401, "未登录或Token已过期");
+        Result<Void> result = Result.error(ResultCode.UNAUTHORIZED, "未登录或Token已过期");
         response.getWriter().write(objectMapper.writeValueAsString(result));
     }
 }
