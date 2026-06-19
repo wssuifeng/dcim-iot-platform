@@ -1,6 +1,7 @@
 package com.example.platform.controller;
 
 import com.example.platform.common.Result;
+import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.service.DeviceTypeService;
@@ -49,6 +50,7 @@ public class DeviceTypeController {
      * 返回数据:Result<DeviceType>-创建成功的设备类型对象
      * */
     @PostMapping
+    @AuditLog(operation = "CREATE_DEVICE_TYPE", detail = "类型名称:#deviceType.typeName, 类型编码:#deviceType.typeCode")
     public Result<DeviceType> create(@Validated @RequestBody DeviceType deviceType) {
         return Result.success(deviceTypeService.create(deviceType));
     }
@@ -59,6 +61,7 @@ public class DeviceTypeController {
      * 返回数据:Result<DeviceType>-更新后的设备类型对象
      * */
     @PutMapping("/{id}")
+    @AuditLog(operation = "UPDATE_DEVICE_TYPE", detail = "类型ID:#id, 类型名称:#deviceType.typeName")
     public Result<DeviceType> update(@PathVariable Integer id,
                                       @RequestBody DeviceType deviceType) {
         return Result.success(deviceTypeService.updateById(id, deviceType));
@@ -70,6 +73,7 @@ public class DeviceTypeController {
      * 返回数据:Result<Void>-操作结果
      * */
     @DeleteMapping("/{id}")
+    @AuditLog(operation = "DELETE_DEVICE_TYPE", detail = "类型ID:#id")
     public Result<Void> delete(@PathVariable Integer id) {
         deviceTypeService.deleteById(id);
         return Result.success();
@@ -81,6 +85,7 @@ public class DeviceTypeController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping("/{id}/alert-config")
+    @AuditLog(operation = "UPDATE_DEVICE_TYPE_ALERT_CONFIG", detail = "类型ID:#id")
     public Result<Void> updateAlertConfig(
             @PathVariable Integer id,
             @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
