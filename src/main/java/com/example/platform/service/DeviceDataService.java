@@ -78,4 +78,11 @@ public interface DeviceDataService extends IService<DeviceData> {
      * */
     List<Map<String, Object>> aggregate(Integer deviceId, LocalDateTime startTime,
                                          LocalDateTime endTime, String granularity);
+
+    /*
+     * 方法功能:清理指定时间之前的过期设备数据（TTL 数据保留策略）
+     * 参数:beforeTime-保留截止时间
+     * 返回数据:int-删除的记录条数
+     * */
+    int cleanDataBefore(LocalDateTime beforeTime);
 }
