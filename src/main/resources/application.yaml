@@ -45,10 +45,30 @@ mybatis-plus:
       # 未删除时的值
       logic-not-delete-value: 0
 
-# ==================== 日志公共配置（格式） ====================
+# ==================== 日志公共配置（格式，含 MDC traceId） ====================
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId}] [%thread] %-5level %logger{36} - %msg%n"
+
+# ==================== Actuator 可观测性端点配置 ====================
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# ==================== SpringDoc OpenAPI 文档配置 ====================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    try-it-out-enabled: true
+  paths-to-match: /**
 
 # ==================== 设备监控定时任务配置 ====================
 task:
