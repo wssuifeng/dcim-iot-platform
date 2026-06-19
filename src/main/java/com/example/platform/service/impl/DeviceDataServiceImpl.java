@@ -200,4 +200,17 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
             default -> throw new IllegalArgumentException("不支持的聚合粒度: " + granularity + "，可选值: hour/day/week");
         };
     }
+
+    /*
+     * 方法功能:清理指定时间之前的过期设备数据（TTL 数据保留策略）
+     * 参数:beforeTime-保留截止时间
+     * 返回数据:int-删除的记录条数
+     * */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int cleanDataBefore(LocalDateTime beforeTime) {
+        LambdaQueryWrapper<DeviceData> wrapper = new LambdaQueryWrapper<>();
+        wrapper.lt(DeviceData::getCollectTime, beforeTime);
+        return baseMapper.delete(wrapper);
+    }
 }

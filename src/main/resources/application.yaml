@@ -74,12 +74,21 @@ springdoc:
 task:
   check-device-cron: 0 0/5 * * * ?
   offline-threshold-seconds: 300
+  # 设备数据 TTL 清理：每天凌晨 2 点执行，默认保留 90 天
+  cleanup-device-data-cron: 0 0 2 * * ?
+  device-data-ttl-days: 90
 
 # ==================== CORS 跨域配置 ====================
 cors:
   allowed-origins:
     - http://localhost:*
     - http://127.0.0.1:*
+
+# ==================== IP 限流配置 ====================
+rate-limit:
+  enabled: true
+  window-seconds: 60
+  max-requests: 100
 
 # ==================== JWT 配置 ====================
 jwt:

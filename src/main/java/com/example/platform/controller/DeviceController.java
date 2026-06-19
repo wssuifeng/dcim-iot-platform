@@ -2,6 +2,7 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.ResultCode;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.dto.AlertRuleConfig;
@@ -71,7 +72,7 @@ public class DeviceController {
         device.setId(id);
         boolean updated = deviceService.updateById(device);
         if (!updated) {
-            return Result.error("更新设备失败，数据可能已被他人修改");
+            return Result.error(ResultCode.DEVICE_NOT_FOUND, "更新设备失败，数据可能已被他人修改");
         }
         return Result.success();
     }
@@ -113,7 +114,7 @@ public class DeviceController {
         }
         boolean updated = deviceService.updateStatus(id, status);
         if (!updated) {
-            return Result.error("更新状态失败");
+            return Result.error(ResultCode.DEVICE_NOT_FOUND, "更新状态失败，设备不存在");
         }
         return Result.success();
     }
