@@ -4,13 +4,16 @@ import com.example.platform.common.Result;
 import com.example.platform.dto.LoginDTO;
 import com.example.platform.dto.LoginResponseDTO;
 import com.example.platform.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-/*
- * 类功能:认证接口层，提供用户登录认证RESTful接口
- * */
+/**
+ * 认证接口层，提供用户登录认证RESTful接口
+ */
+@Tag(name = "认证", description = "用户登录与 JWT 颁发")
 @RestController
 @RequestMapping("/auth")
 @Validated
@@ -22,11 +25,7 @@ public class AuthController {
         this.authService = authService;
     }
 
-    /*
-     * 方法功能:用户登录，验证凭据并返回JWT Token
-     * 参数:loginDTO-登录请求体(用户名+密码), request-HTTP请求(用于获取客户端IP)
-     * 返回数据:Result<LoginResponseDTO>-包含Token及用户基本信息的响应
-     * */
+    @Operation(summary = "用户登录", description = "验证用户名密码并返回 JWT Token；自动提取客户端真实 IP（支持 X-Forwarded-For/X-Real-IP 代理转发）；该端点 permitAll，无需认证")
     @PostMapping("/login")
     public Result<LoginResponseDTO> login(@Validated @RequestBody LoginDTO loginDTO,
                                           HttpServletRequest request) {
@@ -34,11 +33,10 @@ public class AuthController {
         return Result.success(authService.login(loginDTO, ip));
     }
 
-    /*
-     * 方法功能:从HTTP请求中提取客户端真实IP地址（支持代理转发场景）
-     * 参数:request-HTTP请求
-     * 返回数据:String-客户端IP地址
-     * */
+    /**
+     * 从HTTP请求中提取客户端真实IP地址（支持代理转发场景）
+     * 优先级：X-Forwarded-For → X-Real-IP → request.getRemoteAddr()
+     */
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {

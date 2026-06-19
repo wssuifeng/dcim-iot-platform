@@ -51,6 +51,13 @@ spring:
           min-idle: 5
           max-wait: 3000
 
+  # 邮件配置（从环境变量读取，继承自 application.yaml 公共配置）
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
 # ==================== 开发环境日志（DEBUG 级别） ====================
 logging:
   level:
