@@ -5,14 +5,18 @@ import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.service.DeviceTypeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/*
- * 类功能:设备类型接口层，提供设备类型的完整CRUD及告警配置更新等RESTful接口
- * */
+/**
+ * 设备类型接口层，提供设备类型的完整CRUD及告警配置更新等RESTful接口
+ */
+@Tag(name = "设备类型", description = "设备类型 CRUD 与类型级告警规则配置")
 @RestController
 @RequestMapping("/device-types")
 @Validated
@@ -24,70 +28,49 @@ public class DeviceTypeController {
         this.deviceTypeService = deviceTypeService;
     }
 
-    /*
-     * 方法功能:查询所有设备类型列表，按更新时间倒序排列
-     * 参数:无
-     * 返回数据:Result<List<DeviceType>>-全部设备类型信息列表
-     * */
+    @Operation(summary = "查询所有设备类型", description = "返回全部设备类型列表，按更新时间倒序")
     @GetMapping
     public Result<List<DeviceType>> list() {
         return Result.success(deviceTypeService.listAll());
     }
 
-    /*
-     * 方法功能:根据ID查询单个设备类型详情
-     * 参数:id-设备类型ID（路径参数）
-     * 返回数据:Result<DeviceType>-查询到的设备类型对象
-     * */
+    @Operation(summary = "根据ID查询设备类型", description = "设备类型不存在时抛出 DeviceTypeNotFound")
     @GetMapping("/{id}")
-    public Result<DeviceType> getById(@PathVariable Integer id) {
+    public Result<DeviceType> getById(
+            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id) {
         return Result.success(deviceTypeService.getTypeOrThrow(id));
     }
 
-    /*
-     * 方法功能:创建新设备类型
-     * 参数:deviceType-设备类型JSON对象
-     * 返回数据:Result<DeviceType>-创建成功的设备类型对象
-     * */
+    @Operation(summary = "新增设备类型", description = "内部校验 type_code 全局唯一性；编码仅允许字母数字下划线")
     @PostMapping
     @AuditLog(operation = "CREATE_DEVICE_TYPE", detail = "类型名称:#deviceType.typeName, 类型编码:#deviceType.typeCode")
     public Result<DeviceType> create(@Validated @RequestBody DeviceType deviceType) {
         return Result.success(deviceTypeService.create(deviceType));
     }
 
-    /*
-     * 方法功能:更新设备类型信息
-     * 参数:id-设备类型ID（路径参数）, deviceType-待更新的设备类型对象
-     * 返回数据:Result<DeviceType>-更新后的设备类型对象
-     * */
+    @Operation(summary = "更新设备类型", description = "支持部分字段更新；设备类型不存在时抛出 DeviceTypeNotFound")
     @PutMapping("/{id}")
     @AuditLog(operation = "UPDATE_DEVICE_TYPE", detail = "类型ID:#id, 类型名称:#deviceType.typeName")
-    public Result<DeviceType> update(@PathVariable Integer id,
-                                      @RequestBody DeviceType deviceType) {
+    public Result<DeviceType> update(
+            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id,
+            @RequestBody DeviceType deviceType) {
         return Result.success(deviceTypeService.updateById(id, deviceType));
     }
 
-    /*
-     * 方法功能:根据ID删除设备类型（存在关联设备时拒绝删除）
-     * 参数:id-设备类型ID（路径参数）
-     * 返回数据:Result<Void>-操作结果
-     * */
+    @Operation(summary = "删除设备类型", description = "若该类型下存在关联设备则返回 400 拒绝删除")
     @DeleteMapping("/{id}")
     @AuditLog(operation = "DELETE_DEVICE_TYPE", detail = "类型ID:#id")
-    public Result<Void> delete(@PathVariable Integer id) {
+    public Result<Void> delete(
+            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id) {
         deviceTypeService.deleteById(id);
         return Result.success();
     }
 
-    /*
-     * 方法功能:更新指定设备类型的告警规则配置
-     * 参数:id-设备类型ID（路径参数）, alertRuleConfig-告警规则配置对象
-     * 返回数据:Result<Void>-操作结果
-     * */
+    @Operation(summary = "更新类型级告警规则配置", description = "该配置作为设备级告警规则的降级方案（设备未配规则时使用类型级规则）")
     @PutMapping("/{id}/alert-config")
     @AuditLog(operation = "UPDATE_DEVICE_TYPE_ALERT_CONFIG", detail = "类型ID:#id")
     public Result<Void> updateAlertConfig(
-            @PathVariable Integer id,
+            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id,
             @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
         deviceTypeService.updateAlertConfig(id, alertRuleConfig);
         return Result.success();

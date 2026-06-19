@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    image: your-spring-boot-app
+    container_name: iot-platform-app
+    ports:
+      - "8080:8080"
+    env_file:
+      # Docker 会读取这个文件，并将其中的变量作为环境变量传入容器
+      - .env
+    environment:
+      # 如果环境变量名需要覆盖 .env 中的值，可以在这里显式指定
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+    depends_on:
+      - mysql
+      - redis
+
+  mysql:
+    image: mysql:8.0
+    container_name: iot-platform-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: iot_device_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: iot-platform-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -58,7 +58,7 @@ iot-platform/
 │   │   │   ├── common/                        # 通用基础设施
 │   │   │   │   ├── Result.java                # 统一响应封装
 │   │   │   │   ├── ResultCode.java            # 响应码常量
-│   │   │   │   ├── 通用基础设施文档.md           # 模块文档
+│   │   │   │
 │   │   │   │   ├── exception/                 # 异常体系
 │   │   │   │   │   ├── BusinessException.java           # 业务异常基类
 │   │   │   │   │   ├── DeviceNotFoundException.java     # 设备不存在异常(4003)
@@ -81,7 +81,7 @@ iot-platform/
 │   │   │   │   ├── MybatisPlusConfig.java     # 分页+乐观锁插件配置
 │   │   │   │   ├── MyMetaObjectHandler.java   # 自动填充（createTime/updateTime/collectTime）
 │   │   │   │   ├── CorsConfig.java            # 跨域配置（支持配置文件动态读取）
-│   │   │   │   └── 框架配置文档.md              # 模块文档
+│   │   │   │
 │   │   │   ├── security/                      # 安全组件
 │   │   │   │   ├── JwtAuthenticationFilter.java        # JWT Token 提取与校验过滤器
 │   │   │   │   ├── CustomAuthenticationEntryPoint.java # 未认证请求返回 401 JSON
@@ -96,7 +96,7 @@ iot-platform/
 │   │   │   │   ├── SysUserController.java     # 用户管理（7 个接口，ADMIN 专属）
 │   │   │   │   ├── SysAuditLogController.java # 审计日志（2 个接口）
 │   │   │   │   ├── DashboardController.java   # 仪表盘统计（1 个接口）
-│   │   │   │   └── Controller接口文档.md       # 模块文档
+│   │   │   │
 │   │   │   ├── dto/                           # 数据传输对象
 │   │   │   │   ├── AlertRuleConfig.java       # 告警规则配置（含规则列表）
 │   │   │   │   ├── AlertRuleDefinition.java   # 告警规则定义（指标/操作符/阈值/级别）
@@ -107,7 +107,7 @@ iot-platform/
 │   │   │   │   ├── LoginResponseDTO.java      # 登录成功响应 DTO（含 JWT Token）
 │   │   │   │   ├── PasswordResetDTO.java      # 密码重置请求 DTO
 │   │   │   │   ├── DashboardStatsDTO.java      # 仪表盘统计响应 DTO
-│   │   │   │   └── 数据传输对象文档.md          # 模块文档
+│   │   │   │
 │   │   │   ├── entity/                        # 实体类
 │   │   │   │   ├── Device.java                # 设备（含 alertRuleConfig JSON 字段）
 │   │   │   │   ├── DeviceData.java            # 设备数据（含 metric 指标字段）
@@ -116,7 +116,7 @@ iot-platform/
 │   │   │   │   ├── DictMetric.java            # 指标字典
 │   │   │   │   ├── SysUser.java               # 用户（含 BCrypt 密码/锁定机制/角色）
 │   │   │   │   ├── SysAuditLog.java           # 审计日志
-│   │   │   │   └── 实体类文档.md               # 模块文档
+│   │   │   │
 │   │   │   ├── mapper/                        # 数据访问层
 │   │   │   │   ├── DeviceMapper.java          # 含 getOnlineDetection 自定义 SQL
 │   │   │   │   ├── DeviceDataMapper.java      # 含统计聚合 SQL
@@ -125,7 +125,7 @@ iot-platform/
 │   │   │   │   ├── DictMetricMapper.java
 │   │   │   │   ├── SysUserMapper.java         # 含 findByUsername 自定义 SQL
 │   │   │   │   ├── SysAuditLogMapper.java     # 含 deleteByCreateTimeBefore 清理 SQL
-│   │   │   │   └── 数据访问层文档.md            # 模块文档
+│   │   │   │
 │   │   │   ├── service/                       # 业务接口层
 │   │   │   │   ├── DeviceService.java
 │   │   │   │   ├── DeviceDataService.java
@@ -140,7 +140,7 @@ iot-platform/
 │   │   │   │   ├── AuthService.java           # 认证服务接口
 │   │   │   │   ├── SysUserService.java        # 用户服务接口
 │   │   │   │   ├── SysAuditLogService.java    # 审计日志服务接口
-│   │   │   │   ├── 业务接口文档.md              # 模块文档
+│   │   │   │
 │   │   │   │   └── impl/                      # 业务实现层
 │   │   │   │       ├── DeviceServiceImpl.java
 │   │   │   │       ├── DeviceDataServiceImpl.java   # saveWithAlertCheck 事务方法
@@ -155,7 +155,7 @@ iot-platform/
 │   │   │   │       ├── AuthServiceImpl.java         # 认证实现（IP频率限制/账号锁定/JWT签发）
 │   │   │   │       ├── SysUserServiceImpl.java      # 用户管理（BCrypt加密/SQL原子递增/字段白名单）
 │   │   │   │       ├── SysAuditLogServiceImpl.java  # 审计日志（多条件查询/过期清理）
-│   │   │   │       └── 核心业务实现文档.md          # 模块文档
+│   │   │   │
 │   │   │   └── task/                          # 定时任务
 │   │   │       └── DeviceMonitorTask.java     # 设备离线检测（cron+阈值配置化）
 │   │   └── resources/
@@ -171,18 +171,13 @@ iot-platform/
 │       │   ├── NotificationDedupServiceTest.java # 通知去重单元测试
 │       │   ├── DeviceServiceImplTest.java     # Mapper基础集成测试
 │       │   ├── DeviceServiceTest.java         # Service业务逻辑集成测试
-│       │   ├── AuthServiceImplTest.java       # AuthService 单元测试
-│       │   └── TestREADME.md                  # 测试模块文档
+│       │   └── AuthServiceImplTest.java       # AuthService 单元测试
 │       ├── service/
 │       │   ├── CacheServiceTest.java          # CacheService 单元测试
 │       │   └── TokenBlacklistServiceTest.java # TokenBlacklist 单元测试
 │       ├── mapper/
 │       │   └── DeviceMapperTest.java          # DeviceMapper 自定义SQL集成测试
-├── docs/                                      # 项目文档
-│   ├── README.md                              # 文档目录索引
-│   ├── audit-record.md                        # 审查问题记录
-│   ├── review-summary.md                      # 审查总结报告
-│   └── images/                                # 文档图片资源
+├── AGENTS.md                                  # AI Agent 上下文（技术栈/约定/文档导航）
 ├── pom.xml                                    # Maven 配置
 ├── mvnw / mvnw.cmd                            # Maven Wrapper 脚本
 └── README.md                                  # 本文件
@@ -190,17 +185,51 @@ iot-platform/
 
 ---
 
-## 四、环境要求
+## 四、数据模型
+
+### 实体关系图（ER）
+
+```
+device_types ──（1:N）──▶ devices ──（1:N）──▶ device_data
+     │                       │
+     │                       │（1:N）
+     │                       ▼
+     │                     alerts
+     │
+     └──（引用）──▶ dict_metric
+```
+
+### 核心实体
+
+| 实体 | 表 | 核心字段 | 说明 |
+|------|----|---------|------|
+| **Device** | devices | id, device_name, device_code, type_id, status(0/1/2), location, ip_address, alert_rule_config(JSON) | 设备基础信息，设备级告警规则优先于类型级 |
+| **DeviceType** | device_types | id, type_name, type_code, description, alert_rule_config(JSON) | 设备分类，类型级告警规则作为降级方案 |
+| **DeviceData** | device_data | id, device_id, metric, data_value, collect_time | 设备上报数据，触发告警检查 |
+| **Alert** | alerts | id, device_id, alert_type, alert_level(1-5), alert_message, is_handled, handle_user | 告警记录，级别越小越紧急 |
+| **DictMetric** | dict_metric | id, metric_key, metric_name, metric_unit | 指标元数据，Redis 缓存，告警消息填充中文名/单位 |
+| **SysUser** | sys_user | id, username, password(BCrypt), nickname, role, status, login_fail_count, lock_time | 用户认证，RBAC 三级角色，连续3次失败锁定30分钟 |
+| **SysAuditLog** | sys_audit_log | id, user_id, username, operation, ip, detail, create_time | 操作审计，过期自动清理 |
+
+**关系说明**：
+- `device_types` 1:N `devices`：一个设备类型下有多个设备
+- `devices` 1:N `device_data`：一个设备产生多条采集数据
+- `devices` 1:N `alerts`：一个设备产生多条告警记录
+- `dict_metric` 被告警引擎引用，用于告警消息中填充指标中文名和单位
+
+---
+
+## 五、环境要求
 
 | 软件 | 版本 | 说明 |
 |------|------|------|
 | JDK | 17+ | 项目基于 Java 17 编译 |
 | Maven | 3.8+ | 或使用项目自带的 Maven Wrapper |
-| MySQL | 8.0+ | 数据库服务 |
+| MySQL | 9.6 | 数据库服务，驱动 mysql-connector-j 9.6.0 |
 
 ---
 
-## 五、快速开始
+## 六、快速开始
 
 ### 5.1 创建数据库
 
@@ -369,7 +398,9 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 六、API 文档
+## 七、API 文档
+
+> **首选方式**：启动应用后访问 `/swagger-ui.html` 即可查看完整的交互式 API 文档（含请求/响应示例、JWT 认证、字段说明）。以下为静态参考清单。
 
 ### 6.1 认证 `/auth`
 
@@ -460,7 +491,7 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 七、RBAC 权限模型
+## 八、RBAC 权限模型
 
 | 角色 | 权限范围 |
 |------|----------|
@@ -483,7 +514,7 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 八、版本历史
+## 九、版本历史
 
 | 版本 | 日期 | Commit | 变更内容 |
 |------|------|--------|----------|
@@ -498,4 +529,19 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-05-25。*
+## 十、文档导航
+
+| 文档 | 用途 | 何时读 |
+|------|------|--------|
+| `AGENTS.md` | AI Agent 上下文（技术栈/约定/禁忌/构建命令） | 新 AI 会话第一步（与本 README 一起） |
+| `开发流程学习文档/需求文档/IoT-Platform需求规格说明书.md` | 需求真相源，51 条需求 + 追踪矩阵 | 新增/改需求 |
+| `开发流程学习文档/需求文档/开发优先级计划.md` | P0→P3 路线图 | 规划迭代 |
+| `开发流程学习文档/学习笔记/` | 模块学习指南（生活类比 + 技术盲区字典） | 学习某模块原理 |
+| `/swagger-ui.html`（启动后访问） | 交互式 API 文档，从代码注解实时生成 | 查接口/联调 |
+| `git log` | 变更历史 | 排查问题 |
+
+> **提示**：原 `src` 各包下的 README 文档已退役（内容迁移至 Swagger 注解和本 README），新会话请勿再读取或创建 src 内 README。
+
+---
+
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-06-19。*

@@ -1,47 +1,53 @@
 package com.example.platform.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/*
- * 类功能:仪表盘统计数据DTO，封装设备统计和告警统计信息，供前端仪表盘页面展示
+/**
+ * 仪表盘统计数据DTO，封装设备统计和告警统计信息，供前端仪表盘页面展示
  *
- * 【数据来源映射】
- * - DeviceStats.total      ← deviceMapper.count()（IService通用方法）
- * - DeviceStats.online     ← deviceMapper.countByStatus() 中 status=1 的 count
- * - DeviceStats.offline    ← deviceMapper.countByStatus() 中 status=0 的 count
- * - DeviceStats.fault      ← deviceMapper.countByStatus() 中 status=2 的 count
- * - AlertStats.total       ← alertService.count()（IService通用方法）
- * - AlertStats.unhandled   ← alertService.count(isHandled=0)
- * - AlertStats.last24h     ← alertService.getStatsByTimeRange(24h前, 现在) 的 alertCount
- * */
+ * <p>数据来源映射：
+ * <ul>
+ *   <li>DeviceStats.total ← deviceMapper.count()
+ *   <li>DeviceStats.online ← deviceMapper.countByStatus() status=1
+ *   <li>DeviceStats.offline ← deviceMapper.countByStatus() status=0
+ *   <li>DeviceStats.fault ← deviceMapper.countByStatus() status=2
+ *   <li>AlertStats.total ← alertService.count()
+ *   <li>AlertStats.unhandled ← alertService.count(isHandled=0)
+ *   <li>AlertStats.last24h ← alertService.getStatsByTimeRange(24h前, 现在)
+ * </ul>
+ */
+@Schema(description = "仪表盘统计数据")
 @Data
 public class DashboardStatsDTO {
 
-    /** 设备统计信息 */
+    @Schema(description = "设备统计信息")
     private DeviceStats deviceStats;
 
-    /** 告警统计信息 */
+    @Schema(description = "告警统计信息")
     private AlertStats alertStats;
 
+    @Schema(description = "设备统计")
     @Data
     public static class DeviceStats {
-        /** 设备总数 */
+        @Schema(description = "设备总数", example = "42")
         private int total;
-        /** 在线设备数（status=1） */
+        @Schema(description = "在线设备数（status=1）", example = "35")
         private int online;
-        /** 离线设备数（status=0） */
+        @Schema(description = "离线设备数（status=0）", example = "7")
         private int offline;
-        /** 故障设备数（status=2） */
+        @Schema(description = "故障设备数（status=2）", example = "5")
         private int fault;
     }
 
+    @Schema(description = "告警统计")
     @Data
     public static class AlertStats {
-        /** 告警总数 */
+        @Schema(description = "告警总数", example = "128")
         private long total;
-        /** 未处理告警数 */
+        @Schema(description = "未处理告警数", example = "5")
         private long unhandled;
-        /** 最近24小时告警数 */
+        @Schema(description = "最近24小时告警数", example = "12")
         private long last24h;
     }
 }

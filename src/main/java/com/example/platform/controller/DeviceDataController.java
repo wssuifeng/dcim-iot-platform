@@ -9,6 +9,9 @@ import com.example.platform.dto.DeviceDataBatchDTO;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +20,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/*
- * 类功能:设备数据接口层，提供设备数据上报、查询、统计及分页等RESTful接口
- * */
+/**
+ * 设备数据接口层，提供设备数据上报、查询、统计及分页等RESTful接口
+ */
+@Tag(name = "设备数据", description = "设备数据上报、历史查询、统计聚合与分页")
 @RestController
 @RequestMapping("/device-data")
 @Validated
@@ -34,50 +38,35 @@ public class DeviceDataController {
         this.deviceService = deviceService;
     }
 
-    /*
-     * 方法功能:接收单条设备数据，保存并触发告警检查
-     * 参数:deviceData-需符合CreateGroup校验规则的设备数据JSON对象
-     * 返回数据:Result<Void>-操作结果
-     * */
+    @Operation(summary = "单条数据上报", description = "保存单条设备数据并触发告警规则检查；设备不存在时抛出 DeviceNotFoundException")
     @PostMapping
     public Result<Void> reportData(@Validated(CreateGroup.class) @RequestBody DeviceData deviceData) {
         deviceDataService.saveWithAlertCheck(deviceData);
         return Result.success();
     }
 
-    /*
-     * 方法功能:批量接收设备数据，逐条保存并触发告警检查
-     * 参数:batchDTO-包含设备数据列表的批量传输对象
-     * 返回数据:Result<Void>-操作结果
-     * */
+    @Operation(summary = "批量数据上报", description = "批量接收设备数据（1-1000条），逐条保存并触发告警检查")
     @PostMapping("/batch")
     public Result<Void> reportBatch(@Validated @RequestBody DeviceDataBatchDTO batchDTO) {
         deviceDataService.saveBatchWithAlertCheck(batchDTO.getDataList());
         return Result.success();
     }
 
-    /*
-     * 方法功能:查询指定设备的分页历史数据，按采集时间倒序排列
-     * 参数:deviceId-设备ID（路径参数）, current-当前页码, size-每页大小
-     * 返回数据:Result<Page<DeviceData>>-设备历史数据的分页结果
-     * */
+    @Operation(summary = "查询设备历史数据（分页）", description = "按采集时间倒序分页返回指定设备的历史数据")
     @GetMapping("/device/{deviceId}")
     public Result<Page<DeviceData>> listByDevice(
-            @PathVariable Integer deviceId,
-            @RequestParam(defaultValue = "1") Integer current,
-            @RequestParam(defaultValue = "20") Integer size) {
+            @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
+            @Parameter(description = "当前页码，默认1") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小，默认20") @RequestParam(defaultValue = "20") Integer size) {
         deviceService.getDeviceOrThrow(deviceId);
         int[] pageParams = PaginationUtils.validate(current, size);
         return Result.success(deviceDataService.pageByDeviceId(deviceId, pageParams[0], pageParams[1]));
     }
 
-    /*
-     * 方法功能:查询指定设备的最新采集数据
-     * 参数:deviceId-设备ID（路径参数）
-     * 返回数据:Result<DeviceData>-最新一条设备数据对象；无数据时返回404错误
-     * */
+    @Operation(summary = "查询设备最新数据", description = "返回设备最新一条采集记录；无数据时返回 404")
     @GetMapping("/device/{deviceId}/latest")
-    public Result<DeviceData> getLatest(@PathVariable Integer deviceId) {
+    public Result<DeviceData> getLatest(
+            @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId) {
         deviceService.getDeviceOrThrow(deviceId);
         DeviceData latest = deviceDataService.findLatestByDeviceId(deviceId);
         if (latest == null) {
@@ -86,63 +75,47 @@ public class DeviceDataController {
         return Result.success(latest);
     }
 
-    /*
-     * 方法功能:查询指定设备在某个时间段内的所有数据
-     * 参数:deviceId-设备ID（路径参数）, startTime-开始时间, endTime-结束时间
-     * 返回数据:Result<List<DeviceData>>-时间段内设备数据列表
-     * */
+    @Operation(summary = "按时间段查询数据", description = "返回指定设备在 [startTime, endTime] 区间内的全部数据，时间格式 yyyy-MM-dd HH:mm:ss")
     @GetMapping("/device/{deviceId}/range")
     public Result<List<DeviceData>> listByTimeRange(
-            @PathVariable Integer deviceId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+            @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
+            @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
         deviceService.getDeviceOrThrow(deviceId);
         List<DeviceData> list = deviceDataService.findByDeviceIdAndTimeRange(
                 deviceId, startTime, endTime);
         return Result.success(list);
     }
 
-    /*
-     * 方法功能:获取指定设备在时间段内的统计数据（如平均值、最大值、最小值等）
-     * 参数:deviceId-设备ID（路径参数）, startTime-开始时间, endTime-结束时间
-     * 返回数据:Result<Map<String, Object>>-包含统计指标的键值对
-     * */
+    @Operation(summary = "时间段统计数据", description = "返回 minVal/maxVal/avgVal/count 等统计指标；无数据时对应字段为 null")
     @GetMapping("/device/{deviceId}/statistics")
     public Result<Map<String, Object>> getStatistics(
-            @PathVariable Integer deviceId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+            @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
+            @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
         deviceService.getDeviceOrThrow(deviceId);
         Map<String, Object> stats = deviceDataService.getStatistics(
                 deviceId, startTime, endTime);
         return Result.success(stats);
     }
 
-    /*
-     * 方法功能:分页查询设备数据，可选按设备ID筛选
-     * 参数:current-当前页码, size-每页大小, deviceId-设备ID（可选）
-     * 返回数据:Result<Page<DeviceData>>-分页查询结果
-     * */
+    @Operation(summary = "全局分页查询数据", description = "可选按 deviceId 筛选的全局数据分页")
     @GetMapping("/page")
     public Result<Page<DeviceData>> listByPage(
-            @RequestParam(defaultValue = "1") Integer current,
-            @RequestParam(defaultValue = "10") Integer size,
-            @RequestParam(required = false) Integer deviceId) {
+            @Parameter(description = "当前页码，默认1") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页大小，默认10") @RequestParam(defaultValue = "10") Integer size,
+            @Parameter(description = "设备ID筛选（可选）") @RequestParam(required = false) Integer deviceId) {
         int[] pageParams = PaginationUtils.validate(current, size);
         return Result.success(deviceDataService.pageByCondition(deviceId, pageParams[0], pageParams[1]));
     }
 
-    /*
-     * 方法功能:按时间粒度聚合统计设备数据（支持按小时/天/周聚合）
-     * 参数:deviceId-设备ID（路径参数）, startTime-开始时间, endTime-结束时间, granularity-聚合粒度(hour/day/week)
-     * 返回数据:Result<List<Map<String, Object>>>-聚合统计数据列表
-     * */
+    @Operation(summary = "按时间粒度聚合统计", description = "支持按 hour/day/week 聚合设备数据，返回聚合统计列表")
     @GetMapping("/device/{deviceId}/aggregate")
     public Result<List<Map<String, Object>>> aggregate(
-            @PathVariable Integer deviceId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
-            @RequestParam(defaultValue = "day") String granularity) {
+            @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
+            @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            @Parameter(description = "聚合粒度 hour/day/week，默认 day") @RequestParam(defaultValue = "day") String granularity) {
         return Result.success(deviceDataService.aggregate(deviceId, startTime, endTime, granularity));
     }
 }
