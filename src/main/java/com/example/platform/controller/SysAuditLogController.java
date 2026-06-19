@@ -2,6 +2,8 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.annotation.AuditLog;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.entity.SysAuditLog;
 import com.example.platform.service.SysAuditLogService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,8 +39,9 @@ public class SysAuditLogController {
             @RequestParam(required = false) String operation,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
+        int[] pageParams = PaginationUtils.validate(current, size);
         return Result.success(
-                sysAuditLogService.pageLogs(current, size, userId, operation, startTime, endTime));
+                sysAuditLogService.pageLogs(pageParams[0], pageParams[1], userId, operation, startTime, endTime));
     }
 
     /*
@@ -47,6 +50,7 @@ public class SysAuditLogController {
      * 返回数据:Result<Integer>-删除的记录条数
      * */
     @DeleteMapping("/cleanup")
+    @AuditLog(operation = "CLEANUP_AUDIT_LOG", detail = "清理截止时间:#beforeTime")
     public Result<Integer> cleanup(@RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime beforeTime) {
         int deleted = sysAuditLogService.cleanExpiredLogs(beforeTime);
         return Result.success(deleted);

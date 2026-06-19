@@ -3,8 +3,10 @@ package com.example.platform.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
 import com.example.platform.common.ResultCode;
+import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 import com.example.platform.service.DeviceService;
@@ -52,6 +54,7 @@ public class DeviceController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PostMapping
+    @AuditLog(operation = "CREATE_DEVICE", detail = "设备名称:#device.deviceName, 设备编码:#device.deviceCode")
     public Result<Void> save(@Validated(CreateGroup.class) @RequestBody Device device) {
         deviceService.save(device);
         return Result.success();
@@ -63,11 +66,12 @@ public class DeviceController {
      * 返回数据:Result<Void>-操作结果，ID不一致或更新失败时返回错误信息
      * */
     @PutMapping("/{id}")
+    @AuditLog(operation = "UPDATE_DEVICE", detail = "设备ID:#id, 设备名称:#device.deviceName")
     public Result<Void> update(@PathVariable Integer id,
                                @Validated(UpdateGroup.class) @RequestBody Device device) {
         deviceService.getDeviceOrThrow(id);
         if (device.getId() != null && !id.equals(device.getId())) {
-            return Result.error(400, "请求ID不一致，无法更新");
+            return Result.error(ResultCode.INVALID_PARAMETER, "请求ID不一致，无法更新");
         }
         device.setId(id);
         boolean updated = deviceService.updateById(device);
@@ -95,7 +99,7 @@ public class DeviceController {
     @GetMapping("/search")
     public Result<List<Device>> search(@RequestParam String name) {
         if (name == null || name.trim().isEmpty()) {
-            return Result.error(400, "搜索关键词不能为空");
+            return Result.error(ResultCode.INVALID_PARAMETER, "搜索关键词不能为空");
         }
         return Result.success(deviceService.findByNameLike(name));
     }
@@ -106,11 +110,12 @@ public class DeviceController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping("/{id}/status")
+    @AuditLog(operation = "UPDATE_DEVICE_STATUS", detail = "设备ID:#id, 状态:#status")
     public Result<Void> updateStatus(
             @PathVariable Integer id,
             @RequestParam Integer status) {
         if (status < 0 || status > 2) {
-            return Result.error(400, "状态值无效，允许值：0-离线，1-在线，2-故障");
+            return Result.error(ResultCode.INVALID_PARAMETER, "状态值无效，允许值：0-离线，1-在线，2-故障");
         }
         boolean updated = deviceService.updateStatus(id, status);
         if (!updated) {
@@ -130,7 +135,8 @@ public class DeviceController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) String name) {
-        return Result.success(deviceService.pageByCondition(current, size, status, name));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(deviceService.pageByCondition(pageParams[0], pageParams[1], status, name));
     }
 
     /*
@@ -139,6 +145,7 @@ public class DeviceController {
      * 返回数据:Result<Void>-操作结果
      * */
     @DeleteMapping("/{id}")
+    @AuditLog(operation = "DELETE_DEVICE", detail = "设备ID:#id")
     public Result<Void> delete(@PathVariable Integer id) {
         deviceService.getDeviceOrThrow(id);
         deviceService.removeById(id);
@@ -151,6 +158,7 @@ public class DeviceController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping("/{id}/alert-config")
+    @AuditLog(operation = "UPDATE_DEVICE_ALERT_CONFIG", detail = "设备ID:#id")
     public Result<Void> updateAlertConfig(
             @PathVariable Integer id,
             @RequestBody @Validated AlertRuleConfig alertRuleConfig) {

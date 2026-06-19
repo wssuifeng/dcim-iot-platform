@@ -2,6 +2,8 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.annotation.AuditLog;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.entity.DictMetric;
 import com.example.platform.service.DictMetricService;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +29,8 @@ public class DictMetricController {
     @GetMapping("/page")
     public Result<Page<DictMetric>> page(@RequestParam(defaultValue = "1") Integer current,
                                          @RequestParam(defaultValue = "10") Integer size) {
-        return Result.success(dictMetricService.page(new Page<>(current, size)));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(dictMetricService.page(new Page<>(pageParams[0], pageParams[1])));
     }
 
     /*
@@ -36,6 +39,7 @@ public class DictMetricController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PostMapping
+    @AuditLog(operation = "CREATE_METRIC", detail = "指标编码:#metric.metricCode, 指标名称:#metric.metricName")
     public Result<Void> add(@RequestBody DictMetric metric) {
         dictMetricService.save(metric);
         return Result.success();
@@ -47,6 +51,7 @@ public class DictMetricController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PutMapping
+    @AuditLog(operation = "UPDATE_METRIC", detail = "指标ID:#metric.id")
     public Result<Void> update(@RequestBody DictMetric metric) {
         dictMetricService.updateById(metric);
         return Result.success();
@@ -58,6 +63,7 @@ public class DictMetricController {
      * 返回数据:Result<Void>-操作结果
      * */
     @DeleteMapping("/{id}")
+    @AuditLog(operation = "DELETE_METRIC", detail = "指标ID:#id")
     public Result<Void> delete(@PathVariable Integer id) {
         dictMetricService.removeById(id);
         return Result.success();
@@ -69,6 +75,7 @@ public class DictMetricController {
      * 返回数据:Result<Void>-操作结果
      * */
     @PostMapping("/cache/refresh")
+    @AuditLog(operation = "REFRESH_METRIC_CACHE", detail = "手动刷新指标字典缓存")
     public Result<Void> refreshCache() {
         dictMetricService.refreshCache();
         return Result.success();

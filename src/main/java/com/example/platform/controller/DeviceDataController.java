@@ -2,7 +2,9 @@ package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.ResultCode;
 import com.example.platform.common.group.CreateGroup;
+import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.DeviceDataBatchDTO;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.service.DeviceDataService;
@@ -65,7 +67,8 @@ public class DeviceDataController {
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "20") Integer size) {
         deviceService.getDeviceOrThrow(deviceId);
-        return Result.success(deviceDataService.pageByDeviceId(deviceId, current, size));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(deviceDataService.pageByDeviceId(deviceId, pageParams[0], pageParams[1]));
     }
 
     /*
@@ -78,7 +81,7 @@ public class DeviceDataController {
         deviceService.getDeviceOrThrow(deviceId);
         DeviceData latest = deviceDataService.findLatestByDeviceId(deviceId);
         if (latest == null) {
-            return Result.error(404, "该设备暂无采集数据");
+            return Result.error(ResultCode.RESOURCE_NOT_FOUND, "该设备暂无采集数据");
         }
         return Result.success(latest);
     }
@@ -125,7 +128,8 @@ public class DeviceDataController {
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Integer deviceId) {
-        return Result.success(deviceDataService.pageByCondition(deviceId, current, size));
+        int[] pageParams = PaginationUtils.validate(current, size);
+        return Result.success(deviceDataService.pageByCondition(deviceId, pageParams[0], pageParams[1]));
     }
 
     /*
