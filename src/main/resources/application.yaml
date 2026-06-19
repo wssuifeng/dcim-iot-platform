@@ -28,6 +28,15 @@ spring:
     validate-on-migrate: false
     locations: classpath:db/migration
 
+  # 邮件通知配置（生产环境需填写真实值）
+  mail:
+    host: ${MAIL_HOST:smtp.example.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: smtp
+    default-encoding: UTF-8
+
 # ==================== MyBatis-Plus 配置 ====================
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -89,6 +98,12 @@ rate-limit:
   enabled: true
   window-seconds: 60
   max-requests: 100
+
+# ==================== 告警通知配置 ====================
+notify:
+  mail:
+    enabled: false
+    to: ${NOTIFY_MAIL_TO:}
 
 # ==================== JWT 配置 ====================
 jwt:

@@ -1,6 +1,18 @@
 # ==================== 生产环境配置 ====================
 # 所有敏感信息必须从环境变量注入，禁止在配置文件中硬编码
 
+# ==================== 生产环境 HTTPS 配置模板 ====================
+# 启用前需准备有效 SSL 证书，并替换环境变量值
+server:
+  ssl:
+    enabled: ${SSL_ENABLED:false}
+    protocol: TLS
+    enabled-protocols: TLSv1.2,TLSv1.3
+    key-store: ${SSL_KEY_STORE:}
+    key-store-password: ${SSL_KEY_STORE_PASSWORD:}
+    key-store-type: ${SSL_KEY_STORE_TYPE:PKCS12}
+    key-alias: ${SSL_KEY_ALIAS:}
+
 spring:
   # 数据源配置（Druid）
   datasource:
