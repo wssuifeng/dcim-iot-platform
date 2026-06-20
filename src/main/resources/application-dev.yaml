@@ -26,6 +26,10 @@ spring:
       remove-abandoned: true
       remove-abandoned-timeout: 300
 
+      # Druid 监控统计过滤器，开启后可在 /druid/index.html 查看慢 SQL
+      filters: stat,slf4j
+      connection-properties: druid.stat.slowSqlMillis=200;druid.stat.logSlowSql=true
+
       # 开发环境开启 Druid 监控面板，访问 /druid/index.html
       stat-view-servlet:
         enabled: true
@@ -38,6 +42,7 @@ spring:
         enabled: true
         url-pattern: /*
         exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+        profile-enable: true
 
   # Redis 配置（Lettuce 客户端）
   data:
@@ -68,3 +73,9 @@ logging:
     root: info
     com.example.platform: debug
     com.example.platform.mapper: debug
+
+# ==================== 开发环境限流（压测友好） ====================
+# 压测时可通过 RATE_LIMIT_ENABLED=false 直接关闭，或保持开启但调高阈值
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  max-requests: 30000
