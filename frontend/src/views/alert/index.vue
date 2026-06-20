@@ -17,6 +17,7 @@
       >
         批量处理 ({{ selectedIds.length }})
       </el-button>
+      <el-button type="info" @click="handleExport">导出告警</el-button>
     </div>
 
     <alert-table
@@ -51,7 +52,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getAlerts, batchHandleAlerts } from '@/api/alert'
+import { getAlerts, batchHandleAlerts, exportAlerts } from '@/api/alert'
 import { ElMessage } from 'element-plus'
 import AlertFilter from '@/components/alert/AlertFilter.vue'
 import AlertTable from '@/components/alert/AlertTable.vue'
@@ -164,6 +165,42 @@ async function handleConfirmHandle(handleUser) {
   }
 }
 
+async function handleExport() {
+  try {
+    const params = {}
+    if (filter.deviceId) params.deviceId = filter.deviceId
+    if (filter.isHandled !== null && filter.isHandled !== '') params.isHandled = filter.isHandled
+    if (filter.alertLevel) params.alertLevel = filter.alertLevel
+    if (filter.timeRange?.length === 2) {
+      params.startTime = filter.timeRange[0]
+      params.endTime = filter.timeRange[1]
+    }
+    const response = await exportAlerts(params)
+    downloadBlob(response.data, `告警记录_${formatDate(new Date())}.xlsx`)
+    ElMessage.success('导出成功')
+  } catch {
+    // 错误已由拦截器处理
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
+function formatDate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}${m}${d}`
+}
+
 onMounted(() => {
   fetchAlertList()
   fetchStats()
@@ -177,5 +214,8 @@ onMounted(() => {
 
 .toolbar {
   margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

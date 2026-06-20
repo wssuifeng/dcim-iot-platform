@@ -13,6 +13,8 @@ import com.example.platform.entity.Alert;
 import com.example.platform.service.AlertService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -100,6 +102,11 @@ public class AlertController {
     }
 
     @Operation(summary = "导出告警记录", description = "按筛选条件导出 Excel，单次上限 10000 条")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "返回 .xlsx 文件流"),
+            @ApiResponse(responseCode = "400", description = "导出超过10000条(4065)"),
+            @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
+    })
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_ALERT", detail = "导出告警记录")

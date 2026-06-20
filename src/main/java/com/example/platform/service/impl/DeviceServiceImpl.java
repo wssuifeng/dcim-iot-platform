@@ -186,6 +186,21 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     @Override
     public Page<Device> pageByCondition(Integer current, Integer size, Integer status, String name) {
         Page<Device> page = new Page<>(current, size);
+        LambdaQueryWrapper<Device> wrapper = buildConditionWrapper(status, name);
+        return page(page, wrapper);
+    }
+
+    /*
+     * 方法功能:按可选状态和名称条件查询全部设备，按更新时间倒序排列
+     * 参数:status-设备状态（可选）, name-设备名称（可选，模糊匹配）
+     * 返回数据:List<Device>-设备列表
+     * */
+    @Override
+    public List<Device> listByCondition(Integer status, String name) {
+        return list(buildConditionWrapper(status, name));
+    }
+
+    private LambdaQueryWrapper<Device> buildConditionWrapper(Integer status, String name) {
         LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
         if (status != null) {
             wrapper.eq(Device::getStatus, status);
@@ -194,7 +209,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
             wrapper.like(Device::getDeviceName, name);
         }
         wrapper.orderByDesc(Device::getUpdateTime);
-        return page(page, wrapper);
+        return wrapper;
     }
 
     /*

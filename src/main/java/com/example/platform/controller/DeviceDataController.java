@@ -15,6 +15,8 @@ import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -128,6 +130,11 @@ public class DeviceDataController {
     }
 
     @Operation(summary = "导出设备数据", description = "按设备ID+时间范围导出 Excel，单次上限 10000 条，时间范围不超过 30 天")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "返回 .xlsx 文件流"),
+            @ApiResponse(responseCode = "400", description = "时间范围超过30天/导出超过10000条(4065)"),
+            @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
+    })
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_DEVICE_DATA", detail = "设备ID:#deviceId")
