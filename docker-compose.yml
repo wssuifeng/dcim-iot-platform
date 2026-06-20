@@ -2,22 +2,29 @@ version: '3.8'
 
 services:
   app:
-    image: your-spring-boot-app
+    build: .
     container_name: iot-platform-app
     ports:
       - "8080:8080"
     env_file:
-      # Docker 会读取这个文件，并将其中的变量作为环境变量传入容器
       - .env
     environment:
-      # 如果环境变量名需要覆盖 .env 中的值，可以在这里显式指定
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
 
   mysql:
-    image: mysql:8.0
+    # 与项目 pom.xml 中 mysql-connector-j 9.6.0 保持一致
+    image: mysql:9.6.0
     container_name: iot-platform-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
@@ -26,6 +33,11 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -34,6 +46,11 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   mysql_data:

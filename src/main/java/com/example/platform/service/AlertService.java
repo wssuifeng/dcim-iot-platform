@@ -71,4 +71,12 @@ public interface AlertService extends IService<Alert> {
     Page<Alert> pageByCondition(Integer current, Integer size, Integer deviceId,
                                  Integer isHandled, Integer alertLevel,
                                  LocalDateTime startTime, LocalDateTime endTime);
+
+    /*
+     * 方法功能:按条件查询告警列表（不分页，用于导出）
+     * 参数:deviceId-设备ID（可选）, isHandled-处理状态（可选）, alertLevel-告警级别（可选）, startTime-开始时间（可选）, endTime-结束时间（可选）
+     * 返回数据:List<Alert>-告警列表
+     * */
+    List<Alert> listByCondition(Integer deviceId, Integer isHandled, Integer alertLevel,
+                                LocalDateTime startTime, LocalDateTime endTime);
 }

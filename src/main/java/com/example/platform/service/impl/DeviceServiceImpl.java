@@ -1,29 +1,47 @@
 package com.example.platform.service.impl;
 
+import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.context.AnalysisContext;
+import com.alibaba.excel.read.listener.ReadListener;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.platform.common.ResultCode;
+import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DeviceCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceNotFoundException;
 import com.example.platform.dto.AlertRuleConfig;
+import com.example.platform.dto.DeviceImportResult;
+import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.entity.Device;
+import com.example.platform.entity.DeviceType;
 import com.example.platform.mapper.DeviceMapper;
 import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /*
  * 类功能:设备服务实现类，负责设备的CRUD、状态管理、编码唯一性校验及告警配置更新
  * */
 @Service
 public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> implements DeviceService {
+
+    private static final int IMPORT_MAX_SIZE = 500;
+    private static final Pattern IP_PATTERN = Pattern.compile(
+            "^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$");
 
     private final DeviceTypeService deviceTypeService;
     private final AlertConfigService alertConfigService;
@@ -191,5 +209,126 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
                 .set(Device::getLastOnlineTime, LocalDateTime.now())
                 .set(Device::getStatus, 1);
         update(wrapper);
+    }
+
+    /*
+     * 方法功能:从 Excel 文件批量导入设备
+     * 说明:逐行校验，失败行跳过并记录原因，不使用整体事务以保证部分成功
+     * 参数:file-Excel 文件
+     * 返回数据:DeviceImportResult-导入结果
+     * */
+    @Override
+    public DeviceImportResult importFromExcel(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResultCode.FILE_EMPTY, "上传文件不能为空");
+        }
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".xlsx")) {
+            throw new BusinessException(ResultCode.FILE_FORMAT_ERROR, "仅支持 .xlsx 格式文件");
+        }
+
+        List<DeviceImportResult.FailDetail> failDetails = new ArrayList<>();
+        List<Device> devicesToSave = new ArrayList<>();
+        Set<String> seenDeviceCodes = new HashSet<>();
+
+        try {
+            EasyExcel.read(file.getInputStream(), DeviceImportRow.class, new ReadListener<DeviceImportRow>() {
+                private int rowIndex = 1;
+
+                @Override
+                public void invoke(DeviceImportRow row, AnalysisContext context) {
+                    if (rowIndex > IMPORT_MAX_SIZE) {
+                        failDetails.add(DeviceImportResult.FailDetail.builder()
+                                .rowIndex(rowIndex)
+                                .deviceCode(row.getDeviceCode())
+                                .reason("超过单次导入上限" + IMPORT_MAX_SIZE + "条")
+                                .build());
+                        rowIndex++;
+                        return;
+                    }
+
+                    String reason = validateImportRow(row, seenDeviceCodes);
+                    if (reason != null) {
+                        failDetails.add(DeviceImportResult.FailDetail.builder()
+                                .rowIndex(rowIndex)
+                                .deviceCode(row.getDeviceCode())
+                                .reason(reason)
+                                .build());
+                    } else {
+                        seenDeviceCodes.add(row.getDeviceCode());
+                        DeviceType deviceType = deviceTypeService.findByTypeCode(row.getTypeCode());
+                        Device device = new Device();
+                        device.setDeviceName(row.getDeviceName().trim());
+                        device.setDeviceCode(row.getDeviceCode().trim());
+                        device.setTypeId(deviceType.getId());
+                        device.setLocation(row.getLocation());
+                        device.setIpAddress(row.getIpAddress());
+                        device.setStatus(0);
+                        devicesToSave.add(device);
+                    }
+                    rowIndex++;
+                }
+
+                @Override
+                public void doAfterAllAnalysed(AnalysisContext context) {
+                    // no-op
+                }
+            }).sheet().doRead();
+        } catch (IOException e) {
+            throw new BusinessException(ResultCode.FILE_FORMAT_ERROR, "文件读取失败: " + e.getMessage());
+        }
+
+        int successCount = 0;
+        for (Device device : devicesToSave) {
+            try {
+                super.save(device);
+                successCount++;
+            } catch (Exception e) {
+                failDetails.add(DeviceImportResult.FailDetail.builder()
+                        .deviceCode(device.getDeviceCode())
+                        .reason("保存失败: " + e.getMessage())
+                        .build());
+            }
+        }
+
+        return DeviceImportResult.builder()
+                .totalCount(successCount + failDetails.size())
+                .successCount(successCount)
+                .failCount(failDetails.size())
+                .failDetails(failDetails)
+                .build();
+    }
+
+    private String validateImportRow(DeviceImportRow row, Set<String> seenDeviceCodes) {
+        if (row == null) {
+            return "行数据为空";
+        }
+        if (row.getDeviceName() == null || row.getDeviceName().trim().isEmpty()) {
+            return "设备名称为空";
+        }
+        if (row.getDeviceCode() == null || row.getDeviceCode().trim().isEmpty()) {
+            return "设备编码为空";
+        }
+        if (row.getTypeCode() == null || row.getTypeCode().trim().isEmpty()) {
+            return "类型编码为空";
+        }
+        String deviceCode = row.getDeviceCode().trim();
+        if (seenDeviceCodes.contains(deviceCode)) {
+            return "Excel 内设备编码重复";
+        }
+        LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Device::getDeviceCode, deviceCode);
+        if (count(wrapper) > 0) {
+            return "设备编码已存在";
+        }
+        DeviceType deviceType = deviceTypeService.findByTypeCode(row.getTypeCode().trim());
+        if (deviceType == null) {
+            return "设备类型编码不存在";
+        }
+        if (row.getIpAddress() != null && !row.getIpAddress().trim().isEmpty()
+                && !IP_PATTERN.matcher(row.getIpAddress().trim()).matches()) {
+            return "IP 地址格式不正确";
+        }
+        return null;
     }
 }
