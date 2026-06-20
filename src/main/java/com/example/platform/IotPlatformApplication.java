@@ -2,13 +2,15 @@ package com.example.platform;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /*
- * 类功能:IoT平台主启动类，启用Spring Boot自动配置和定时任务调度
+ * 类功能:IoT平台主启动类，启用Spring Boot自动配置、定时任务调度和重试机制
  * */
 @SpringBootApplication
 @EnableScheduling
+@EnableRetry
 public class IotPlatformApplication {
 
     /*

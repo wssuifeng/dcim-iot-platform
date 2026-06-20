@@ -8,8 +8,14 @@ import com.example.platform.mapper.DeviceDataMapper;
 import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -117,21 +123,57 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
      * 方法功能:保存单条设备数据，校验设备存在性后保存数据、更新在线时间并触发告警评估
      * 参数:deviceData-待保存的设备数据对象
      * 返回数据:无
+     *
+     * 【死锁兜底】@Retryable 对整个方法重试（maxAttempts=3，指数退避：20ms→40ms→80ms），
+     *           每次重试都开启全新事务，避免旧事务同步失效（Transaction synchronization is not active）。
+     *
+     * 【死锁根治】
+     *   a) 隔离级别降级 → READ_COMMITTED：消除 InnoDB gap/next-key 锁
+     *   b) 锁顺序统一  → UPDATE devices 在 INSERT device_data 之前
+     *   c) 告警评估后置 → 注册到事务提交后执行：避免 alerts 表操作参与事务内锁竞争
      * */
-    @Transactional(rollbackFor = Exception.class)
+    @Retryable(
+            retryFor = { org.springframework.dao.DeadlockLoserDataAccessException.class,
+                         org.springframework.dao.CannotAcquireLockException.class },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 20, multiplier = 2.0, random = true)
+    )
+    @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     @Override
     public void saveWithAlertCheck(DeviceData deviceData) {
         deviceService.getDeviceOrThrow(deviceData.getDeviceId());
 
-        save(deviceData);
-
+        // 先获取 devices 行锁，统一加锁顺序
         deviceService.updateLastOnlineTime(deviceData.getDeviceId());
 
-        try {
-            alertRuleEngine.evaluate(deviceData.getDeviceId(), deviceData);
-        } catch (Exception e) {
-            log.error("告警评估失败，设备ID={}，数据ID={}：{}", deviceData.getDeviceId(), deviceData.getId(), e.getMessage(), e);
-        }
+        // 再插入数据，此时已持有 devices 行锁，不会与其他事务交叉等待
+        save(deviceData);
+
+        Integer deviceId = deviceData.getDeviceId();
+        DeviceData saved = deviceData;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    alertRuleEngine.evaluate(deviceId, saved);
+                } catch (Exception e) {
+                    log.error("告警评估失败，设备ID={}，数据ID={}：{}", deviceId, saved.getId(), e.getMessage(), e);
+                }
+            }
+        });
+    }
+
+    /*
+     * @Recover: 当 @Retryable 耗尽全部重试次数后，记录最终失败日志并传播异常，
+     *          由 GlobalExceptionHandler 统一兜底为 5000 响应。
+     * */
+    @Recover
+    public void recoverSaveWithAlertCheck(
+            org.springframework.dao.DataAccessException e,
+            DeviceData deviceData) {
+        log.error("saveWithAlertCheck 重试耗尽, deviceId={}, 最终异常",
+                deviceData != null ? deviceData.getDeviceId() : null, e);
+        throw e;
     }
 
     /*
@@ -139,7 +181,7 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
      * 参数:dataList-待保存的设备数据列表
      * 返回数据:无
      * */
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     @Override
     public void saveBatchWithAlertCheck(List<DeviceData> dataList) {
         if (dataList == null || dataList.isEmpty()) {
