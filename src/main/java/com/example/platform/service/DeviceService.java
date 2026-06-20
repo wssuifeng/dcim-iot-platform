@@ -66,6 +66,13 @@ public interface DeviceService extends IService<Device> {
     Page<Device> pageByCondition(Integer current, Integer size, Integer status, String name);
 
     /*
+     * 方法功能:按可选状态和名称条件查询全部设备（用于导出）
+     * 参数:status-设备状态（可选）, name-设备名称（可选）
+     * 返回数据:List<Device>-设备列表
+     * */
+    List<Device> listByCondition(Integer status, String name);
+
+    /*
      * 方法功能:根据设备类型ID查询设备列表
      * 参数:typeId-设备类型ID
      * 返回数据:List<Device>-该类型下的设备列表

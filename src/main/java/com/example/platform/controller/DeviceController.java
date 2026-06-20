@@ -10,20 +10,30 @@ import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlertRuleConfig;
+import com.example.platform.dto.DeviceExportRow;
 import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.entity.Device;
+import com.example.platform.entity.DeviceType;
 import com.example.platform.service.DeviceService;
+import com.example.platform.service.DeviceTypeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 设备管理接口层，提供设备的CRUD、状态更新、搜索分页及告警配置等RESTful接口
@@ -34,9 +44,11 @@ import java.util.List;
 @Validated
 public class DeviceController {
     private final DeviceService deviceService;
+    private final DeviceTypeService deviceTypeService;
 
-    public DeviceController(DeviceService deviceService) {
+    public DeviceController(DeviceService deviceService, DeviceTypeService deviceTypeService) {
         this.deviceService = deviceService;
+        this.deviceTypeService = deviceTypeService;
     }
 
     @Operation(summary = "查询所有设备列表", description = "返回全部设备信息，不分页")
@@ -141,6 +153,11 @@ public class DeviceController {
     }
 
     @Operation(summary = "批量导入设备", description = "上传 Excel 文件批量导入设备，单次上限 500 条，支持 .xlsx 格式")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "导入完成（可能包含部分失败行）",
+                    content = @Content(schema = @Schema(implementation = DeviceImportResult.class))),
+            @ApiResponse(responseCode = "400", description = "文件为空(4061)/格式错误(4062)/超过500条(4063)")
+    })
     @PostMapping("/import")
     @AuditLog(operation = "IMPORT_DEVICE", detail = "批量导入设备")
     public Result<DeviceImportResult> importDevices(
@@ -149,11 +166,61 @@ public class DeviceController {
     }
 
     @Operation(summary = "下载导入模板", description = "下载设备批量导入 Excel 模板")
+    @ApiResponse(responseCode = "200", description = "返回 .xlsx 模板文件")
     @GetMapping("/import-template")
     public void downloadTemplate(HttpServletResponse response) throws IOException {
         ExcelExportUtil.setExcelResponse(response, "设备导入模板");
         EasyExcel.write(response.getOutputStream(), DeviceImportRow.class)
                 .sheet("设备导入模板")
                 .doWrite(List.of());
+    }
+
+    @Operation(summary = "导出设备列表", description = "按状态、名称筛选导出 Excel，单次上限 10000 条")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "返回 .xlsx 文件流"),
+            @ApiResponse(responseCode = "400", description = "导出超过10000条(4065)"),
+            @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
+    })
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @AuditLog(operation = "EXPORT_DEVICE", detail = "导出设备列表")
+    public void exportDevices(
+            @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
+            @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name,
+            HttpServletResponse response) throws IOException {
+        List<Device> deviceList = deviceService.listByCondition(status, name);
+        if (deviceList.size() > 10000) {
+            throw new com.example.platform.common.exception.BusinessException(
+                    ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");
+        }
+        Map<Integer, String> typeNameMap = deviceTypeService.list().stream()
+                .collect(Collectors.toMap(DeviceType::getId, DeviceType::getTypeName));
+        List<DeviceExportRow> rows = deviceList.stream().map(d -> {
+            DeviceExportRow row = new DeviceExportRow();
+            row.setId(d.getId());
+            row.setDeviceName(d.getDeviceName());
+            row.setDeviceCode(d.getDeviceCode());
+            row.setTypeName(typeNameMap.getOrDefault(d.getTypeId(), ""));
+            row.setStatusText(statusText(d.getStatus()));
+            row.setLocation(d.getLocation());
+            row.setIpAddress(d.getIpAddress());
+            row.setLastOnlineTime(d.getLastOnlineTime());
+            row.setCreateTime(d.getCreateTime());
+            return row;
+        }).collect(Collectors.toList());
+        ExcelExportUtil.setExcelResponse(response, ExcelExportUtil.buildFileName("设备列表"));
+        EasyExcel.write(response.getOutputStream(), DeviceExportRow.class)
+                .sheet("设备列表")
+                .doWrite(rows);
+    }
+
+    private String statusText(Integer status) {
+        if (status == null) return "未知";
+        return switch (status) {
+            case 0 -> "离线";
+            case 1 -> "在线";
+            case 2 -> "故障";
+            default -> "未知";
+        };
     }
 }

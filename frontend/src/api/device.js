@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import axios from 'axios'
 
 export function getDevicePage(params) {
   return request.get('/devices/page', { params })
@@ -30,4 +31,38 @@ export function updateDeviceAlertConfig(id, data) {
 
 export function getAllDevices() {
   return request.get('/devices')
+}
+
+/**
+ * 批量导入设备
+ * @param {File} file Excel 文件
+ */
+export function importDevices(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/devices/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+/**
+ * 下载设备导入模板
+ */
+export function downloadDeviceImportTemplate() {
+  return axios.get('/api/devices/import-template', {
+    responseType: 'blob',
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  })
+}
+
+/**
+ * 导出设备列表
+ * @param {object} params 筛选参数 { status, name }
+ */
+export function exportDevices(params) {
+  return axios.get('/api/devices/export', {
+    params,
+    responseType: 'blob',
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  })
 }
