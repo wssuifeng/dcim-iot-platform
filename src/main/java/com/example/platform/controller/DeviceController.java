@@ -1,21 +1,28 @@
 package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.alibaba.excel.EasyExcel;
 import com.example.platform.common.Result;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
+import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlertRuleConfig;
+import com.example.platform.dto.DeviceImportResult;
+import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.entity.Device;
 import com.example.platform.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -131,5 +138,22 @@ public class DeviceController {
             @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
         deviceService.updateAlertConfig(id, alertRuleConfig);
         return Result.success();
+    }
+
+    @Operation(summary = "批量导入设备", description = "上传 Excel 文件批量导入设备，单次上限 500 条，支持 .xlsx 格式")
+    @PostMapping("/import")
+    @AuditLog(operation = "IMPORT_DEVICE", detail = "批量导入设备")
+    public Result<DeviceImportResult> importDevices(
+            @Parameter(description = "Excel 文件", required = true) @RequestParam("file") MultipartFile file) {
+        return Result.success(deviceService.importFromExcel(file));
+    }
+
+    @Operation(summary = "下载导入模板", description = "下载设备批量导入 Excel 模板")
+    @GetMapping("/import-template")
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        ExcelExportUtil.setExcelResponse(response, "设备导入模板");
+        EasyExcel.write(response.getOutputStream(), DeviceImportRow.class)
+                .sheet("设备导入模板")
+                .doWrite(List.of());
     }
 }

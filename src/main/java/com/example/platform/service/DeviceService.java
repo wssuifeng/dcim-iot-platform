@@ -3,7 +3,9 @@ package com.example.platform.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.AlertRuleConfig;
+import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.entity.Device;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -78,4 +80,11 @@ public interface DeviceService extends IService<Device> {
     List<Map<String, Object>> countByStatus();
 
     void updateLastOnlineTime(Integer deviceId);
+
+    /*
+     * 方法功能:从 Excel 文件批量导入设备
+     * 参数:file-Excel 文件
+     * 返回数据:DeviceImportResult-导入结果（成功数/失败数/失败明细）
+     * */
+    DeviceImportResult importFromExcel(MultipartFile file);
 }

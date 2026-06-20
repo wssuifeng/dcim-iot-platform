@@ -248,6 +248,18 @@ public class GlobalExceptionHandler {
     }
 
     /*
+     * 方法功能:处理业务代码中抛出的IllegalArgumentException（如数据范围、时间范围校验）
+     * 参数:e-非法参数异常
+     * 返回数据:Result<Void>-400状态码的错误响应
+     * */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
+        log.warn("非法参数: {}", e.getMessage());
+        return Result.error(ResultCode.INVALID_PARAMETER, e.getMessage());
+    }
+
+    /*
      * 方法功能:兜底处理所有未精确匹配的异常，记录完整堆栈并返回脱敏错误信息
      * 参数:e-未捕获的异常
      * 返回数据:Result<Void>-500 状态码的通用错误响应

@@ -17,6 +17,7 @@
 		<mybatis-plus.version>3.5.16</mybatis-plus.version>
 		<druid.version>1.2.28</druid.version>
 		<mysql-connector.version>9.6.0</mysql-connector.version>
+		<easyexcel.version>4.0.3</easyexcel.version>
 	</properties>
 
 	<dependencies>
@@ -156,6 +157,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- EasyExcel：Excel 流式导入导出 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>${easyexcel.version}</version>
         </dependency>
 
     </dependencies>

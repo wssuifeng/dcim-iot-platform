@@ -6,3 +6,8 @@ target
 HELP.md
 mvnw
 mvnw.cmd
+frontend/node_modules
+frontend/dist
+.env
+.env.*
+!.env.example

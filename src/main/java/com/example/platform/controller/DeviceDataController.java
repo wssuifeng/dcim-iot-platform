@@ -1,24 +1,32 @@
 package com.example.platform.controller;
 
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
 import com.example.platform.common.ResultCode;
+import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.common.group.CreateGroup;
+import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.DeviceDataBatchDTO;
+import com.example.platform.dto.DeviceDataExportRow;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 设备数据接口层，提供设备数据上报、查询、统计及分页等RESTful接口
@@ -117,5 +125,34 @@ public class DeviceDataController {
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
             @Parameter(description = "聚合粒度 hour/day/week，默认 day") @RequestParam(defaultValue = "day") String granularity) {
         return Result.success(deviceDataService.aggregate(deviceId, startTime, endTime, granularity));
+    }
+
+    @Operation(summary = "导出设备数据", description = "按设备ID+时间范围导出 Excel，单次上限 10000 条，时间范围不超过 30 天")
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @AuditLog(operation = "EXPORT_DEVICE_DATA", detail = "设备ID:#deviceId")
+    public void exportData(
+            @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
+            @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            HttpServletResponse response) throws IOException {
+        deviceService.getDeviceOrThrow(deviceId);
+        List<DeviceData> dataList = deviceDataService.findByDeviceIdAndTimeRange(deviceId, startTime, endTime);
+        if (dataList.size() > 10000) {
+            throw new com.example.platform.common.exception.BusinessException(
+                    ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");
+        }
+        List<DeviceDataExportRow> rows = dataList.stream().map(d -> {
+            DeviceDataExportRow row = new DeviceDataExportRow();
+            row.setDeviceId(d.getDeviceId());
+            row.setMetric(d.getMetric());
+            row.setDataValue(d.getDataValue());
+            row.setCollectTime(d.getCollectTime());
+            return row;
+        }).collect(Collectors.toList());
+        ExcelExportUtil.setExcelResponse(response, "设备数据_" + deviceId);
+        EasyExcel.write(response.getOutputStream(), DeviceDataExportRow.class)
+                .sheet("设备数据")
+                .doWrite(rows);
     }
 }

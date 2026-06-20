@@ -1,22 +1,30 @@
 package com.example.platform.controller;
 
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
+import com.example.platform.common.ResultCode;
 import com.example.platform.common.annotation.AuditLog;
+import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.common.util.PaginationUtils;
+import com.example.platform.dto.AlertExportRow;
 import com.example.platform.dto.BatchHandleAlertDTO;
 import com.example.platform.entity.Alert;
 import com.example.platform.service.AlertService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 告警管理接口层，提供告警的查询、筛选、处理、统计等RESTful接口
@@ -89,5 +97,40 @@ public class AlertController {
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
         return Result.success(alertService.listDeviceAlertCountByTimeRange(startTime, endTime));
+    }
+
+    @Operation(summary = "导出告警记录", description = "按筛选条件导出 Excel，单次上限 10000 条")
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @AuditLog(operation = "EXPORT_ALERT", detail = "导出告警记录")
+    public void exportAlerts(
+            @Parameter(description = "设备ID筛选（可选）") @RequestParam(required = false) Integer deviceId,
+            @Parameter(description = "处理状态筛选（可选）") @RequestParam(required = false) Integer isHandled,
+            @Parameter(description = "告警级别筛选（可选）") @RequestParam(required = false) Integer alertLevel,
+            @Parameter(description = "开始时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
+            @Parameter(description = "结束时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
+            HttpServletResponse response) throws IOException {
+        List<Alert> alertList = alertService.listByCondition(deviceId, isHandled, alertLevel, startTime, endTime);
+        if (alertList.size() > 10000) {
+            throw new com.example.platform.common.exception.BusinessException(
+                    ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");
+        }
+        List<AlertExportRow> rows = alertList.stream().map(a -> {
+            AlertExportRow row = new AlertExportRow();
+            row.setId(a.getId());
+            row.setDeviceId(a.getDeviceId());
+            row.setAlertType(a.getAlertType());
+            row.setAlertLevel(a.getAlertLevel());
+            row.setAlertMessage(a.getAlertMessage());
+            row.setHandledText(a.getIsHandled() != null && a.getIsHandled() == 1 ? "已处理" : "未处理");
+            row.setHandleUser(a.getHandleUser());
+            row.setHandleTime(a.getHandleTime());
+            row.setCreateTime(a.getCreateTime());
+            return row;
+        }).collect(Collectors.toList());
+        ExcelExportUtil.setExcelResponse(response, ExcelExportUtil.buildFileName("告警记录"));
+        EasyExcel.write(response.getOutputStream(), AlertExportRow.class)
+                .sheet("告警记录")
+                .doWrite(rows);
     }
 }

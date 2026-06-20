@@ -179,6 +179,25 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                                         Integer isHandled, Integer alertLevel,
                                         LocalDateTime startTime, LocalDateTime endTime) {
         Page<Alert> page = new Page<>(current, size);
+        LambdaQueryWrapper<Alert> wrapper = buildConditionWrapper(deviceId, isHandled, alertLevel, startTime, endTime);
+        return page(page, wrapper);
+    }
+
+    /*
+     * 方法功能:按条件查询告警列表（不分页，用于导出）
+     * 参数:deviceId-设备ID（可选）, isHandled-处理状态（可选）, alertLevel-告警级别（可选）, startTime-开始时间（可选）, endTime-结束时间（可选）
+     * 返回数据:List<Alert>-告警列表
+     * */
+    @Override
+    public List<Alert> listByCondition(Integer deviceId, Integer isHandled, Integer alertLevel,
+                                       LocalDateTime startTime, LocalDateTime endTime) {
+        LambdaQueryWrapper<Alert> wrapper = buildConditionWrapper(deviceId, isHandled, alertLevel, startTime, endTime);
+        return list(wrapper);
+    }
+
+    private LambdaQueryWrapper<Alert> buildConditionWrapper(Integer deviceId, Integer isHandled,
+                                                            Integer alertLevel, LocalDateTime startTime,
+                                                            LocalDateTime endTime) {
         LambdaQueryWrapper<Alert> wrapper = new LambdaQueryWrapper<>();
         if (deviceId != null) {
             wrapper.eq(Alert::getDeviceId, deviceId);
@@ -193,6 +212,6 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             wrapper.between(Alert::getCreateTime, startTime, endTime);
         }
         wrapper.orderByDesc(Alert::getCreateTime);
-        return page(page, wrapper);
+        return wrapper;
     }
 }

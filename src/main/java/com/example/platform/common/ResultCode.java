@@ -41,6 +41,14 @@ public final class ResultCode {
     // 配置模块 405x
     public static final int CONFIG_NOT_FOUND = 4051;
 
+    // 文件/导入导出模块 406x
+    public static final int FILE_EMPTY = 4061;
+    public static final int FILE_FORMAT_ERROR = 4062;
+    public static final int IMPORT_SIZE_EXCEED = 4063;
+    public static final int IMPORT_PARTIAL_FAIL = 4064;
+    public static final int EXPORT_SIZE_EXCEED = 4065;
+    public static final int EXPORT_ERROR = 4066;
+
     private ResultCode() {
     }
 }
