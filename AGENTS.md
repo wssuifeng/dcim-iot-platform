@@ -78,8 +78,8 @@
 
 ## 7. 当前状态
 
-- **分支**：`feature/infra-observability`（基础设施可观测性）
-- **路线图**：见 `开发优先级计划.md`，P0 已完成，进行中 P1
+- **分支**：`feature/p2-enhancements`（P2 功能增强）
+- **路线图**：见 `开发优先级计划.md`，P0-P1 已完成，进行中 P2
 - **Git 工作流**：Feature Branch（每个特性独立分支，PR 合并到 main）
 
 ---
