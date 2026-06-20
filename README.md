@@ -1,6 +1,6 @@
 # IoT-Platform 物联网设备管理平台
 
-> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-20 | **文档版本**: v4.0
+> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-20 | **文档版本**: v4.1
 
 ---
 
@@ -16,6 +16,7 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | 数据采集 | 单条/批量数据上报、历史查询、统计聚合 |
 | 告警引擎 | 配置化规则引擎，支持设备级/类型级规则、5级告警、去重与升级 |
 | 离线检测 | 定时任务扫描离线设备，自动生成离线告警 |
+| 设备导入导出 | Excel 批量导入（上限500条）、设备数据/告警记录导出（上限10000条）、模板下载与前端交互 |
 | 指标字典 | 指标元数据 Redis 缓存，告警消息自动填充中文名和单位 |
 | 安全认证 | JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、BCrypt 密码加密 |
 | 用户管理 | 用户 CRUD、账号锁定（连续3次失败锁定30分钟）、IP频率限制、密码重置 |
@@ -43,6 +44,8 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | Redis | 7.x | 缓存数据库，支持字符串/哈希等多种数据结构 |
 | Lettuce | 6.x | Redis 客户端，基于 Netty 的异步非阻塞连接 |
 | commons-pool2 | 2.x | Lettuce 连接池依赖 |
+| EasyExcel | 4.0.3 | Excel 流式导入导出，基于 Apache POI |
+| Spring Retry | 2.0.11 | 声明式重试机制，数据上报死锁自动重试 |
 
 ---
 
@@ -87,13 +90,13 @@ iot-platform/
 │   │   │   │   ├── CustomAuthenticationEntryPoint.java # 未认证请求返回 401 JSON
 │   │   │   │   └── CustomAccessDeniedHandler.java      # 权限不足请求返回 403 JSON
 │   │   │   ├── controller/                    # 控制器层
-│   │   │   │   ├── DeviceController.java      # 设备管理（10 个接口）
-│   │   │   │   ├── DeviceDataController.java  # 数据采集（7 个接口）
-│   │   │   │   ├── DeviceTypeController.java  # 设备类型告警配置（1 个接口）
+│   │   │   │   ├── DeviceController.java      # 设备管理（13 个接口：CRUD + 导出/导入/模板 + 状态更新 + 告警配置）
+│   │   │   │   ├── DeviceDataController.java  # 数据采集与导出（9 个接口）
+│   │   │   │   ├── DeviceTypeController.java  # 设备类型管理（6 个接口：CRUD + 告警配置）
 │   │   │   │   ├── DictMetricController.java  # 指标字典（5 个接口）
-│   │   │   │   ├── AlertController.java       # 告警管理（7 个接口）
+│   │   │   │   ├── AlertController.java       # 告警管理与导出（8 个接口）
 │   │   │   │   ├── AuthController.java        # 认证（1 个接口：登录）
-│   │   │   │   ├── SysUserController.java     # 用户管理（7 个接口，ADMIN 专属）
+│   │   │   │   ├── SysUserController.java     # 用户管理（8 个接口，ADMIN 专属）
 │   │   │   │   ├── SysAuditLogController.java # 审计日志（2 个接口）
 │   │   │   │   ├── DashboardController.java   # 仪表盘统计（1 个接口）
 │   │   │   │
@@ -107,6 +110,7 @@ iot-platform/
 │   │   │   │   ├── LoginResponseDTO.java      # 登录成功响应 DTO（含 JWT Token）
 │   │   │   │   ├── PasswordResetDTO.java      # 密码重置请求 DTO
 │   │   │   │   ├── DashboardStatsDTO.java      # 仪表盘统计响应 DTO
+│   │   │   │   ├── DeviceExportRow.java       # 设备导出行映射 DTO（@ExcelProperty）
 │   │   │   │
 │   │   │   ├── entity/                        # 实体类
 │   │   │   │   ├── Device.java                # 设备（含 alertRuleConfig JSON 字段）
@@ -526,6 +530,7 @@ Druid监控：http://localhost:8080/api/druid
 | v2.0 | 2026-05-17 | - | 代码审查修复：DictMetricController统一响应、URL前缀去重、@Validated分组校验、ConstraintViolationException处理器、乐观锁插件、CORS配置外部化、告警升级方向修正、NPE防御、事务注解、Controller逻辑下沉Service |
 | v3.0 | 2026-05-24 | - | 安全与认证模块：Spring Security + JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、SecurityConfig 安全过滤链、JwtAuthenticationFilter/CustomAuthenticationEntryPoint/CustomAccessDeniedHandler、BCrypt 密码加密；用户管理：SysUser 实体（含账号锁定/停用机制）、SysUserController 7个接口、SysUserServiceImpl（SQL原子递增/更新字段白名单防注入）；认证服务：AuthController 登录接口、AuthServiceImpl（IP频率限制/账号锁定检查/JWT签发/审计日志）；审计日志：SysAuditLog 实体、SysAuditLogController 2个接口、SysAuditLogServiceImpl（多条件查询/过期清理）；新增异常类：UserNotFoundException/UsernameAlreadyExistsException/AccountLockedException/DeviceTypeCodeAlreadyExistsException；新增 DTO：LoginDTO/LoginResponseDTO/PasswordResetDTO；新增工具类：JwtUtil |
 | v4.0 | 2026-05-28 | `3d96056` | 缓存体系与安全防护模块：CacheService 统一缓存接口（穿透/击穿/雪崩防御）、RedisConfig 序列化与连接池配置、CacheOperationException 缓存异常体系；告警通知去重模块：NotificationDedupService 基于 AlertId 粒度 + 事件驱动删除 + 48h TTL 方案；仪表盘统计模块：DashboardStatsService 互斥锁防缓存击穿；Token 黑名单：TokenBlacklistService 登出与密码重置场景；告警配置缓存：AlertConfigService 设备/类型级规则缓存迁移至 Redis；指标字典缓存迁移：DictMetricServiceImpl 从本地内存迁移至 Redis 分布式缓存；安全增强：AuthServiceImpl 重构、JwtAuthenticationFilter 集成 Token 黑名单校验、JwtUtil 增强 |
+| v4.1 | 2026-06-20 | `caaff15` | P2 功能增强：设备 Excel 批量导入与导出（EasyExcel 4.0.3）、数据上报死锁重试（@Retryable + @Recover）、Druid 连接池监控与慢SQL统计、SQL 文档体系重构（存储过程造数据/查询示例）、前端导入导出按钮与交互（文件上传/模板下载）、限流配置环境变量化与开发环境调优 |
 
 ---
 

@@ -8,7 +8,7 @@
 
 - **项目**：IoT-Platform — 物联网设备管理后端服务
 - **技术栈**：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + **MySQL 9.6.0** + Redis 7 + JDK 17
-- **当前版本**：v4.0（Redis 多层缓存、JWT 安全防护、审计日志、RBAC 三级角色、仪表盘统计）
+- **当前版本**：v4.1（设备Excel导入导出、数据上报死锁重试、Druid连接池监控与限流配置、SQL文档体系重构）
 - **分层架构**：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 
 ---
