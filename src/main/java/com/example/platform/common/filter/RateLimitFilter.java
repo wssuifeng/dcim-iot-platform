@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -40,6 +40,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * ARGV[3]   : 当前时间戳（毫秒）
      * 返回值 0  : 允许通过
      * 返回值 1  : 拒绝请求
+     *
+     * member 使用 INCR 生成的唯一序号，避免同毫秒请求 ZADD 互相覆盖导致计数失真
      * */
     private static final String SLIDE_WINDOW_LUA =
             "local key = KEYS[1] " +
@@ -49,14 +51,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "redis.call('ZREMRANGEBYSCORE', key, 0, now - window * 1000) " +
             "local count = redis.call('ZCARD', key) " +
             "if count < limit then " +
-            "    redis.call('ZADD', key, now, now) " +
+            "    local seq = redis.call('INCR', key .. ':seq') " +
+            "    redis.call('ZADD', key, now, seq) " +
             "    redis.call('EXPIRE', key, window) " +
+            "    redis.call('EXPIRE', key .. ':seq', window) " +
             "    return 0 " +
             "else " +
             "    return 1 " +
             "end";
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
     private final DefaultRedisScript<Long> rateLimitScript;
 
     @Value("${rate-limit.window-seconds:60}")
@@ -68,8 +72,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rate-limit.enabled:true}")
     private boolean enabled;
 
-    public RateLimitFilter(RedisTemplate<String, Object> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public RateLimitFilter(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
         this.rateLimitScript = new DefaultRedisScript<>();
         this.rateLimitScript.setScriptText(SLIDE_WINDOW_LUA);
         this.rateLimitScript.setResultType(Long.class);
@@ -90,7 +94,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         try {
             List<String> keys = Collections.singletonList(key);
-            Long result = redisTemplate.execute(rateLimitScript, keys,
+            Long result = stringRedisTemplate.execute(rateLimitScript, keys,
                     String.valueOf(windowSeconds), String.valueOf(maxRequests), String.valueOf(now));
 
             if (result != null && result == 1L) {
