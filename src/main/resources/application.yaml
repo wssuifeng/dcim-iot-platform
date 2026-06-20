@@ -104,9 +104,9 @@ cors:
 
 # ==================== IP 限流配置 ====================
 rate-limit:
-  enabled: true
+  enabled: ${RATE_LIMIT_ENABLED:true}
   window-seconds: 60
-  max-requests: 100
+  max-requests: ${RATE_LIMIT_MAX_REQUESTS:1000}
 
 # ==================== 告警通知配置 ====================
 notify:
