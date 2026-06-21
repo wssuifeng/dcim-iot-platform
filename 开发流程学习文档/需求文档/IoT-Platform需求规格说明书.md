@@ -101,7 +101,7 @@ IoT-Platform 是一个物联网设备监控平台，用于管理IoT设备、采�
 **⚙️ 执行条件**
 
 - **前置条件**：
-  1. 用户已完成注册且账号状态正常（status=1）
+  1. 用户已完成注册且账号状态正常（status=0）
   2. 数据库中存在users表及对应数据
 - **后置条件**：
   1. 服务端返回有效JWT Token（有效期2小时）
@@ -138,7 +138,7 @@ IoT-Platform 是一个物联网设备监控平台，用于管理IoT设备、采�
   3. 合法请求正常处理，SecurityContext中可获取当前用户信息
 
 **📋 业务规则**
-1. 登录接口（POST /api/auth/login）和注册接口（POST /api/auth/register）无需Token
+1. 登录接口（POST /api/auth/login）无需Token
    1. Druid监控页面（/druid/**）仅ADMIN角色可访问
 
 2. 删除操作仅ADMIN角色可执行

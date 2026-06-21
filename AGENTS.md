@@ -8,7 +8,7 @@
 
 - **项目**：IoT-Platform — 物联网设备管理后端服务
 - **技术栈**：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + **MySQL 9.6.0** + Redis 7 + JDK 17
-- **当前版本**：v4.1（设备Excel导入导出、数据上报死锁重试、Druid连接池监控与限流配置、SQL文档体系重构）
+- **当前版本**：v4.2（用户登出接口、通知发送日志持久化、DictMetric 校验/时间字段补全、告警级别注释修正）
 - **分层架构**：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 
 ---
@@ -95,6 +95,7 @@
 | DictMetric | dict_metric | 指标元数据，Redis 缓存，填充告警消息中文/单位 |
 | SysUser | sys_user | RBAC 三级角色：ADMIN/OPERATOR/VIEWER |
 | SysAuditLog | sys_audit_log | 操作审计，过期自动清理 |
+| NotificationLog | notification_log | 通知发送日志，记录 EMAIL/WEBSOCKET 推送结果 |
 
 **告警规则降级策略**：设备级配置优先，缺失时降级到类型级配置（`getEffectiveRuleConfig`）。
 

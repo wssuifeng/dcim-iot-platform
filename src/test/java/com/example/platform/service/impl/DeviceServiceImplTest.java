@@ -48,7 +48,7 @@ class DeviceServiceImplTest {
         // 测试插入
         Device device = new Device();
         device.setDeviceName("测试设备");
-        device.setDeviceCode("TEST-001");
+        device.setDeviceCode("TEST-INSERT-" + System.currentTimeMillis());
         device.setStatus(0);
         device.setLocation("测试位置");
 

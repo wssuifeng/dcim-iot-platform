@@ -1,6 +1,6 @@
 # IoT-Platform 物联网设备管理平台
 
-> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-20 | **文档版本**: v4.1
+> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-21 | **文档版本**: v4.2
 
 ---
 
@@ -19,11 +19,12 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | 设备导入导出 | Excel 批量导入（上限500条）、设备数据/告警记录导出（上限10000条）、模板下载与前端交互 |
 | 指标字典 | 指标元数据 Redis 缓存，告警消息自动填充中文名和单位 |
 | 安全认证 | JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、BCrypt 密码加密 |
-| 用户管理 | 用户 CRUD、账号锁定（连续3次失败锁定30分钟）、IP频率限制、密码重置 |
+| 用户管理 | 用户 CRUD、账号锁定（连续5次失败锁定30分钟）、IP频率限制、密码重置 |
 | 审计日志 | 登录/操作审计记录、多条件分页查询、过期日志自动清理 |
 | 缓存服务 | Redis 多层缓存、穿透/击穿/雪崩防御、通知去重、统一 CacheService 接口 |
 | Token 黑名单 | 登出/密码重置时 Token 失效控制，黑名单自动过期清理 |
 | 仪表盘统计 | 设备/告警聚合统计、互斥锁防缓存击穿 |
+| 通知发送日志 | 邮件/WebSocket 推送结果持久化记录，支持状态追溯 |
 
 ---
 
@@ -95,7 +96,7 @@ iot-platform/
 │   │   │   │   ├── DeviceTypeController.java  # 设备类型管理（6 个接口：CRUD + 告警配置）
 │   │   │   │   ├── DictMetricController.java  # 指标字典（5 个接口）
 │   │   │   │   ├── AlertController.java       # 告警管理与导出（8 个接口）
-│   │   │   │   ├── AuthController.java        # 认证（1 个接口：登录）
+│   │   │   │   ├── AuthController.java        # 认证（2 个接口：登录、登出）
 │   │   │   │   ├── SysUserController.java     # 用户管理（8 个接口，ADMIN 专属）
 │   │   │   │   ├── SysAuditLogController.java # 审计日志（2 个接口）
 │   │   │   │   ├── DashboardController.java   # 仪表盘统计（1 个接口）
@@ -120,6 +121,7 @@ iot-platform/
 │   │   │   │   ├── DictMetric.java            # 指标字典
 │   │   │   │   ├── SysUser.java               # 用户（含 BCrypt 密码/锁定机制/角色）
 │   │   │   │   ├── SysAuditLog.java           # 审计日志
+│   │   │   │   ├── NotificationLog.java        # 通知发送日志
 │   │   │   │
 │   │   │   ├── mapper/                        # 数据访问层
 │   │   │   │   ├── DeviceMapper.java          # 含 getOnlineDetection 自定义 SQL
@@ -129,6 +131,7 @@ iot-platform/
 │   │   │   │   ├── DictMetricMapper.java
 │   │   │   │   ├── SysUserMapper.java         # 含 findByUsername 自定义 SQL
 │   │   │   │   ├── SysAuditLogMapper.java     # 含 deleteByCreateTimeBefore 清理 SQL
+│   │   │   │   ├── NotificationLogMapper.java  # 通知日志 CRUD
 │   │   │   │
 │   │   │   ├── service/                       # 业务接口层
 │   │   │   │   ├── DeviceService.java
@@ -159,11 +162,20 @@ iot-platform/
 │   │   │   │       ├── AuthServiceImpl.java         # 认证实现（IP频率限制/账号锁定/JWT签发）
 │   │   │   │       ├── SysUserServiceImpl.java      # 用户管理（BCrypt加密/SQL原子递增/字段白名单）
 │   │   │   │       ├── SysAuditLogServiceImpl.java  # 审计日志（多条件查询/过期清理）
+│   │   │   │       ├── EmailNotificationServiceImpl.java # 邮件告警通知
+│   │   │   │       ├── AlertWebSocketService.java     # WebSocket 实时推送
 │   │   │   │
 │   │   │   └── task/                          # 定时任务
 │   │   │       └── DeviceMonitorTask.java     # 设备离线检测（cron+阈值配置化）
 │   │   └── resources/
-│   │       └── application.yaml               # 项目配置
+│   │       ├── application.yaml               # 项目配置
+│   │       └── db/migration/                  # Flyway 数据库迁移
+│   │           ├── V1__init_schema.sql        # 初始建表
+│   │           ├── V2__add_business_indexes.sql # 业务索引
+│   │           ├── V3__add_deleted_columns.sql  # 逻辑删除字段
+│   │           ├── V4__add_deadlock_monitoring_config.sql # 死锁监控配置
+│   │           ├── V5__fix_dict_metric_and_alert_schema.sql # 修正 dict_metric 列名+alerts 注释
+│   │           └── V6__add_notification_log.sql # 通知发送日志表
 │   └── test/                                  # 测试代码
 │       ├── IotPlatformApplicationTests.java  # Spring Boot 启动测试
 │       ├── service/impl/
@@ -181,6 +193,9 @@ iot-platform/
 │       │   └── TokenBlacklistServiceTest.java # TokenBlacklist 单元测试
 │       ├── mapper/
 │       │   └── DeviceMapperTest.java          # DeviceMapper 自定义SQL集成测试
+│       └── jmeter/
+│           └── perf-quick.jmx                  # 性能基准测试计划
+├── frontend/                                    # 前端（Vue3 + Element Plus + ECharts）
 ├── AGENTS.md                                  # AI Agent 上下文（技术栈/约定/文档导航）
 ├── pom.xml                                    # Maven 配置
 ├── mvnw / mvnw.cmd                            # Maven Wrapper 脚本
@@ -201,6 +216,8 @@ device_types ──（1:N）──▶ devices ──（1:N）──▶ device_da
      │                     alerts
      │
      └──（引用）──▶ dict_metric
+
+alerts ──（1:N）──▶ notification_log
 ```
 
 ### 核心实体
@@ -211,9 +228,10 @@ device_types ──（1:N）──▶ devices ──（1:N）──▶ device_da
 | **DeviceType** | device_types | id, type_name, type_code, description, alert_rule_config(JSON) | 设备分类，类型级告警规则作为降级方案 |
 | **DeviceData** | device_data | id, device_id, metric, data_value, collect_time | 设备上报数据，触发告警检查 |
 | **Alert** | alerts | id, device_id, alert_type, alert_level(1-5), alert_message, is_handled, handle_user | 告警记录，级别越小越紧急 |
-| **DictMetric** | dict_metric | id, metric_key, metric_name, metric_unit | 指标元数据，Redis 缓存，告警消息填充中文名/单位 |
-| **SysUser** | sys_user | id, username, password(BCrypt), nickname, role, status, login_fail_count, lock_time | 用户认证，RBAC 三级角色，连续3次失败锁定30分钟 |
+| **DictMetric** | dict_metric | id, metric_key, metric_name, metric_unit, create_time, update_time | 指标元数据，Redis 缓存，告警消息填充中文名/单位 |
+| **SysUser** | sys_user | id, username, password(BCrypt), nickname, role, status, login_fail_count, lock_time | 用户认证，RBAC 三级角色，连续5次失败锁定30分钟 |
 | **SysAuditLog** | sys_audit_log | id, user_id, username, operation, ip, detail, create_time | 操作审计，过期自动清理 |
+| **NotificationLog** | notification_log | id, alert_id, notification_type, recipient, content, status, error_message, send_time | 通知发送日志，记录邮件/WebSocket推送结果 |
 
 **关系说明**：
 - `device_types` 1:N `devices`：一个设备类型下有多个设备
@@ -230,6 +248,7 @@ device_types ──（1:N）──▶ devices ──（1:N）──▶ device_da
 | JDK | 17+ | 项目基于 Java 17 编译 |
 | Maven | 3.8+ | 或使用项目自带的 Maven Wrapper |
 | MySQL | 9.6 | 数据库服务，驱动 mysql-connector-j 9.6.0 |
+| Redis | 7.0+ | 缓存数据库（指标字典、Token 黑名单、限流计数器等） |
 
 ---
 
@@ -267,7 +286,8 @@ CREATE TABLE devices (
     last_online_time DATETIME COMMENT '最后在线时间',
     alert_rule_config JSON COMMENT '设备级告警规则配置（JSON）',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
 ) COMMENT '设备表';
 
 CREATE TABLE device_data (
@@ -282,7 +302,7 @@ CREATE TABLE alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     device_id INT NOT NULL COMMENT '设备ID',
     alert_type VARCHAR(50) NOT NULL COMMENT '告警类型',
-    alert_level INT DEFAULT 1 COMMENT '告警级别',
+    alert_level TINYINT DEFAULT 1 COMMENT '告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示',
     alert_message VARCHAR(500) COMMENT '告警描述',
     is_handled INT DEFAULT 0 COMMENT '是否处理：0-未处理 1-已处理',
     handle_time DATETIME COMMENT '处理时间',
@@ -295,7 +315,10 @@ CREATE TABLE dict_metric (
     metric_key VARCHAR(50) COMMENT '指标标识',
     metric_name VARCHAR(50) COMMENT '指标中文名',
     metric_unit VARCHAR(20) COMMENT '数据单位',
-    description VARCHAR(200) COMMENT '描述'
+    description VARCHAR(200) COMMENT '描述',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
 ) COMMENT '指标字典表';
 
 CREATE TABLE sys_user (
@@ -318,7 +341,8 @@ CREATE TABLE sys_audit_log (
     operation VARCHAR(50) COMMENT '操作类型（如 LOGIN_SUCCESS/LOGIN_FAIL/CREATE_USER）',
     ip VARCHAR(50) COMMENT '操作IP地址',
     detail VARCHAR(500) COMMENT '操作详情',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间'
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
 ) COMMENT '审计日志表';
 ```
 
@@ -531,6 +555,7 @@ Druid监控：http://localhost:8080/api/druid
 | v3.0 | 2026-05-24 | - | 安全与认证模块：Spring Security + JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、SecurityConfig 安全过滤链、JwtAuthenticationFilter/CustomAuthenticationEntryPoint/CustomAccessDeniedHandler、BCrypt 密码加密；用户管理：SysUser 实体（含账号锁定/停用机制）、SysUserController 7个接口、SysUserServiceImpl（SQL原子递增/更新字段白名单防注入）；认证服务：AuthController 登录接口、AuthServiceImpl（IP频率限制/账号锁定检查/JWT签发/审计日志）；审计日志：SysAuditLog 实体、SysAuditLogController 2个接口、SysAuditLogServiceImpl（多条件查询/过期清理）；新增异常类：UserNotFoundException/UsernameAlreadyExistsException/AccountLockedException/DeviceTypeCodeAlreadyExistsException；新增 DTO：LoginDTO/LoginResponseDTO/PasswordResetDTO；新增工具类：JwtUtil |
 | v4.0 | 2026-05-28 | `3d96056` | 缓存体系与安全防护模块：CacheService 统一缓存接口（穿透/击穿/雪崩防御）、RedisConfig 序列化与连接池配置、CacheOperationException 缓存异常体系；告警通知去重模块：NotificationDedupService 基于 AlertId 粒度 + 事件驱动删除 + 48h TTL 方案；仪表盘统计模块：DashboardStatsService 互斥锁防缓存击穿；Token 黑名单：TokenBlacklistService 登出与密码重置场景；告警配置缓存：AlertConfigService 设备/类型级规则缓存迁移至 Redis；指标字典缓存迁移：DictMetricServiceImpl 从本地内存迁移至 Redis 分布式缓存；安全增强：AuthServiceImpl 重构、JwtAuthenticationFilter 集成 Token 黑名单校验、JwtUtil 增强 |
 | v4.1 | 2026-06-20 | `caaff15` | P2 功能增强：设备 Excel 批量导入与导出（EasyExcel 4.0.3）、数据上报死锁重试（@Retryable + @Recover）、Druid 连接池监控与慢SQL统计、SQL 文档体系重构（存储过程造数据/查询示例）、前端导入导出按钮与交互（文件上传/模板下载）、限流配置环境变量化与开发环境调优 |
+| v4.2 | 2026-06-21 | — | 模块补完：DictMetric 补全 Jakarta Validation 校验注解与 createTime/updateTime 自动填充、Flyway V5 修正 dict_metric 列命名+alerts 告警级别注释、AuthController 新增用户登出接口 `POST /api/auth/logout`、Flyway V6 新增 notification_log 通知发送日志表、EmailNotificationServiceImpl / AlertWebSocketService 写通知日志、需求文档与 README 全面修正（账号锁定 5次、Redis 环境依赖、deleted 字段、status 描述统一） |
 
 ---
 
