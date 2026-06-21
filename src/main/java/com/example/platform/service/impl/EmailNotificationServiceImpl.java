@@ -1,6 +1,8 @@
 package com.example.platform.service.impl;
 
 import com.example.platform.entity.Alert;
+import com.example.platform.entity.NotificationLog;
+import com.example.platform.mapper.NotificationLogMapper;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +11,8 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 
 /*
  * 类功能:邮件告警通知实现类，基于 Spring Mail 发送告警邮件
@@ -21,6 +25,7 @@ public class EmailNotificationServiceImpl implements NotificationService {
 
     private final JavaMailSender mailSender;
     private final DeviceService deviceService;
+    private final NotificationLogMapper notificationLogMapper;
 
     @Value("${spring.mail.username:}")
     private String from;
@@ -31,30 +36,55 @@ public class EmailNotificationServiceImpl implements NotificationService {
     @Value("${notify.mail.enabled:false}")
     private boolean enabled;
 
-    public EmailNotificationServiceImpl(JavaMailSender mailSender, DeviceService deviceService) {
+    public EmailNotificationServiceImpl(JavaMailSender mailSender, DeviceService deviceService,
+                                        NotificationLogMapper notificationLogMapper) {
         this.mailSender = mailSender;
         this.deviceService = deviceService;
+        this.notificationLogMapper = notificationLogMapper;
     }
 
     @Override
     public boolean sendAlert(Alert alert) {
-        if (!enabled || notifyTo == null || notifyTo.isBlank() || from == null || from.isBlank()) {
-            log.info("邮件通知未启用或配置不完整，跳过发送: alertId={}", alert.getId());
-            return false;
-        }
-
+        String error = null;
+        boolean success = false;
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
-            message.setTo(notifyTo.split(","));
-            message.setSubject(buildSubject(alert));
-            message.setText(buildText(alert));
-            mailSender.send(message);
-            log.info("告警邮件发送成功: alertId={}, to={}", alert.getId(), notifyTo);
-            return true;
-        } catch (MailException e) {
-            log.warn("告警邮件发送失败: alertId={}, error={}", alert.getId(), e.getMessage());
-            return false;
+            if (!enabled || notifyTo == null || notifyTo.isBlank() || from == null || from.isBlank()) {
+                error = "邮件通知未启用或配置不完整";
+                log.info("邮件通知未启用或配置不完整，跳过发送: alertId={}", alert.getId());
+            } else {
+                try {
+                    SimpleMailMessage message = new SimpleMailMessage();
+                    message.setFrom(from);
+                    message.setTo(notifyTo.split(","));
+                    message.setSubject(buildSubject(alert));
+                    message.setText(buildText(alert));
+                    mailSender.send(message);
+                    success = true;
+                    log.info("告警邮件发送成功: alertId={}, to={}", alert.getId(), notifyTo);
+                } catch (MailException e) {
+                    error = e.getMessage();
+                    log.warn("告警邮件发送失败: alertId={}, error={}", alert.getId(), error);
+                }
+            }
+        } finally {
+            saveLog(alert, "EMAIL", notifyTo, buildText(alert), success ? 1 : 2, error);
+        }
+        return success;
+    }
+
+    private void saveLog(Alert alert, String type, String recipient, String content, int status, String error) {
+        try {
+            NotificationLog logEntry = new NotificationLog();
+            logEntry.setAlertId(alert.getId());
+            logEntry.setNotificationType(type);
+            logEntry.setRecipient(recipient);
+            logEntry.setContent(content);
+            logEntry.setStatus(status);
+            logEntry.setErrorMessage(error);
+            logEntry.setSendTime(LocalDateTime.now());
+            notificationLogMapper.insert(logEntry);
+        } catch (Exception e) {
+            log.warn("通知日志写入失败: alertId={}, type={}, error={}", alert.getId(), type, e.getMessage());
         }
     }
 
