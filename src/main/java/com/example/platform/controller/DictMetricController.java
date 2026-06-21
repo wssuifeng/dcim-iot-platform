@@ -37,7 +37,7 @@ public class DictMetricController {
     @Operation(summary = "新增指标", description = "新增指标元数据并维护 Redis 缓存一致性")
     @PostMapping
     @AuditLog(operation = "CREATE_METRIC", detail = "指标编码:#metric.metricCode, 指标名称:#metric.metricName")
-    public Result<Void> add(@RequestBody DictMetric metric) {
+    public Result<Void> add(@Validated @RequestBody DictMetric metric) {
         dictMetricService.save(metric);
         return Result.success();
     }
@@ -45,7 +45,7 @@ public class DictMetricController {
     @Operation(summary = "更新指标", description = "更新指标元数据并维护 Redis 缓存一致性")
     @PutMapping
     @AuditLog(operation = "UPDATE_METRIC", detail = "指标ID:#metric.id")
-    public Result<Void> update(@RequestBody DictMetric metric) {
+    public Result<Void> update(@Validated @RequestBody DictMetric metric) {
         dictMetricService.updateById(metric);
         return Result.success();
     }
