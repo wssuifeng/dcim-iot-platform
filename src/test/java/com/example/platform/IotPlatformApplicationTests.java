@@ -4,10 +4,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+/**
+ * 应用启动测试。
+ *
+ * contextLoads：CI 与本地都执行，验证 Spring 上下文能正常启动。
+ *
+ * verifyEnvFileLoaded / verifySpringMailPropertiesResolved：仅本地执行。
+ * 这两个方法用于验证开发者本地 .env 文件中的邮件配置是否被正确加载，
+ * CI 环境不提供真实邮件凭证，故以 MAIL_USERNAME 是否存在作为门控条件跳过。
+ */
 @SpringBootTest
 class IotPlatformApplicationTests {
 
@@ -19,6 +29,7 @@ class IotPlatformApplicationTests {
 	}
 
 	@Test
+	@EnabledIfEnvironmentVariable(named = "MAIL_USERNAME", matches = ".+")
 	void verifyEnvFileLoaded() {
 		// 验证 .env 文件中的关键变量是否被 Spring Environment 加载
 		String dbPassword = environment.getProperty("DB_PASSWORD");
@@ -47,6 +58,7 @@ class IotPlatformApplicationTests {
 	}
 
 	@Test
+	@EnabledIfEnvironmentVariable(named = "MAIL_USERNAME", matches = ".+")
 	void verifySpringMailPropertiesResolved() {
 		// 验证 spring.mail.* 属性是否正确解析了 ${MAIL_*} 占位符
 		String springMailUsername = environment.getProperty("spring.mail.username");
