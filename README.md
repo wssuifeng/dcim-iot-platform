@@ -1,12 +1,12 @@
 # IoT-Platform 物联网设备管理平台
 
-> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-21 | **文档版本**: v4.2
+> **版本**: v0.0.1-SNAPSHOT | **更新日期**: 2026-06-23 | **文档版本**: v4.4
 
 ---
 
 ## 一、项目简介
 
-IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管理平台后端服务。项目以真实业务场景驱动，覆盖设备管理、数据采集、告警规则引擎、定时监控、安全认证与审计等核心功能，适合初学者理解分层架构设计与工程化开发流程。
+IoT-Platform 是一个前后端分离的物联网设备管理平台。后端基于 Spring Boot 4 + MyBatis-Plus，负责设备管理、数据采集、告警规则引擎、定时监控、安全认证、审计与通知日志；前端基于 Vue 3 + Vite + Element Plus，提供登录、仪表盘、设备、数据监控、告警、指标、用户与审计日志等后台管理页面。项目以真实业务场景驱动，适合初学者理解前后端联调、分层架构设计与工程化开发流程。
 
 ### 核心能力
 
@@ -25,6 +25,8 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | Token 黑名单 | 登出/密码重置时 Token 失效控制，黑名单自动过期清理 |
 | 仪表盘统计 | 设备/告警聚合统计、互斥锁防缓存击穿 |
 | 通知发送日志 | 邮件/WebSocket 推送结果持久化记录，支持状态追溯 |
+| 前端管理后台 | Vue 3 单页应用，覆盖登录、仪表盘、设备、类型、数据监控、告警、指标、用户、审计日志页面 |
+| 前后端联调 | Vite 开发代理将 `/api` 转发到 `http://localhost:8080`，Axios 自动携带 JWT Token |
 
 ---
 
@@ -47,6 +49,13 @@ IoT-Platform 是一个基于 Spring Boot 4 + MyBatis-Plus 的物联网设备管�
 | commons-pool2 | 2.x | Lettuce 连接池依赖 |
 | EasyExcel | 4.0.3 | Excel 流式导入导出，基于 Apache POI |
 | Spring Retry | 2.0.11 | 声明式重试机制，数据上报死锁自动重试 |
+| Vue | 3.5.32 | 前端单页应用框架 |
+| Vite | 8.0.8 | 前端开发服务器与构建工具，端口 `5173` |
+| Element Plus | 2.14.1 | 前端 UI 组件库 |
+| Vue Router | 4.6.4 | 前端路由与登录态导航守卫 |
+| Pinia | 3.0.4 | 前端状态管理 |
+| Axios | 1.16.1 | 前端 HTTP 客户端，统一请求/响应拦截 |
+| ECharts / vue-echarts | 6.1.0 / 8.0.1 | 仪表盘与数据趋势图表 |
 
 ---
 
@@ -195,7 +204,18 @@ iot-platform/
 │       │   └── DeviceMapperTest.java          # DeviceMapper 自定义SQL集成测试
 │       └── jmeter/
 │           └── perf-quick.jmx                  # 性能基准测试计划
-├── frontend/                                    # 前端（Vue3 + Element Plus + ECharts）
+├── frontend/                                    # 前端（Vue3 + Vite + Element Plus + ECharts）
+│   ├── src/
+│   │   ├── api/                                 # 按业务模块封装后端 API 调用
+│   │   ├── components/                          # 设备、告警、指标、用户、审计等业务组件
+│   │   ├── layout/                              # 后台管理页面 Layout
+│   │   ├── router/                              # Vue Router 路由与登录态守卫
+│   │   ├── stores/                              # Pinia 状态管理
+│   │   ├── utils/request.js                     # Axios 实例，统一 Token 和错误处理
+│   │   └── views/                               # 登录、仪表盘、设备、数据监控、告警等页面
+│   ├── vite.config.js                           # Vite 配置，/api 代理到 http://localhost:8080
+│   ├── package.json                             # npm 脚本与前端依赖
+│   └── README.md                                # 指向根 README 的前端说明入口
 ├── AGENTS.md                                  # AI Agent 上下文（技术栈/约定/文档导航）
 ├── pom.xml                                    # Maven 配置
 ├── mvnw / mvnw.cmd                            # Maven Wrapper 脚本
@@ -249,18 +269,21 @@ alerts ──（1:N）──▶ notification_log
 | Maven | 3.8+ | 或使用项目自带的 Maven Wrapper |
 | MySQL | 9.6 | 数据库服务，驱动 mysql-connector-j 9.6.0 |
 | Redis | 7.0+ | 缓存数据库（指标字典、Token 黑名单、限流计数器等） |
+| Node.js | `^20.19.0` 或 `>=22.12.0` | 前端 Vite 8 开发与构建要求 |
+| npm | 随 Node.js 安装 | 安装前端依赖与运行脚本 |
+| 浏览器 | Chrome / Edge / Firefox 等现代浏览器 | 推荐安装 Vue.js devtools 进行前端调试 |
 
 ---
 
 ## 六、快速开始
 
-### 5.1 创建数据库
+### 6.1 创建数据库
 
 ```sql
 CREATE DATABASE iot_device_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-### 5.2 建表
+### 6.2 建表
 
 ```sql
 USE iot_device_db;
@@ -346,7 +369,7 @@ CREATE TABLE sys_audit_log (
 ) COMMENT '审计日志表';
 ```
 
-### 5.3 插入测试数据
+### 6.3 插入测试数据
 
 ```sql
 INSERT INTO device_types (type_name, type_code, description) VALUES
@@ -370,7 +393,7 @@ INSERT INTO sys_user (username, password, nickname, role, status) VALUES
 
 > **注意**：上述 `admin` 用户的密码为 BCrypt 加密后的 `Admin123`，登录时使用 `admin` / `Admin123`。
 
-### 5.4 修改配置
+### 6.4 修改配置
 
 编辑 `src/main/resources/application.yaml`，修改数据库连接信息和安全配置：
 
@@ -391,7 +414,7 @@ cors:
   allowed-origins: http://localhost:*,http://127.0.0.1:*  # 生产环境请修改为实际域名
 ```
 
-### 5.5 构建与运行
+### 6.5 构建与运行
 
 ```bash
 # 编译（跳过测试）
@@ -403,7 +426,7 @@ cors:
 # Windows 用户使用 mvnw.cmd
 ```
 
-### 5.6 验证启动
+### 6.6 验证启动
 
 启动成功后控制台输出：
 
@@ -426,17 +449,124 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 七、API 文档
+## 七、前端管理后台
+
+### 7.1 安装与启动
+
+前端位于 `frontend/`，是一个 Vue 3 + Vite 单页后台管理应用。开发时先启动后端 `http://localhost:8080`，再启动前端开发服务器。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+默认访问地址：
+
+| 地址 | 说明 |
+|------|------|
+| `http://localhost:5173` | Vite 前端开发服务器 |
+| `http://localhost:5173/login` | 登录页 |
+| `http://localhost:5173/dashboard` | 登录后的仪表盘 |
+
+`frontend/vite.config.js` 已配置开发代理：前端请求 `/api/**` 时会转发到 `http://localhost:8080`，因此业务代码中统一使用 `/api` 作为后端前缀。
+
+### 7.2 构建、检查与格式化
+
+```bash
+cd frontend
+
+# 生产构建
+npm run build
+
+# 预览构建产物
+npm run preview
+
+# 代码检查并自动修复（oxlint + eslint）
+npm run lint
+
+# 格式化 src 目录
+npm run format
+```
+
+### 7.3 页面路由
+
+| 路由 | 页面 | 说明 |
+|------|------|------|
+| `/login` | 登录页 | 独立全屏页面，未认证用户入口 |
+| `/dashboard` | 仪表盘 | 设备状态、告警统计、趋势与近期告警 |
+| `/devices` | 设备管理 | 设备 CRUD、筛选、导入导出、告警配置 |
+| `/device-types` | 设备类型 | 类型 CRUD、类型级告警规则配置 |
+| `/data-monitor` | 数据监控 | 设备数据列表、统计面板与趋势图 |
+| `/alerts` | 告警管理 | 告警查询、统计、处理与批量处理 |
+| `/metric` | 指标字典 | 指标元数据管理与缓存刷新 |
+| `/users` | 用户管理 | ADMIN 用户管理、状态维护、密码重置 |
+| `/audit-logs` | 审计日志 | 登录/操作审计查询与清理 |
+
+`frontend/src/router/index.js` 使用全局前置守卫读取 `localStorage.token`：未登录访问后台页面会跳转 `/login`，已登录访问 `/login` 会跳转 `/dashboard`。
+
+角色信息由 `frontend/src/stores/auth.js` 使用 `jwt-decode` 从 JWT 中解析，侧边栏菜单会根据角色做入口显隐：
+
+| 菜单 | 前端显隐规则 | 说明 |
+|------|-------------|------|
+| 用户管理 | 仅 `ADMIN` 显示 | 对应后端用户管理权限 |
+| 审计日志 | `ADMIN`、`OPERATOR` 显示，`VIEWER` 隐藏 | 对应后端审计日志查询权限 |
+
+> 前端角色控制只用于导航与操作按钮显隐，最终权限仍以后端 RBAC 为准。
+
+### 7.4 API 请求约定
+
+前端普通 JSON API 统一通过 `frontend/src/utils/request.js` 创建的 Axios 实例访问后端；文件导入仍走该实例，文件下载/导出因需要 `responseType: 'blob'`，在 `frontend/src/api/device.js` 和 `frontend/src/api/alert.js` 中使用原生 `axios` 并手动携带 Token。
+
+| 约定 | 说明 |
+|------|------|
+| `baseURL` | `/api`，配合 Vite 代理转发到后端 |
+| 超时 | 普通请求 `timeout: 15000` |
+| Cookie | `withCredentials: true`，配合后端 CORS 凭证配置 |
+| Token | 请求拦截器自动读取 `localStorage.token` 并添加 `Authorization: Bearer <token>` |
+| 响应处理 | HTTP 200 直接返回 `response.data` |
+| 401 | 清除本地 Token 并跳转 `/login` |
+| 403 | 使用 Element Plus 消息提示权限不足 |
+| 其他错误 | 优先展示后端返回的 `message` |
+| 文件下载 | 设备导出、设备导入模板、告警导出使用 `responseType: 'blob'`，前端创建临时链接下载 `.xlsx` |
+
+当前前端封装的主要后端交互包括：
+
+| 模块 | 前端 API 文件 | 典型能力 |
+|------|--------------|----------|
+| 认证 | `src/api/auth.js` | 登录 |
+| 仪表盘 | `src/api/dashboard.js` | 聚合统计 |
+| 设备 | `src/api/device.js` | 分页、详情、CRUD、状态更新、告警配置、导入、模板下载、导出 |
+| 设备类型 | `src/api/deviceType.js` | 列表、详情、CRUD、类型级告警配置 |
+| 数据监控 | `src/api/deviceData.js` | 历史数据、最新数据、时间范围、统计聚合 |
+| 告警 | `src/api/alert.js` | 分页、时间统计、批量处理、导出 |
+| 指标字典 | `src/api/metric.js` | 分页、CRUD、缓存刷新 |
+| 用户 | `src/api/user.js` | 分页、详情、搜索、CRUD、密码重置、状态更新 |
+| 审计日志 | `src/api/auditLog.js` | 分页、过期日志清理 |
+
+### 7.5 推荐开发环境
+
+| 工具 | 建议 |
+|------|------|
+| IDE | VS Code + Vue Official 插件；如安装过 Vetur，建议禁用 |
+| 浏览器 | Chrome、Edge、Brave、Firefox 等现代浏览器 |
+| 调试插件 | Vue.js devtools |
+| 浏览器设置 | 可开启 Custom Object Formatter，方便调试 Vue 响应式对象 |
+| 配置参考 | Vite 配置见 `frontend/vite.config.js`，官方参考见 https://vite.dev/config/ |
+
+---
+
+## 八、API 文档
 
 > **首选方式**：启动应用后访问 `/swagger-ui.html` 即可查看完整的交互式 API 文档（含请求/响应示例、JWT 认证、字段说明）。以下为静态参考清单。
 
-### 6.1 认证 `/auth`
+### 8.1 认证 `/auth`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
 | POST | `/auth/login` | 用户登录，返回 JWT Token | 公开 |
 
-### 6.2 设备管理 `/devices`
+### 8.2 设备管理 `/devices`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -451,7 +581,7 @@ Druid监控：http://localhost:8080/api/druid
 | GET | `/devices/page` | 分页查询（支持状态/名称筛选） | 已认证 |
 | PUT | `/devices/{id}/alert-config` | 更新设备级告警规则 | ADMIN, OPERATOR |
 
-### 6.3 数据采集 `/device-data`
+### 8.3 数据采集 `/device-data`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -463,13 +593,13 @@ Druid监控：http://localhost:8080/api/druid
 | GET | `/device-data/device/{deviceId}/statistics` | 统计聚合（min/max/avg/count） | 已认证 |
 | GET | `/device-data/page` | 数据分页查询 | 已认证 |
 
-### 6.4 设备类型 `/device-types`
+### 8.4 设备类型 `/device-types`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
 | PUT | `/device-types/{id}/alert-config` | 更新类型级告警规则 | ADMIN, OPERATOR |
 
-### 6.5 告警管理 `/alerts`
+### 8.5 告警管理 `/alerts`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -481,7 +611,7 @@ Druid监控：http://localhost:8080/api/druid
 | GET | `/alerts/stats/time-range` | 按时间段统计告警 | 已认证 |
 | GET | `/alerts/stats/device-ranking` | 设备告警排名 | 已认证 |
 
-### 6.6 指标字典 `/metric`
+### 8.6 指标字典 `/metric`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -491,7 +621,7 @@ Druid监控：http://localhost:8080/api/druid
 | DELETE | `/metric/{id}` | 删除指标 | ADMIN |
 | POST | `/metric/cache/refresh` | 手动刷新缓存 | 已认证 |
 
-### 6.7 用户管理 `/users`
+### 8.7 用户管理 `/users`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -504,14 +634,14 @@ Druid监控：http://localhost:8080/api/druid
 | PUT | `/users/{id}/status?status=` | 启用/停用账号 | ADMIN |
 | DELETE | `/users/{id}` | 删除用户 | ADMIN |
 
-### 6.8 审计日志 `/audit-logs`
+### 8.8 审计日志 `/audit-logs`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
 | GET | `/audit-logs/page` | 分页查询审计日志（支持多条件筛选） | ADMIN, OPERATOR |
 | DELETE | `/audit-logs/cleanup?beforeTime=` | 清理过期日志 | ADMIN |
 
-### 6.9 仪表盘 `/dashboard`
+### 8.9 仪表盘 `/dashboard`
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
@@ -519,7 +649,7 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 八、RBAC 权限模型
+## 九、RBAC 权限模型
 
 | 角色 | 权限范围 |
 |------|----------|
@@ -542,7 +672,7 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 九、版本历史
+## 十、版本历史
 
 | 版本 | 日期 | Commit | 变更内容 |
 |------|------|--------|----------|
@@ -556,14 +686,17 @@ Druid监控：http://localhost:8080/api/druid
 | v4.0 | 2026-05-28 | `3d96056` | 缓存体系与安全防护模块：CacheService 统一缓存接口（穿透/击穿/雪崩防御）、RedisConfig 序列化与连接池配置、CacheOperationException 缓存异常体系；告警通知去重模块：NotificationDedupService 基于 AlertId 粒度 + 事件驱动删除 + 48h TTL 方案；仪表盘统计模块：DashboardStatsService 互斥锁防缓存击穿；Token 黑名单：TokenBlacklistService 登出与密码重置场景；告警配置缓存：AlertConfigService 设备/类型级规则缓存迁移至 Redis；指标字典缓存迁移：DictMetricServiceImpl 从本地内存迁移至 Redis 分布式缓存；安全增强：AuthServiceImpl 重构、JwtAuthenticationFilter 集成 Token 黑名单校验、JwtUtil 增强 |
 | v4.1 | 2026-06-20 | `caaff15` | P2 功能增强：设备 Excel 批量导入与导出（EasyExcel 4.0.3）、数据上报死锁重试（@Retryable + @Recover）、Druid 连接池监控与慢SQL统计、SQL 文档体系重构（存储过程造数据/查询示例）、前端导入导出按钮与交互（文件上传/模板下载）、限流配置环境变量化与开发环境调优 |
 | v4.2 | 2026-06-21 | — | 模块补完：DictMetric 补全 Jakarta Validation 校验注解与 createTime/updateTime 自动填充、Flyway V5 修正 dict_metric 列命名+alerts 告警级别注释、AuthController 新增用户登出接口 `POST /api/auth/logout`、Flyway V6 新增 notification_log 通知发送日志表、EmailNotificationServiceImpl / AlertWebSocketService 写通知日志、需求文档与 README 全面修正（账号锁定 5次、Redis 环境依赖、deleted 字段、status 描述统一） |
+| v4.3 | 2026-06-23 | — | README 合并前端说明：补充 Vue 3 + Vite 管理后台、前端目录结构、启动/构建命令、路由、Axios 联调约定与开发工具建议 |
+| v4.4 | 2026-06-23 | — | 前端 README 审查修正：补充 JWT 角色解析、菜单显隐、请求超时/Cookie、文件下载 blob 例外，以及各前端 API 模块能力映射 |
 
 ---
 
-## 十、文档导航
+## 十一、文档导航
 
 | 文档 | 用途 | 何时读 |
 |------|------|--------|
 | `AGENTS.md` | AI Agent 上下文（技术栈/约定/禁忌/构建命令） | 新 AI 会话第一步（与本 README 一起） |
+| `frontend/README.md` | 前端目录入口说明 | 指向根 README 的“前端管理后台”章节，避免重复维护 |
 | `开发流程学习文档/需求文档/IoT-Platform需求规格说明书.md` | 需求真相源，51 条需求 + 追踪矩阵 | 新增/改需求 |
 | `开发流程学习文档/需求文档/开发优先级计划.md` | P0→P3 路线图 | 规划迭代 |
 | `开发流程学习文档/学习笔记/` | 模块学习指南（生活类比 + 技术盲区字典） | 学习某模块原理 |
@@ -574,4 +707,4 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-06-19。*
+*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-06-23。*
