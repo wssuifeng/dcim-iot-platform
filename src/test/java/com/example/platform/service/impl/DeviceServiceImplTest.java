@@ -6,11 +6,18 @@ import com.example.platform.service.DeviceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.jdbc.Sql;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=1 的设备）。
+ * 幂等执行：test-data.sql 使用 DELETE+INSERT 模式，无需 @Transactional 也可重复运行。
+ */
 @SpringBootTest
+@Sql(scripts = "classpath:test-data.sql")
 class DeviceServiceImplTest {
 
     @Autowired
