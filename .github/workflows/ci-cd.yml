@@ -71,7 +71,11 @@ jobs:
       - name: Build Frontend
         working-directory: frontend
         run: |
-          npm ci
+          # 使用 npm install 而非 npm ci：
+          # 项目 lock 文件由 Windows 本地生成，可能缺少 Linux 平台的可选依赖
+          # （如 @rolldown/binding-wasm32-wasi → @emnapi/core@1.11.1）
+          # npm install 会自动补齐当前平台缺失的依赖，避免跨平台 lock 不完整问题
+          npm install --no-frozen-lockfile
           npm run build
 
   docker-build:
