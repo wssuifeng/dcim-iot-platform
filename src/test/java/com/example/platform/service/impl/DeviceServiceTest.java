@@ -6,14 +6,20 @@ import com.example.platform.service.DeviceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=1, device_code='TEMP-001'）。
+ * @Transactional 保证每个测试方法的数据修改自动回滚，不污染数据库。
+ */
 @SpringBootTest
 @Transactional
+@Sql(scripts = "classpath:test-data.sql")
 class DeviceServiceTest {
 
     @Autowired

@@ -4,6 +4,7 @@ import com.example.platform.entity.Device;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -12,8 +13,13 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 真实数据库集成测试：testCountByStatus 需要表非空，由 test-data.sql 预置数据。
+ * @Transactional 保证每个测试方法的数据修改自动回滚。
+ */
 @SpringBootTest
 @Transactional
+@Sql(scripts = "classpath:test-data.sql")
 class DeviceMapperTest {
 
     @Autowired
