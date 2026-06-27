@@ -5,7 +5,8 @@ WORKDIR /build
 # 先复制 Maven 包装器与 pom.xml，利用 Docker 层缓存依赖
 COPY pom.xml mvnw ./
 COPY .mvn .mvn
-RUN ./mvnw dependency:go-offline -B
+# Windows 提交的 mvnw 缺少可执行权限位，Linux 上直接 ./mvnw 会 Permission denied
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # 再复制源码并打包（跳过测试，CI 中已执行测试）
 COPY src src
