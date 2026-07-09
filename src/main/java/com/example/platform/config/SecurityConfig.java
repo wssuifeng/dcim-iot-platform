@@ -3,6 +3,8 @@ package com.example.platform.config;
 import com.example.platform.security.CustomAccessDeniedHandler;
 import com.example.platform.security.CustomAuthenticationEntryPoint;
 import com.example.platform.security.JwtAuthenticationFilter;
+import com.example.platform.security.PlatformRole;
+import com.example.platform.service.SysAuditLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,17 +36,36 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
+    static final String[] ORG_MANAGE_ROLES = {
+            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN
+    };
+    static final String[] BUSINESS_READ_ROLES = {
+            PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR, PlatformRole.VIEWER
+    };
+    static final String[] BUSINESS_WRITE_ROLES = {
+            PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR
+    };
+    static final String[] BUSINESS_ADMIN_ROLES = {
+            PlatformRole.ORG_ADMIN
+    };
+    static final String[] AUDIT_READ_ROLES = {
+            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final SysAuditLogService sysAuditLogService;
     private final boolean apiDocsEnabled;
     private final boolean swaggerUiEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CorsConfigurationSource corsConfigurationSource,
+                          SysAuditLogService sysAuditLogService,
                           @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
                           @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.sysAuditLogService = sysAuditLogService;
         this.apiDocsEnabled = apiDocsEnabled;
         this.swaggerUiEnabled = swaggerUiEnabled;
     }
@@ -75,8 +96,8 @@ public class SecurityConfig {
      * 返回数据:CustomAccessDeniedHandler-权限不足处理器实例
      * */
     @Bean
-    public CustomAccessDeniedHandler customAccessDeniedHandler() {
-        return new CustomAccessDeniedHandler();
+    public CustomAccessDeniedHandler customAccessDeniedHandler(SysAuditLogService sysAuditLogService) {
+        return new CustomAccessDeniedHandler(sysAuditLogService);
     }
 
     /*
@@ -86,9 +107,9 @@ public class SecurityConfig {
      *   2. CORS跨域支持
      *   3. CSRF禁用（JWT无状态，无需CSRF防护）
      *   4. 公开端点：登录
-     *   5. ADMIN专属：用户管理、删除操作、Druid监控、审计日志清理
-     *   6. OPERATOR及以上：设备写入、数据上报、告警配置、指标/设备类型管理
-     *   7. 已认证用户：只读查询
+     *   5. PLATFORM_ADMIN：平台级管理与监控入口
+     *   6. ORG_ADMIN/OPERATOR：组织业务写入
+     *   7. ORG_ADMIN/OPERATOR/VIEWER：组织业务只读
      *   8. JWT过滤器插入UsernamePasswordAuthenticationFilter之前
      * */
     @Bean
@@ -100,7 +121,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(customAuthenticationEntryPoint())
-                        .accessDeniedHandler(customAccessDeniedHandler()))
+                        .accessDeniedHandler(customAccessDeniedHandler(sysAuditLogService)))
                 .authorizeHttpRequests(auth -> {
                         // 公开端点：登录接口无需认证
                         auth.requestMatchers("/auth/login").permitAll();
@@ -112,23 +133,29 @@ public class SecurityConfig {
                         if (apiDocsEnabled) {
                             auth.requestMatchers("/v3/api-docs/**").permitAll();
                         }
-                        // ADMIN专属：Druid监控页面
-                        auth.requestMatchers("/druid/**").hasRole("ADMIN");
-                        // ADMIN专属：所有DELETE操作（含审计日志清理）
-                        auth.requestMatchers(HttpMethod.DELETE).hasRole("ADMIN");
-                        // ADMIN专属：用户管理全部接口
-                        auth.requestMatchers("/users/**").hasRole("ADMIN");
-                        // ADMIN/OPERATOR：审计日志查询（DELETE由上方规则单独控制）
-                        auth.requestMatchers("/audit-logs/**").hasAnyRole("ADMIN", "OPERATOR");
-                        // ADMIN/OPERATOR：设备写入、数据上报、指标创建
+                        // 平台/组织管理员：用户管理接口（后续由数据范围服务细化到组织）
+                        auth.requestMatchers("/users/**").hasAnyRole(ORG_MANAGE_ROLES);
+                        // 平台/组织管理员：Druid监控和审计清理
+                        auth.requestMatchers("/druid/**").hasAnyRole(ORG_MANAGE_ROLES);
+                        auth.requestMatchers(HttpMethod.DELETE, "/audit-logs/**").hasAnyRole(ORG_MANAGE_ROLES);
+                        // 平台/组织管理员/运维：审计日志查询
+                        auth.requestMatchers("/audit-logs/**").hasAnyRole(AUDIT_READ_ROLES);
+                        // 组织管理员：业务删除操作
+                        auth.requestMatchers(HttpMethod.DELETE).hasAnyRole(BUSINESS_ADMIN_ROLES);
+                        // 组织管理员/运维：设备写入、数据上报、指标创建
                         auth.requestMatchers(HttpMethod.POST, "/devices", "/device-data",
-                                "/device-data/batch", "/metric").hasAnyRole("ADMIN", "OPERATOR");
-                        // ADMIN/OPERATOR：设备更新、设备类型更新、指标更新
+                                "/device-data/batch", "/metric").hasAnyRole(BUSINESS_WRITE_ROLES);
+                        // 组织管理员/运维：设备更新、设备类型更新、指标更新
                         auth.requestMatchers(HttpMethod.PUT, "/devices/**",
-                                "/device-types/**", "/metric").hasAnyRole("ADMIN", "OPERATOR");
-                        // ADMIN/OPERATOR：告警处理（VIEWER不可处理告警）
-                        auth.requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole("ADMIN", "OPERATOR");
-                        // 已认证用户：所有GET只读查询（VIEWER可访问）
+                                "/device-types/**", "/metric").hasAnyRole(BUSINESS_WRITE_ROLES);
+                        // 组织管理员/运维：告警处理（VIEWER不可处理告警）
+                        auth.requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole(BUSINESS_WRITE_ROLES);
+                        // 组织业务只读接口：PLATFORM_ADMIN 不默认穿透组织业务数据
+                        auth.requestMatchers(HttpMethod.GET,
+                                "/devices/**", "/device-data/**", "/device-types/**",
+                                "/alerts/**", "/dashboard/**", "/metric/**")
+                                .hasAnyRole(BUSINESS_READ_ROLES);
+                        // 其他GET仅要求认证，具体业务范围由后续服务层校验
                         auth.requestMatchers(HttpMethod.GET).authenticated();
                         // 兜底规则：其余请求需认证
                         auth.anyRequest().authenticated();

@@ -8,6 +8,7 @@ import com.example.platform.common.util.JwtUtil;
 import com.example.platform.dto.LoginDTO;
 import com.example.platform.dto.LoginResponseDTO;
 import com.example.platform.entity.SysUser;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.service.AuthService;
 import com.example.platform.service.CacheService;
 import com.example.platform.service.SysAuditLogService;
@@ -91,7 +92,8 @@ public class AuthServiceImpl implements AuthService {
         cacheService.delete(FAIL_STATE_PREFIX + ip);
         sysUserService.resetLoginFailCount(user.getId());
 
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        String normalizedRole = PlatformRole.normalize(user.getRole());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), normalizedRole);
 
         sysAuditLogService.log(user.getId(), user.getUsername(), "LOGIN_SUCCESS", ip, "登录成功");
 
@@ -182,7 +184,7 @@ public class AuthServiceImpl implements AuthService {
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setNickname(user.getNickname());
-        response.setRole(user.getRole());
+        response.setRole(PlatformRole.normalize(user.getRole()));
         return response;
     }
 }
