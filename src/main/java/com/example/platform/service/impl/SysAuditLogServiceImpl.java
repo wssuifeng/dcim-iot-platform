@@ -70,4 +70,33 @@ public class SysAuditLogServiceImpl extends ServiceImpl<SysAuditLogMapper, SysAu
         auditLog.setDetail(detail);
         save(auditLog);
     }
+
+    /*
+     * 方法功能:记录结构化审计日志（产品化扩展，支持角色、数据范围、目标资源、操作结果等结构化字段）
+     * 参数:userId-操作人ID, username-操作人账号, role-操作人角色, organizationId-操作人所属组织,
+     *      cloudRoomId-操作人所属机房, action-标准化操作动作, targetType-目标类型, targetId-目标ID,
+     *      result-操作结果(SUCCESS/FAILURE/REJECTED), errorCode-错误码, ip-客户端IP, traceId-链路追踪ID, detail-详情
+     * 返回数据:无
+     * */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void logStructured(Long userId, String username, String role, Long organizationId, Long cloudRoomId,
+                              String action, String targetType, String targetId, String result, String errorCode,
+                              String ip, String traceId, String detail) {
+        SysAuditLog auditLog = new SysAuditLog();
+        auditLog.setUserId(userId);
+        auditLog.setUsername(username);
+        auditLog.setRole(role);
+        auditLog.setOrganizationId(organizationId);
+        auditLog.setCloudRoomId(cloudRoomId);
+        auditLog.setAction(action);
+        auditLog.setTargetType(targetType);
+        auditLog.setTargetId(targetId);
+        auditLog.setResult(result);
+        auditLog.setErrorCode(errorCode);
+        auditLog.setIp(ip);
+        auditLog.setTraceId(traceId);
+        auditLog.setDetail(detail);
+        save(auditLog);
+    }
 }
