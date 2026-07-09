@@ -22,6 +22,8 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
         // strictInsertFill仅在字段为null时填充，尊重手动传入值
         this.strictInsertFill(metaObject, "collectTime", LocalDateTime.class, LocalDateTime.now());
         this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
+        // triggeredTime为AlarmEvent（alarm_event表）的插入自动填充字段，语义等同于createTime
+        this.strictInsertFill(metaObject, "triggeredTime", LocalDateTime.class, LocalDateTime.now());
         // updateTime强制覆盖，确保每次插入时都是最新时间
         this.setFieldValByName("updateTime", LocalDateTime.now(), metaObject);
     }
