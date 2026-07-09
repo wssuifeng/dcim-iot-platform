@@ -1,14 +1,18 @@
 # AGENTS.md — AI Agent 上下文文件
 
-> 任何新 AI 会话第一步：读本文件 + `README.md` 建立全貌。
+> 任何新 AI 会话第一步：读本文件 + `README.md` 建立现有工程全貌。
+>
+> 当前仓库是 `dcim-iot-platform` 产品化仓库，基于 `wssuifeng/iot-platform` v1.0 演进。第四阶段产品化开发以外部公共控制包为事实来源：角色模型、数据范围、迁移策略、分支、合并顺序和 Agent 分工若与本文或 `README.md` 冲突，以第四阶段控制包为准。
+>
+> 第四阶段公共控制包位于本机文档工作区：`第四阶段-分阶段实现与测试/05-公共协作区/01-实施控制包/`。
 
 ---
 
 ## 1. 项目身份
 
-- **项目**：IoT-Platform — 物联网设备管理后端服务
+- **项目**：dcim-iot-platform — 数据中心动环监控平台产品化仓库，基于 IoT-Platform v1.0 演进
 - **技术栈**：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + **MySQL 9.6.0** + Redis 7 + JDK 17
-- **当前版本**：v4.2（用户登出接口、通知发送日志持久化、DictMetric 校验/时间字段补全、告警级别注释修正）
+- **当前版本**：第四阶段产品化基线（历史代码约等于 v4.2/v4.4 文档状态）
 - **分层架构**：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 
 ---
@@ -78,13 +82,18 @@
 
 ## 7. 当前状态
 
-- **分支**：`feature/p2-enhancements`（P2 功能增强）
-- **路线图**：见 `开发优先级计划.md`，P0-P1 已完成，进行中 P2
-- **Git 工作流**：Feature Branch（每个特性独立分支，PR 合并到 main）
+- **当前产品化基线**：`0b6b0cc chore: remove obsolete productization docs`
+- **协作主仓库**：`git@github.com:wssuifeng/dcim-iot-platform.git`
+- **上游基础仓库**：`git@github.com:wssuifeng/iot-platform.git`，仅作 v1.0 参考
+- **集成目标**：`stage4/integration`
+- **当前工作流**：多 Agent 独立分支开发，PR 或补丁先合入 `stage4/integration`，通过门控后再进入 `main`
+- **产品化控制包**：第四阶段公共控制包优先于本文中的历史路线图、旧角色和旧迁移说明
 
 ---
 
 ## 8. 关键业务模型速查
+
+> 本节是 v1.0 基础模型速查。第四阶段产品化将引入 `PLATFORM_ADMIN`、`ORG_ADMIN`、组织、机房、数据范围、设备点位、告警状态机和站内通知等新模型，具体以公共控制包为准。
 
 | 实体 | 表 | 要点 |
 |------|----|------|
