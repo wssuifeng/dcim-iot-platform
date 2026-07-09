@@ -153,6 +153,18 @@ public class GlobalExceptionHandler {
     }
 
     /*
+     * 方法功能:处理数据范围违规异常（产品化扩展，用户尝试访问未授权的组织或机房数据）
+     * 参数:e-数据范围违规异常
+     * 返回数据:Result<Void>-403 状态码的错误响应
+     * */
+    @ExceptionHandler(DataScopeViolationException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<Void> handleDataScopeViolation(DataScopeViolationException e) {
+        log.warn("数据范围违规: {}", e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
+    /*
      * 方法功能:处理缓存操作异常（Redis不可用导致计数器等无DB兜底的操作失败）
      * 场景:increment/decrement等计数器操作在Redis宕机时抛出
      * 注:与get/set不同，计数器没有数据库兜底，0是合法业务值，不可静默降级
