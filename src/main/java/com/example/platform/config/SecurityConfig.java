@@ -3,6 +3,7 @@ package com.example.platform.config;
 import com.example.platform.security.CustomAccessDeniedHandler;
 import com.example.platform.security.CustomAuthenticationEntryPoint;
 import com.example.platform.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -35,11 +36,17 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final boolean apiDocsEnabled;
+    private final boolean swaggerUiEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          CorsConfigurationSource corsConfigurationSource) {
+                          CorsConfigurationSource corsConfigurationSource,
+                          @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
+                          @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.apiDocsEnabled = apiDocsEnabled;
+        this.swaggerUiEnabled = swaggerUiEnabled;
     }
 
     /*
@@ -94,32 +101,38 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(customAuthenticationEntryPoint())
                         .accessDeniedHandler(customAccessDeniedHandler()))
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> {
                         // 公开端点：登录接口无需认证
-                        .requestMatchers("/auth/login").permitAll()
+                        auth.requestMatchers("/auth/login").permitAll();
                         // 公开端点：Actuator 健康检查与 SpringDoc 文档（开发/内网使用）
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
+                        if (swaggerUiEnabled) {
+                            auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll();
+                        }
+                        if (apiDocsEnabled) {
+                            auth.requestMatchers("/v3/api-docs/**").permitAll();
+                        }
                         // ADMIN专属：Druid监控页面
-                        .requestMatchers("/druid/**").hasRole("ADMIN")
+                        auth.requestMatchers("/druid/**").hasRole("ADMIN");
                         // ADMIN专属：所有DELETE操作（含审计日志清理）
-                        .requestMatchers(HttpMethod.DELETE).hasRole("ADMIN")
+                        auth.requestMatchers(HttpMethod.DELETE).hasRole("ADMIN");
                         // ADMIN专属：用户管理全部接口
-                        .requestMatchers("/users/**").hasRole("ADMIN")
+                        auth.requestMatchers("/users/**").hasRole("ADMIN");
                         // ADMIN/OPERATOR：审计日志查询（DELETE由上方规则单独控制）
-                        .requestMatchers("/audit-logs/**").hasAnyRole("ADMIN", "OPERATOR")
+                        auth.requestMatchers("/audit-logs/**").hasAnyRole("ADMIN", "OPERATOR");
                         // ADMIN/OPERATOR：设备写入、数据上报、指标创建
-                        .requestMatchers(HttpMethod.POST, "/devices", "/device-data",
-                                "/device-data/batch", "/metric").hasAnyRole("ADMIN", "OPERATOR")
+                        auth.requestMatchers(HttpMethod.POST, "/devices", "/device-data",
+                                "/device-data/batch", "/metric").hasAnyRole("ADMIN", "OPERATOR");
                         // ADMIN/OPERATOR：设备更新、设备类型更新、指标更新
-                        .requestMatchers(HttpMethod.PUT, "/devices/**",
-                                "/device-types/**", "/metric").hasAnyRole("ADMIN", "OPERATOR")
+                        auth.requestMatchers(HttpMethod.PUT, "/devices/**",
+                                "/device-types/**", "/metric").hasAnyRole("ADMIN", "OPERATOR");
                         // ADMIN/OPERATOR：告警处理（VIEWER不可处理告警）
-                        .requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole("ADMIN", "OPERATOR")
+                        auth.requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole("ADMIN", "OPERATOR");
                         // 已认证用户：所有GET只读查询（VIEWER可访问）
-                        .requestMatchers(HttpMethod.GET).authenticated()
+                        auth.requestMatchers(HttpMethod.GET).authenticated();
                         // 兜底规则：其余请求需认证
-                        .anyRequest().authenticated())
+                        auth.anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class);
 
