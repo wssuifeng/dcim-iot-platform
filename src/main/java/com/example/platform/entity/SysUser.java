@@ -3,6 +3,7 @@ package com.example.platform.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
+import com.example.platform.security.PlatformRole;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -45,11 +46,15 @@ public class SysUser implements Serializable {
     @Size(max = 50, message = "昵称最长50个字符", groups = {CreateGroup.class, UpdateGroup.class})
     private String nickname;
 
-    @Schema(description = "角色标识：ADMIN-超管，OPERATOR-运维，VIEWER-普通", example = "ADMIN", allowableValues = {"ADMIN", "OPERATOR", "VIEWER"}, requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "角色标识：PLATFORM_ADMIN-平台管理员，ORG_ADMIN-组织管理员，OPERATOR-运维，VIEWER-只读；ADMIN为旧角色兼容", example = "ORG_ADMIN", allowableValues = {"PLATFORM_ADMIN", "ORG_ADMIN", "OPERATOR", "VIEWER", "ADMIN"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "角色不能为空", groups = {CreateGroup.class, UpdateGroup.class})
-    @Pattern(regexp = "^(ADMIN|OPERATOR|VIEWER)$", message = "角色仅允许ADMIN/OPERATOR/VIEWER",
+    @Pattern(regexp = "^(PLATFORM_ADMIN|ORG_ADMIN|OPERATOR|VIEWER|ADMIN)$", message = "角色仅允许PLATFORM_ADMIN/ORG_ADMIN/OPERATOR/VIEWER，ADMIN仅用于旧数据兼容",
             groups = {CreateGroup.class, UpdateGroup.class})
     private String role;
+
+    public String getNormalizedRole() {
+        return PlatformRole.normalize(role);
+    }
 
     @JsonIgnore
     @Schema(description = "状态：0-正常，1-停用", example = "0", allowableValues = {"0", "1"}, accessMode = Schema.AccessMode.READ_ONLY)
