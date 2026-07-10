@@ -2,6 +2,8 @@ package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.platform.common.ResultCode;
+import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DeviceTypeCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceTypeNotFound;
 import com.example.platform.dto.AlertRuleConfig;
@@ -10,6 +12,7 @@ import com.example.platform.entity.DeviceType;
 import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
+import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.DeviceTypeService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -63,6 +66,7 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
 
     @Override
     public DeviceType create(DeviceType deviceType) {
+        validateSupportedTypeCode(deviceType.getTypeCode());
         validateTypeCodeUnique(deviceType.getTypeCode(), null);
         save(deviceType);
         return deviceType;
@@ -72,6 +76,7 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
     public DeviceType updateById(Integer id, DeviceType deviceType) {
         DeviceType existing = getTypeOrThrow(id);
         if (deviceType.getTypeCode() != null) {
+            validateSupportedTypeCode(deviceType.getTypeCode());
             validateTypeCodeUnique(deviceType.getTypeCode(), id);
             existing.setTypeCode(deviceType.getTypeCode());
         }
@@ -90,7 +95,11 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
 
     @Override
     public void deleteById(Integer id) {
-        getTypeOrThrow(id);
+        DeviceType type = getTypeOrThrow(id);
+        if (DevicePointMetricContract.isSupportedDeviceType(type.getTypeCode())) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "产品化五类设备类型为冻结基础类型，不允许删除");
+        }
         List<Device> associatedDevices = deviceService.findByTypeId(id);
         if (!associatedDevices.isEmpty()) {
             throw new IllegalStateException("该类型下存在" + associatedDevices.size() + "个关联设备，无法删除");
@@ -114,6 +123,13 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
         }
         if (count(wrapper) > 0) {
             throw new DeviceTypeCodeAlreadyExistsException(typeCode);
+        }
+    }
+
+    private void validateSupportedTypeCode(String typeCode) {
+        if (!DevicePointMetricContract.isSupportedDeviceType(typeCode)) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "设备类型编码仅允许 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR");
         }
     }
 }

@@ -41,6 +41,14 @@ public class Device implements Serializable {
     @NotNull(message = "设备类型不能为空", groups = {CreateGroup.class, UpdateGroup.class})
     private Integer typeId;
 
+    @Schema(description = "所属组织ID（数据范围校验依据，产品化新增）", example = "1")
+    @TableField("organization_id")
+    private Long organizationId;
+
+    @Schema(description = "所属机房ID（数据范围校验依据，产品化新增）", example = "1")
+    @TableField("cloud_room_id")
+    private Long cloudRoomId;
+
     @Schema(description = "设备状态：0-离线，1-在线，2-故障", example = "1", allowableValues = {"0", "1", "2"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "设备状态不能为空", groups = {CreateGroup.class, UpdateGroup.class})
     @Min(value = 0, message = "状态值只能为0/1/2")

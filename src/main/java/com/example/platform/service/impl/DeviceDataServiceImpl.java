@@ -255,4 +255,67 @@ public class DeviceDataServiceImpl extends ServiceImpl<DeviceDataMapper, DeviceD
         wrapper.lt(DeviceData::getCollectTime, beforeTime);
         return baseMapper.delete(wrapper);
     }
+
+    @Override
+    public void saveWithAlertCheckScoped(DeviceData deviceData, Long currentUserId) {
+        deviceService.getScopedForWrite(deviceData.getDeviceId(), currentUserId);
+        saveWithAlertCheck(deviceData);
+    }
+
+    @Override
+    public void saveBatchWithAlertCheckScoped(List<DeviceData> dataList, Long currentUserId) {
+        if (dataList == null || dataList.isEmpty()) {
+            return;
+        }
+        for (DeviceData data : dataList) {
+            deviceService.getScopedForWrite(data.getDeviceId(), currentUserId);
+        }
+        saveBatchWithAlertCheck(dataList);
+    }
+
+    @Override
+    public Page<DeviceData> pageByDeviceIdScoped(Integer deviceId, Integer current, Integer size,
+                                                 Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return pageByDeviceId(deviceId, current, size);
+    }
+
+    @Override
+    public DeviceData findLatestByDeviceIdScoped(Integer deviceId, Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return findLatestByDeviceId(deviceId);
+    }
+
+    @Override
+    public List<DeviceData> findByDeviceIdAndTimeRangeScoped(Integer deviceId,
+                                                             LocalDateTime startTime,
+                                                             LocalDateTime endTime,
+                                                             Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return findByDeviceIdAndTimeRange(deviceId, startTime, endTime);
+    }
+
+    @Override
+    public Map<String, Object> getStatisticsScoped(Integer deviceId, LocalDateTime startTime,
+                                                   LocalDateTime endTime, Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return getStatistics(deviceId, startTime, endTime);
+    }
+
+    @Override
+    public Page<DeviceData> pageByConditionScoped(Integer deviceId, Integer current, Integer size,
+                                                  Long currentUserId) {
+        if (deviceId == null) {
+            throw new IllegalArgumentException("设备数据分页查询必须指定 deviceId");
+        }
+        return pageByDeviceIdScoped(deviceId, current, size, currentUserId);
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregateScoped(Integer deviceId, LocalDateTime startTime,
+                                                      LocalDateTime endTime, String granularity,
+                                                      Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return aggregate(deviceId, startTime, endTime, granularity);
+    }
 }

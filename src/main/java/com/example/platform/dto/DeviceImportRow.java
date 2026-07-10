@@ -18,6 +18,12 @@ public class DeviceImportRow {
     @ExcelProperty("类型编码")
     private String typeCode;
 
+    @ExcelProperty("组织编码")
+    private String organizationCode;
+
+    @ExcelProperty("机房编码")
+    private String cloudRoomCode;
+
     @ExcelProperty("位置")
     private String location;
 

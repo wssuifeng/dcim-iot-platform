@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 /*
@@ -213,5 +215,119 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         }
         wrapper.orderByDesc(Alert::getCreateTime);
         return wrapper;
+    }
+
+    @Override
+    public Alert getScoped(Integer id, Long currentUserId) {
+        Alert alert = getById(id);
+        if (alert == null) {
+            return null;
+        }
+        deviceService.getScoped(alert.getDeviceId(), currentUserId);
+        return alert;
+    }
+
+    @Override
+    public List<Alert> findUnhandledScoped(Long currentUserId) {
+        return list(scopedWrapper(null, 0, null, null, null, currentUserId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int batchHandleScoped(List<Integer> ids, String handleUser, Long currentUserId) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        if (ids.size() > MAX_BATCH_HANDLE_SIZE) {
+            throw new IllegalArgumentException("批量处理单次上限" + MAX_BATCH_HANDLE_SIZE + "条，当前" + ids.size() + "条");
+        }
+        Set<Integer> authorizedIds = deviceService.authorizedDeviceIds(currentUserId);
+        if (authorizedIds.isEmpty()) {
+            return 0;
+        }
+        List<Integer> scopedAlertIds = list(new LambdaQueryWrapper<Alert>()
+                .in(Alert::getId, ids)
+                .in(Alert::getDeviceId, authorizedIds)
+                .eq(Alert::getIsHandled, 0)).stream()
+                .map(Alert::getId)
+                .toList();
+        if (scopedAlertIds.size() != ids.size()) {
+            throw new com.example.platform.common.exception.DataScopeViolationException(
+                    "Alert", "batch");
+        }
+        return batchHandle(scopedAlertIds, handleUser);
+    }
+
+    @Override
+    public Map<String, Object> getStatsByDeviceIdScoped(Integer deviceId, Long currentUserId) {
+        deviceService.getScoped(deviceId, currentUserId);
+        return getStatsByDeviceId(deviceId);
+    }
+
+    @Override
+    public Map<String, Object> getStatsByTimeRangeScoped(LocalDateTime startTime,
+                                                         LocalDateTime endTime,
+                                                         Long currentUserId) {
+        List<Alert> alerts = list(scopedWrapper(null, null, null, startTime, endTime, currentUserId));
+        return summarize(alerts);
+    }
+
+    @Override
+    public List<Map<String, Object>> listDeviceAlertCountByTimeRangeScoped(
+            LocalDateTime startTime, LocalDateTime endTime, Long currentUserId) {
+        return list(scopedWrapper(null, null, null, startTime, endTime, currentUserId)).stream()
+                .collect(Collectors.groupingBy(Alert::getDeviceId, Collectors.counting()))
+                .entrySet().stream()
+                .sorted(Map.Entry.<Integer, Long>comparingByValue().reversed())
+                .map(entry -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("device_id", entry.getKey());
+                    row.put("alert_count", entry.getValue());
+                    return row;
+                }).toList();
+    }
+
+    @Override
+    public Page<Alert> pageByConditionScoped(Integer current, Integer size, Integer deviceId,
+                                             Integer isHandled, Integer alertLevel,
+                                             LocalDateTime startTime, LocalDateTime endTime,
+                                             Long currentUserId) {
+        return page(new Page<>(current, size), scopedWrapper(
+                deviceId, isHandled, alertLevel, startTime, endTime, currentUserId));
+    }
+
+    @Override
+    public List<Alert> listByConditionScoped(Integer deviceId, Integer isHandled,
+                                             Integer alertLevel, LocalDateTime startTime,
+                                             LocalDateTime endTime, Long currentUserId) {
+        return list(scopedWrapper(deviceId, isHandled, alertLevel, startTime, endTime, currentUserId));
+    }
+
+    private LambdaQueryWrapper<Alert> scopedWrapper(Integer deviceId, Integer isHandled,
+                                                     Integer alertLevel, LocalDateTime startTime,
+                                                     LocalDateTime endTime, Long currentUserId) {
+        Set<Integer> authorizedIds = deviceService.authorizedDeviceIds(currentUserId);
+        LambdaQueryWrapper<Alert> wrapper = buildConditionWrapper(
+                deviceId, isHandled, alertLevel, startTime, endTime);
+        if (authorizedIds.isEmpty()) {
+            wrapper.apply("1 = 0");
+        } else {
+            if (deviceId != null && !authorizedIds.contains(deviceId)) {
+                throw new com.example.platform.common.exception.DataScopeViolationException(
+                        "Device", String.valueOf(deviceId));
+            }
+            wrapper.in(Alert::getDeviceId, authorizedIds);
+        }
+        return wrapper;
+    }
+
+    private Map<String, Object> summarize(List<Alert> alerts) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("total", alerts.size());
+        stats.put("unhandled", alerts.stream().filter(a -> Integer.valueOf(0).equals(a.getIsHandled())).count());
+        stats.put("level1", alerts.stream().filter(a -> Integer.valueOf(1).equals(a.getAlertLevel())).count());
+        stats.put("level2", alerts.stream().filter(a -> Integer.valueOf(2).equals(a.getAlertLevel())).count());
+        stats.put("level3", alerts.stream().filter(a -> Integer.valueOf(3).equals(a.getAlertLevel())).count());
+        return stats;
     }
 }
