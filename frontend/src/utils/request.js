@@ -25,29 +25,41 @@ import router from '@/router'
 const request = axios.create({
   baseURL: '/api',
   timeout: 15000,
-  withCredentials: true,  // 跨域请求携带 Cookie（配合后端 CORS allowCredentials=true）
+  withCredentials: true, // 跨域请求携带 Cookie（配合后端 CORS allowCredentials=true）
 })
 
 // 请求拦截器：自动附加 Token
 request.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
+    config.headers = config.headers || {}
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+function getErrorMessage(error, fallback) {
+  return error.response?.data?.message || error.message || fallback
+}
+
 // 响应拦截器：统一错误处理 + 业务数据解包
 request.interceptors.response.use(
-  (response) => response.data,  // 业务层直接拿到 data，不需要 response.data.data
+  (response) => response.data, // 保留后端 Result<T> 结构，由 API 调用方读取 result.data
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      router.push('/login')
+      if (router.currentRoute.value.path !== '/login') {
+        router.replace({
+          path: '/login',
+          query: { redirect: router.currentRoute.value.fullPath },
+        })
+      }
     } else if (error.response?.status === 403) {
-      ElMessage.error('权限不足，无法执行此操作')
-    } else {
-      ElMessage.error(error.response?.data?.message || '请求失败')
+      if (!error.config?.skipErrorMessage) {
+        ElMessage.error(getErrorMessage(error, '权限不足，无法执行此操作'))
+      }
+    } else if (!error.config?.skipErrorMessage) {
+      ElMessage.error(getErrorMessage(error, '请求失败'))
     }
     return Promise.reject(error)
   },
