@@ -79,4 +79,28 @@ public interface AlertService extends IService<Alert> {
      * */
     List<Alert> listByCondition(Integer deviceId, Integer isHandled, Integer alertLevel,
                                 LocalDateTime startTime, LocalDateTime endTime);
+
+    Alert getScoped(Integer id, Long currentUserId);
+
+    List<Alert> findUnhandledScoped(Long currentUserId);
+
+    int batchHandleScoped(List<Integer> ids, String handleUser, Long currentUserId);
+
+    Map<String, Object> getStatsByDeviceIdScoped(Integer deviceId, Long currentUserId);
+
+    Map<String, Object> getStatsByTimeRangeScoped(LocalDateTime startTime, LocalDateTime endTime,
+                                                  Long currentUserId);
+
+    List<Map<String, Object>> listDeviceAlertCountByTimeRangeScoped(LocalDateTime startTime,
+                                                                    LocalDateTime endTime,
+                                                                    Long currentUserId);
+
+    Page<Alert> pageByConditionScoped(Integer current, Integer size, Integer deviceId,
+                                      Integer isHandled, Integer alertLevel,
+                                      LocalDateTime startTime, LocalDateTime endTime,
+                                      Long currentUserId);
+
+    List<Alert> listByConditionScoped(Integer deviceId, Integer isHandled, Integer alertLevel,
+                                      LocalDateTime startTime, LocalDateTime endTime,
+                                      Long currentUserId);
 }

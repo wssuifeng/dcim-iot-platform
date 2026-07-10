@@ -11,6 +11,7 @@ import com.example.platform.dto.AlertExportRow;
 import com.example.platform.dto.BatchHandleAlertDTO;
 import com.example.platform.entity.Alert;
 import com.example.platform.service.AlertService;
+import com.example.platform.security.CurrentUserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,9 +39,11 @@ import java.util.stream.Collectors;
 public class AlertController {
 
     private final AlertService alertService;
+    private final CurrentUserContext currentUserContext;
 
-    public AlertController(AlertService alertService) {
+    public AlertController(AlertService alertService, CurrentUserContext currentUserContext) {
         this.alertService = alertService;
+        this.currentUserContext = currentUserContext;
     }
 
     @Operation(summary = "分页查询告警", description = "多条件筛选：deviceId / isHandled / alertLevel / 时间范围；时间格式 yyyy-MM-dd HH:mm:ss")
@@ -54,27 +57,35 @@ public class AlertController {
             @Parameter(description = "开始时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
         int[] pageParams = PaginationUtils.validate(current, size);
-        return Result.success(alertService.pageByCondition(pageParams[0], pageParams[1], deviceId, isHandled, alertLevel, startTime, endTime));
+        return Result.success(alertService.pageByConditionScoped(
+                pageParams[0], pageParams[1], deviceId, isHandled, alertLevel,
+                startTime, endTime, currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "根据ID查询告警详情", description = "返回单条告警记录")
     @GetMapping("/{id}")
     public Result<Alert> getById(
             @Parameter(description = "告警ID", required = true) @PathVariable Integer id) {
-        return Result.success(alertService.getById(id));
+        Alert alert = alertService.getScoped(id, currentUserContext.requireCurrentUser().userId());
+        if (alert == null) {
+            return Result.error(ResultCode.ALERT_NOT_FOUND, "告警不存在");
+        }
+        return Result.success(alert);
     }
 
     @Operation(summary = "查询未处理告警列表", description = "返回所有 isHandled=0 的告警")
     @GetMapping("/unhandled")
     public Result<List<Alert>> listUnhandled() {
-        return Result.success(alertService.findUnhandled());
+        return Result.success(alertService.findUnhandledScoped(
+                currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "批量处理告警", description = "将指定 ID 的未处理告警标记为已处理，单次上限 50 条；返回成功处理的条数")
     @PutMapping("/batch-handle")
     @AuditLog(operation = "BATCH_HANDLE_ALERT", detail = "告警ID列表:#dto.ids, 处理人:#dto.handleUser")
     public Result<Integer> batchHandle(@Validated @RequestBody BatchHandleAlertDTO dto) {
-        int count = alertService.batchHandle(dto.getIds(), dto.getHandleUser());
+        int count = alertService.batchHandleScoped(
+                dto.getIds(), dto.getHandleUser(), currentUserContext.requireCurrentUser().userId());
         return Result.success(count);
     }
 
@@ -82,7 +93,8 @@ public class AlertController {
     @GetMapping("/stats/device/{deviceId}")
     public Result<Map<String, Object>> getStatsByDeviceId(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId) {
-        return Result.success(alertService.getStatsByDeviceId(deviceId));
+        return Result.success(alertService.getStatsByDeviceIdScoped(
+                deviceId, currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "按时间段统计告警", description = "返回指定时间段内的全局告警统计")
@@ -90,7 +102,8 @@ public class AlertController {
     public Result<Map<String, Object>> getStatsByTimeRange(
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
-        return Result.success(alertService.getStatsByTimeRange(startTime, endTime));
+        return Result.success(alertService.getStatsByTimeRangeScoped(
+                startTime, endTime, currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "设备告警排行", description = "按时间段统计各设备的告警数量排名")
@@ -98,7 +111,8 @@ public class AlertController {
     public Result<List<Map<String, Object>>> getDeviceAlertRanking(
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
-        return Result.success(alertService.listDeviceAlertCountByTimeRange(startTime, endTime));
+        return Result.success(alertService.listDeviceAlertCountByTimeRangeScoped(
+                startTime, endTime, currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "导出告警记录", description = "按筛选条件导出 Excel，单次上限 10000 条")
@@ -108,7 +122,7 @@ public class AlertController {
             @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
     })
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_ALERT", detail = "导出告警记录")
     public void exportAlerts(
             @Parameter(description = "设备ID筛选（可选）") @RequestParam(required = false) Integer deviceId,
@@ -117,7 +131,9 @@ public class AlertController {
             @Parameter(description = "开始时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间（可选）yyyy-MM-dd HH:mm:ss") @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
             HttpServletResponse response) throws IOException {
-        List<Alert> alertList = alertService.listByCondition(deviceId, isHandled, alertLevel, startTime, endTime);
+        List<Alert> alertList = alertService.listByConditionScoped(
+                deviceId, isHandled, alertLevel, startTime, endTime,
+                currentUserContext.requireCurrentUser().userId());
         if (alertList.size() > 10000) {
             throw new com.example.platform.common.exception.BusinessException(
                     ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");

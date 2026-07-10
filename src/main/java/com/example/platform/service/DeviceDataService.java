@@ -85,4 +85,28 @@ public interface DeviceDataService extends IService<DeviceData> {
      * 返回数据:int-删除的记录条数
      * */
     int cleanDataBefore(LocalDateTime beforeTime);
+
+    void saveWithAlertCheckScoped(DeviceData deviceData, Long currentUserId);
+
+    void saveBatchWithAlertCheckScoped(List<DeviceData> dataList, Long currentUserId);
+
+    Page<DeviceData> pageByDeviceIdScoped(Integer deviceId, Integer current, Integer size,
+                                          Long currentUserId);
+
+    DeviceData findLatestByDeviceIdScoped(Integer deviceId, Long currentUserId);
+
+    List<DeviceData> findByDeviceIdAndTimeRangeScoped(Integer deviceId,
+                                                      LocalDateTime startTime,
+                                                      LocalDateTime endTime,
+                                                      Long currentUserId);
+
+    Map<String, Object> getStatisticsScoped(Integer deviceId, LocalDateTime startTime,
+                                            LocalDateTime endTime, Long currentUserId);
+
+    Page<DeviceData> pageByConditionScoped(Integer deviceId, Integer current, Integer size,
+                                           Long currentUserId);
+
+    List<Map<String, Object>> aggregateScoped(Integer deviceId, LocalDateTime startTime,
+                                               LocalDateTime endTime, String granularity,
+                                               Long currentUserId);
 }
