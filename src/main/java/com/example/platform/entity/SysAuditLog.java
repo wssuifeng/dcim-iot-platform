@@ -29,13 +29,49 @@ public class SysAuditLog implements Serializable {
     @Schema(description = "操作人账号", example = "admin")
     private String username;
 
+    @Schema(description = "操作人角色（结构化字段，产品化新增）", example = "ORG_ADMIN")
+    @TableField("role")
+    private String role;
+
+    @Schema(description = "操作人所属组织ID（结构化字段，产品化新增）", example = "1")
+    @TableField("organization_id")
+    private Long organizationId;
+
+    @Schema(description = "操作人所属机房ID（结构化字段，产品化新增）", example = "1")
+    @TableField("cloud_room_id")
+    private Long cloudRoomId;
+
     @Schema(description = "操作类型", example = "LOGIN_SUCCESS")
     @TableField("operation")
     private String operation;
 
+    @Schema(description = "标准化操作动作（结构化字段，与 operation 并存，产品化新增）", example = "LOGIN")
+    @TableField("action")
+    private String action;
+
+    @Schema(description = "操作目标类型（结构化字段，产品化新增）", example = "DEVICE")
+    @TableField("target_type")
+    private String targetType;
+
+    @Schema(description = "操作目标ID（结构化字段，产品化新增）", example = "1")
+    @TableField("target_id")
+    private String targetId;
+
+    @Schema(description = "操作结果：SUCCESS/FAILURE/REJECTED（结构化字段，产品化新增）", example = "SUCCESS")
+    @TableField("result")
+    private String result;
+
+    @Schema(description = "错误码（结构化字段，产品化新增）", example = "AUTH_INVALID_CREDENTIALS")
+    @TableField("error_code")
+    private String errorCode;
+
     @Schema(description = "操作IP地址", example = "192.168.1.100")
     @TableField("ip")
     private String ip;
+
+    @Schema(description = "链路追踪ID（结构化字段，产品化新增）")
+    @TableField("trace_id")
+    private String traceId;
 
     @Schema(description = "操作详情", example = "用户 admin 登录成功")
     @TableField("detail")

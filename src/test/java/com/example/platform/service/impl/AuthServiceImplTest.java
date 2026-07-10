@@ -7,6 +7,7 @@ import com.example.platform.common.util.JwtUtil;
 import com.example.platform.dto.LoginDTO;
 import com.example.platform.dto.LoginResponseDTO;
 import com.example.platform.entity.SysUser;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.service.CacheService;
 import com.example.platform.service.SysAuditLogService;
 import com.example.platform.service.SysUserService;
@@ -163,7 +164,7 @@ class AuthServiceImplTest {
         // Given
         when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(1L, "admin", "ADMIN")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(1L, "admin", PlatformRole.ORG_ADMIN)).thenReturn("jwt-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
@@ -173,11 +174,65 @@ class AuthServiceImplTest {
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getUserId()).isEqualTo(1L);
+        assertThat(response.getRole()).isEqualTo(PlatformRole.ORG_ADMIN);
 
         verify(cacheService).delete("auth:fail:state:127.0.0.1");
         verify(sysUserService).resetLoginFailCount(1L);
         verify(sysAuditLogService).log(1L, "admin", "LOGIN_SUCCESS", "127.0.0.1", "登录成功");
         verify(cacheService, never()).executeLua(anyString(), any(Class.class), anyList(), any());
+    }
+
+    /*
+     * 场景14.1：旧 ADMIN 角色登录时归一化为 ORG_ADMIN 签发，保持旧数据可登录
+     * */
+    @Test
+    @DisplayName("loginSuccess - 旧ADMIN角色归一化为ORG_ADMIN")
+    void loginSuccess_LegacyAdminRoleNormalized() {
+        // Given
+        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
+        when(jwtUtil.generateToken(1L, "admin", PlatformRole.ORG_ADMIN)).thenReturn("jwt-token");
+        when(jwtUtil.getExpiration()).thenReturn(3600L);
+
+        // When
+        LoginResponseDTO response = authService.login(loginDTO, "127.0.0.1");
+
+        // Then
+        assertThat(response.getRole()).isEqualTo(PlatformRole.ORG_ADMIN);
+        verify(jwtUtil).generateToken(1L, "admin", PlatformRole.ORG_ADMIN);
+    }
+
+    /*
+     * 场景14.2：新 PLATFORM_ADMIN 角色可登录且不被降级为组织管理员
+     * */
+    @Test
+    @DisplayName("loginSuccess - PLATFORM_ADMIN角色可登录")
+    void loginSuccess_PlatformAdminRoleSupported() {
+        // Given
+        SysUser platformAdmin = new SysUser();
+        platformAdmin.setId(3L);
+        platformAdmin.setUsername("platform_admin");
+        platformAdmin.setPassword("$2a$10$encoded");
+        platformAdmin.setRole(PlatformRole.PLATFORM_ADMIN);
+        platformAdmin.setStatus(0);
+        platformAdmin.setNickname("平台管理员");
+
+        LoginDTO platformLogin = new LoginDTO();
+        platformLogin.setUsername("platform_admin");
+        platformLogin.setPassword("Admin123");
+
+        when(sysUserService.findByUsername("platform_admin")).thenReturn(platformAdmin);
+        when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
+        when(jwtUtil.generateToken(3L, "platform_admin", PlatformRole.PLATFORM_ADMIN)).thenReturn("platform-token");
+        when(jwtUtil.getExpiration()).thenReturn(3600L);
+
+        // When
+        LoginResponseDTO response = authService.login(platformLogin, "127.0.0.1");
+
+        // Then
+        assertThat(response.getToken()).isEqualTo("platform-token");
+        assertThat(response.getRole()).isEqualTo(PlatformRole.PLATFORM_ADMIN);
+        verify(jwtUtil).generateToken(3L, "platform_admin", PlatformRole.PLATFORM_ADMIN);
     }
 
     /*

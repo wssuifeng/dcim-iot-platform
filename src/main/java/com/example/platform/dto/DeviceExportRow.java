@@ -23,6 +23,12 @@ public class DeviceExportRow {
     @ExcelProperty("类型名称")
     private String typeName;
 
+    @ExcelProperty("组织编码")
+    private String organizationCode;
+
+    @ExcelProperty("机房编码")
+    private String cloudRoomCode;
+
     @ExcelProperty("状态")
     private String statusText;
 
