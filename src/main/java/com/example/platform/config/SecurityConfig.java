@@ -42,6 +42,10 @@ public class SecurityConfig {
     static final String[] BUSINESS_READ_ROLES = {
             PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR, PlatformRole.VIEWER
     };
+    static final String[] DEVICE_TYPE_READ_ROLES = {
+            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN,
+            PlatformRole.OPERATOR, PlatformRole.VIEWER
+    };
     static final String[] BUSINESS_WRITE_ROLES = {
             PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR
     };
@@ -150,9 +154,12 @@ public class SecurityConfig {
                                 "/device-types/**", "/metric").hasAnyRole(BUSINESS_WRITE_ROLES);
                         // 组织管理员/运维：告警处理（VIEWER不可处理告警）
                         auth.requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole(BUSINESS_WRITE_ROLES);
+                        // 平台管理员需要读取设备类型目录，才能维护类型级点位模板。
+                        auth.requestMatchers(HttpMethod.GET, "/device-types/**")
+                                .hasAnyRole(DEVICE_TYPE_READ_ROLES);
                         // 组织业务只读接口：PLATFORM_ADMIN 不默认穿透组织业务数据
                         auth.requestMatchers(HttpMethod.GET,
-                                "/devices/**", "/device-data/**", "/device-types/**",
+                                "/devices/**", "/device-data/**",
                                 "/alerts/**", "/dashboard/**", "/metric/**")
                                 .hasAnyRole(BUSINESS_READ_ROLES);
                         // 其他GET仅要求认证，具体业务范围由后续服务层校验

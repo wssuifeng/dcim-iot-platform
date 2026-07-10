@@ -7,12 +7,15 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.exception.UsernameAlreadyExistsException;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.SysUserMapper;
 import com.example.platform.service.SysUserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
 
 /*
  * 类功能:用户服务实现类，负责用户的CRUD、密码加密、账号状态管理及登录查询
@@ -127,15 +130,27 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     /*
      * 方法功能:按用户名关键字分页查询用户列表，按创建时间倒序排列
-     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选)
+     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选), scope-当前用户数据范围
      * 返回数据:Page<SysUser>-分页用户数据
      * */
     @Override
-    public Page<SysUser> pageUsers(Integer current, Integer size, String keyword) {
+    public Page<SysUser> pageUsers(Integer current, Integer size, String keyword,
+                                   DataScopeContext scope) {
         Page<SysUser> page = new Page<>(current, size);
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+
+        if (!scope.isPlatformAdmin()) {
+            Set<Long> organizationIds = scope.getOrganizationIds();
+            if (organizationIds == null || organizationIds.isEmpty()) {
+                return page;
+            }
+            return baseMapper.selectPageByOrganizationScope(
+                    page, normalizedKeyword, organizationIds);
+        }
+
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            wrapper.like(SysUser::getUsername, keyword);
+        if (normalizedKeyword != null) {
+            wrapper.like(SysUser::getUsername, normalizedKeyword);
         }
         wrapper.orderByDesc(SysUser::getCreateTime);
         return page(page, wrapper);
