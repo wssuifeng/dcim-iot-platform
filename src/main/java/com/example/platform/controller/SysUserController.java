@@ -8,8 +8,10 @@ import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.common.util.PaginationUtils;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.PasswordResetDTO;
 import com.example.platform.entity.SysUser;
+import com.example.platform.security.CurrentUserContext;
 import com.example.platform.service.SysUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,9 +29,12 @@ import org.springframework.web.bind.annotation.*;
 public class SysUserController {
 
     private final SysUserService sysUserService;
+    private final CurrentUserContext currentUserContext;
 
-    public SysUserController(SysUserService sysUserService) {
+    public SysUserController(SysUserService sysUserService,
+                             CurrentUserContext currentUserContext) {
         this.sysUserService = sysUserService;
+        this.currentUserContext = currentUserContext;
     }
 
     @Operation(summary = "分页查询用户", description = "支持按用户名 keyword 模糊搜索")
@@ -39,7 +44,9 @@ public class SysUserController {
             @Parameter(description = "每页大小，默认10") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "用户名关键字（可选）") @RequestParam(required = false) String keyword) {
         int[] pageParams = PaginationUtils.validate(current, size);
-        return Result.success(sysUserService.pageUsers(pageParams[0], pageParams[1], keyword));
+        DataScopeContext scope = currentUserContext.requireDataScope();
+        return Result.success(sysUserService.pageUsers(
+                pageParams[0], pageParams[1], keyword, scope));
     }
 
     @Operation(summary = "按用户名精确查找", description = "未找到时抛出 UserNotFoundException 返回 404")
@@ -74,6 +81,9 @@ public class SysUserController {
     public Result<Void> update(
             @Parameter(description = "用户ID", required = true) @PathVariable Long id,
             @Validated(UpdateGroup.class) @RequestBody SysUser user) {
+        if (user.getPassword() != null) {
+            return Result.error(ResultCode.INVALID_PARAMETER, "请使用密码重置接口修改密码");
+        }
         if (user.getId() != null && !id.equals(user.getId())) {
             return Result.error(ResultCode.INVALID_PARAMETER, "请求ID不一致，无法更新");
         }

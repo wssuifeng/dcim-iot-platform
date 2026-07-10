@@ -5,6 +5,7 @@ import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.security.PlatformRole;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -34,7 +35,7 @@ public class SysUser implements Serializable {
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "用户名仅允许字母数字和下划线", groups = CreateGroup.class)
     private String username;
 
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Schema(description = "密码（BCrypt加密，明文须含大小写字母和数字）", example = "Admin@123", requiredMode = Schema.RequiredMode.REQUIRED, accessMode = Schema.AccessMode.WRITE_ONLY)
     @NotBlank(message = "密码不能为空", groups = CreateGroup.class)
     @Size(min = 8, max = 32, message = "密码长度需在8-32之间", groups = CreateGroup.class)

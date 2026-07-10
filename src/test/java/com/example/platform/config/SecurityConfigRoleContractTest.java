@@ -20,4 +20,14 @@ class SecurityConfigRoleContractTest {
                 .containsExactly(PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR)
                 .doesNotContain(PlatformRole.VIEWER, PlatformRole.PLATFORM_ADMIN);
     }
+
+    @Test
+    void deviceTypeReadRolesIncludePlatformAdminAndBusinessReaders() {
+        assertThat(SecurityConfig.DEVICE_TYPE_READ_ROLES)
+                .containsExactly(
+                        PlatformRole.PLATFORM_ADMIN,
+                        PlatformRole.ORG_ADMIN,
+                        PlatformRole.OPERATOR,
+                        PlatformRole.VIEWER);
+    }
 }

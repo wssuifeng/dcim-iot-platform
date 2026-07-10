@@ -2,6 +2,7 @@ package com.example.platform.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.SysUser;
 
 /*
@@ -53,10 +54,10 @@ public interface SysUserService extends IService<SysUser> {
 
     /*
      * 方法功能:按用户名关键字分页查询用户列表
-     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选)
+     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选), scope-当前用户数据范围
      * 返回数据:Page<SysUser>-分页用户数据
      * */
-    Page<SysUser> pageUsers(Integer current, Integer size, String keyword);
+    Page<SysUser> pageUsers(Integer current, Integer size, String keyword, DataScopeContext scope);
 
     /*
      * 方法功能:重置用户登录失败计数为0（登录成功时调用）
