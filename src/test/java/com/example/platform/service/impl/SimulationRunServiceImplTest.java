@@ -27,7 +27,6 @@ import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationSceneService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +37,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;

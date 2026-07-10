@@ -28,13 +28,13 @@ import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationRunService;
 import com.example.platform.service.SimulationSceneService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
