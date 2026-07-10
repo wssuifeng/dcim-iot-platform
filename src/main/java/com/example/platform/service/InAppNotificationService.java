@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.InAppNotificationVO;
 import com.example.platform.entity.InAppNotification;
 
+import java.util.Set;
+
 /*
  * 类功能:站内通知服务接口，承担用户已读状态管理
  *
@@ -30,8 +32,8 @@ public interface InAppNotificationService extends IService<InAppNotification> {
     int countUnread(Long currentUserId);
 
     /*
-     * 方法功能:为告警事件相关用户创建通知（由 AlarmEventService 调用编排）
+     * 方法功能:为已按告警组织和机房范围解析的接收用户创建通知
      * */
-    void notifyAlarmEvent(Long alarmEventId, Long organizationId, Long cloudRoomId,
-                         String title, String content);
+    void notifyAlarmEvent(Long alarmEventId, Set<Long> recipientUserIds,
+                          String title, String content);
 }

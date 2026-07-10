@@ -20,6 +20,7 @@ import com.example.platform.mapper.AlarmStateTransitionMapper;
 import com.example.platform.security.WebSocketSummary;
 import com.example.platform.security.UserScopedWebSocketPublisher;
 import com.example.platform.service.AlarmEventService;
+import com.example.platform.service.AlarmRecipientResolver;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.InAppNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +64,7 @@ public class AlarmEventServiceImpl
     private final DataScopeService dataScopeService;
     private final InAppNotificationService inAppNotificationService;
     private final UserScopedWebSocketPublisher webSocketPublisher;
+    private final AlarmRecipientResolver alarmRecipientResolver;
 
     public static final String STATE_TRIGGERED = "TRIGGERED";
     public static final String STATE_ACKED = "ACKED";
@@ -263,7 +265,7 @@ public class AlarmEventServiceImpl
         }
 
         // 4. 触发站内通知与 WebSocket 摘要推送
-        notifyAndPush(event, toState, action);
+        notifyAndPush(event, toState);
 
         log.info("告警状态流转 alarmEventId={} from={} to={} operator={}",
                 event.getId(), fromState, toState, currentUserId);
@@ -301,37 +303,48 @@ public class AlarmEventServiceImpl
         }
     }
 
-    private void notifyAndPush(AlarmEvent event, String toState, String action) {
-        // 站内通知：发给组织内的告警负责人（这里简化为通知触发用户自身，
-        // 实际可由组织管理员订阅场景扩展；本轮按契约 §5 保留已读状态独立于发送日志）
+    private void notifyAndPush(AlarmEvent event, String toState) {
+        Set<Long> recipientUserIds;
+        try {
+            recipientUserIds = alarmRecipientResolver.resolveRecipientUserIds(
+                    event.getOrganizationId(), event.getCloudRoomId());
+        } catch (Exception ex) {
+            log.warn("解析告警接收用户失败 alarmEventId={} error={}",
+                    event.getId(), ex.getMessage());
+            return;
+        }
+        if (recipientUserIds.isEmpty()) {
+            log.debug("告警无符合组织和机房范围的接收用户 alarmEventId={} orgId={} roomId={}",
+                    event.getId(), event.getOrganizationId(), event.getCloudRoomId());
+            return;
+        }
+
+        String title = "告警状态更新：" + toState;
+        String content = String.format("告警类型 %s 已流转到 %s", event.getAlarmType(), toState);
         try {
             inAppNotificationService.notifyAlarmEvent(
                     event.getId(),
-                    event.getOrganizationId(),
-                    event.getCloudRoomId(),
-                    "告警状态更新：" + toState,
-                    String.format("告警类型 %s 已流转到 %s", event.getAlarmType(), toState));
+                    recipientUserIds,
+                    title,
+                    content);
         } catch (Exception ex) {
-            // 通知失败不影响状态机主流程
             log.warn("告警站内通知发送失败 alarmEventId={} error={}",
                     event.getId(), ex.getMessage());
         }
 
-        // WebSocket 摘要：按当前用户推送最小摘要；前端收到后通过 REST 回查详情
-        try {
-            if (event.getOrganizationId() != null) {
-                WebSocketSummary summary = new WebSocketSummary(
-                        "ALARM_STATE_TRANSITION",
-                        "AlarmEvent",
-                        String.valueOf(event.getId()),
-                        toState,
-                        java.time.Instant.now());
-                // 此处推送给触发者；真实环境按组织订阅扩展
-                webSocketPublisher.sendSummary(event.getOrganizationId(), summary);
+        WebSocketSummary summary = new WebSocketSummary(
+                "ALARM_STATE_TRANSITION",
+                "AlarmEvent",
+                String.valueOf(event.getId()),
+                toState,
+                java.time.Instant.now());
+        for (Long recipientUserId : recipientUserIds) {
+            try {
+                webSocketPublisher.sendSummary(recipientUserId, summary);
+            } catch (Exception ex) {
+                log.warn("告警 WebSocket 摘要推送失败 alarmEventId={} userId={} error={}",
+                        event.getId(), recipientUserId, ex.getMessage());
             }
-        } catch (Exception ex) {
-            log.warn("告警 WebSocket 摘要推送失败 alarmEventId={} error={}",
-                    event.getId(), ex.getMessage());
         }
     }
 }

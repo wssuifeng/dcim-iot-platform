@@ -16,7 +16,9 @@ import com.example.platform.mapper.AlarmEventMapper;
 import com.example.platform.mapper.AlarmHandlingRecordMapper;
 import com.example.platform.mapper.AlarmStateTransitionMapper;
 import com.example.platform.security.UserScopedWebSocketPublisher;
+import com.example.platform.security.WebSocketSummary;
 import com.example.platform.service.AlarmEventService;
+import com.example.platform.service.AlarmRecipientResolver;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.InAppNotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,6 +67,8 @@ class AlarmEventServiceImplTest {
     private InAppNotificationService inAppNotificationService;
     @Mock
     private UserScopedWebSocketPublisher webSocketPublisher;
+    @Mock
+    private AlarmRecipientResolver alarmRecipientResolver;
 
     @InjectMocks
     private AlarmEventServiceImpl alarmEventService;
@@ -72,6 +76,7 @@ class AlarmEventServiceImplTest {
     private static final Long CURRENT_USER_ID = 40L;
     private static final Long ORG_ID = 1L;
     private static final Long OTHER_ORG_ID = 999L;
+    private static final Long CLOUD_ROOM_ID = 10L;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -173,6 +178,51 @@ class AlarmEventServiceImplTest {
             AlarmEvent result = alarmEventService.close(1L, CURRENT_USER_ID, null);
             assertThat(result.getState()).isEqualTo("CLOSED");
             assertThat(result.getClosedTime()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Both delivery channels use exact room recipients")
+        void should_dispatch_to_exact_room_recipients() {
+            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+            event.setCloudRoomId(CLOUD_ROOM_ID);
+            when(alarmEventMapper.selectById(1L)).thenReturn(event);
+            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
+                    .thenReturn(orgAdminContext(ORG_ID));
+            when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
+            when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
+            when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
+            when(alarmRecipientResolver.resolveRecipientUserIds(ORG_ID, CLOUD_ROOM_ID))
+                    .thenReturn(Set.of(20L, 30L));
+
+            alarmEventService.acknowledge(1L, CURRENT_USER_ID, null);
+
+            verify(inAppNotificationService).notifyAlarmEvent(
+                    eq(1L), eq(Set.of(20L, 30L)), any(String.class), any(String.class));
+            verify(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
+            verify(webSocketPublisher).sendSummary(eq(30L), any(WebSocketSummary.class));
+            verify(webSocketPublisher, never()).sendSummary(eq(ORG_ID), any(WebSocketSummary.class));
+        }
+
+        @Test
+        @DisplayName("A failed WebSocket recipient does not block later recipients")
+        void should_continue_after_one_websocket_recipient_fails() {
+            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+            event.setCloudRoomId(CLOUD_ROOM_ID);
+            when(alarmEventMapper.selectById(1L)).thenReturn(event);
+            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
+                    .thenReturn(orgAdminContext(ORG_ID));
+            when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
+            when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
+            when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
+            when(alarmRecipientResolver.resolveRecipientUserIds(ORG_ID, CLOUD_ROOM_ID))
+                    .thenReturn(new java.util.LinkedHashSet<>(List.of(20L, 30L)));
+            org.mockito.Mockito.doThrow(new IllegalStateException("offline"))
+                    .when(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
+
+            alarmEventService.acknowledge(1L, CURRENT_USER_ID, null);
+
+            verify(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
+            verify(webSocketPublisher).sendSummary(eq(30L), any(WebSocketSummary.class));
         }
     }
 

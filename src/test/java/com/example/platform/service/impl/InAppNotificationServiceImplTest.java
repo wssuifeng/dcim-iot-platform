@@ -9,22 +9,20 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.dto.InAppNotificationVO;
 import com.example.platform.entity.InAppNotification;
-import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.InAppNotificationMapper;
 import com.example.platform.service.InAppNotificationService;
-import com.example.platform.service.SysUserService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,9 +43,6 @@ class InAppNotificationServiceImplTest {
 
     @Mock
     private InAppNotificationMapper inAppNotificationMapper;
-    @Mock
-    private SysUserService sysUserService;
-
     @InjectMocks
     private InAppNotificationServiceImpl inAppNotificationService;
 
@@ -77,7 +72,6 @@ class InAppNotificationServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
         assistant.setCurrentNamespace(InAppNotificationMapper.class.getName());
         TableInfoHelper.initTableInfo(assistant, InAppNotification.class);
-        TableInfoHelper.initTableInfo(assistant, SysUser.class);
     }
 
     @Nested
@@ -163,32 +157,30 @@ class InAppNotificationServiceImplTest {
     }
 
     @Nested
-    @DisplayName("notifyAlarmEvent - 管理员派发")
+    @DisplayName("notifyAlarmEvent - resolved recipient dispatch")
     class NotifyAlarmEvent {
 
         @Test
-        @DisplayName("无可用管理员跳过派发")
-        void should_skip_when_noAdmins() {
-            when(sysUserService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of());
-
-            inAppNotificationService.notifyAlarmEvent(1L, ORG_ID, null, "告警", "内容");
+        @DisplayName("Empty recipient set skips dispatch")
+        void should_skip_when_noRecipients() {
+            inAppNotificationService.notifyAlarmEvent(1L, Set.of(), "Alarm", "Content");
             verify(inAppNotificationMapper, times(0)).insert((InAppNotification) any());
         }
 
         @Test
-        @DisplayName("有管理员时派发通知")
-        void should_dispatch_toAdmins() {
-            SysUser admin = new SysUser();
-            admin.setId(20L);
-            admin.setUsername("org_admin");
-            admin.setRole("ORG_ADMIN");
-            admin.setStatus(0);
-            when(sysUserService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(admin));
-            // saveBatch 内部调用 insert，每个实体一次
+        @DisplayName("Creates one notification for each resolved recipient")
+        void should_dispatch_toResolvedRecipients() {
             when(inAppNotificationMapper.insert((InAppNotification) any())).thenReturn(1);
 
-            inAppNotificationService.notifyAlarmEvent(1L, ORG_ID, null, "告警", "内容");
-            verify(inAppNotificationMapper, times(1)).insert((InAppNotification) any());
+            inAppNotificationService.notifyAlarmEvent(
+                    1L, Set.of(20L, 30L), "Alarm", "Content");
+
+            ArgumentCaptor<InAppNotification> notificationCaptor =
+                    ArgumentCaptor.forClass(InAppNotification.class);
+            verify(inAppNotificationMapper, times(2)).insert(notificationCaptor.capture());
+            assertThat(notificationCaptor.getAllValues())
+                    .extracting(InAppNotification::getRecipientUserId)
+                    .containsExactlyInAnyOrder(20L, 30L);
         }
     }
 
@@ -205,5 +197,4 @@ class InAppNotificationServiceImplTest {
         }
     }
 
-    private static final Long ORG_ID = 1L;
 }

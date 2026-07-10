@@ -10,19 +10,14 @@ import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.InAppNotificationVO;
 import com.example.platform.entity.InAppNotification;
-import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.InAppNotificationMapper;
-import com.example.platform.security.PlatformRole;
 import com.example.platform.service.InAppNotificationService;
-import com.example.platform.service.SysUserService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -34,22 +29,17 @@ import java.util.Set;
  *
  * 【派发策略】
  *   - createForUser：定向派发给指定用户（由调用方编排）
- *   - notifyAlarmEvent：派发给所有启用状态的 PLATFORM_ADMIN 与 ORG_ADMIN 用户
- *     （简化策略：不依赖组织字段映射的跨任务 Mapper，仍保证不派发给未授权用户）
+ *   - notifyAlarmEvent：仅向 AlarmRecipientResolver 已按组织、机房和用户状态过滤的用户派发
  * */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class InAppNotificationServiceImpl
         extends ServiceImpl<InAppNotificationMapper, InAppNotification>
         implements InAppNotificationService {
 
-    private final SysUserService sysUserService;
-
     private static final int READ_UNREAD = 0;
     private static final int READ_READ = 1;
     private static final String SOURCE_ALARM_EVENT = "ALARM_EVENT";
-    private static final int USER_STATUS_ENABLED = 0;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -137,17 +127,17 @@ public class InAppNotificationServiceImpl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void notifyAlarmEvent(Long alarmEventId, Long organizationId, Long cloudRoomId,
+    public void notifyAlarmEvent(Long alarmEventId, Set<Long> recipientUserIds,
                                   String title, String content) {
-        // 派发给所有启用状态的平台管理员和组织管理员。
-        // 本策略不依赖跨任务的 organization→user 映射 Mapper，保证不越权派发给未授权用户。
-        Set<Long> recipientUserIds = collectAdminRecipientUserIds();
-        if (recipientUserIds.isEmpty()) {
-            log.warn("告警事件无可用接收用户 alarmEventId={} orgId={}", alarmEventId, organizationId);
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) {
+            log.debug("告警事件无符合范围的接收用户 alarmEventId={}", alarmEventId);
             return;
         }
         int success = 0;
         for (Long uid : recipientUserIds) {
+            if (uid == null) {
+                continue;
+            }
             InAppNotification n = new InAppNotification();
             n.setRecipientUserId(uid);
             n.setTitle(title);
@@ -162,24 +152,5 @@ public class InAppNotificationServiceImpl
         }
         log.info("告警站内通知派发完成 alarmEventId={} 派发用户数={}",
                 alarmEventId, success);
-    }
-
-    /**
-     * 收集启用状态的平台管理员和组织管理员用户ID集合。
-     */
-    private Set<Long> collectAdminRecipientUserIds() {
-        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysUser::getStatus, USER_STATUS_ENABLED)
-                .in(SysUser::getRole,
-                        PlatformRole.PLATFORM_ADMIN,
-                        PlatformRole.ORG_ADMIN);
-        List<SysUser> admins = sysUserService.list(wrapper);
-        Set<Long> userIds = new HashSet<>();
-        for (SysUser u : admins) {
-            if (u.getId() != null) {
-                userIds.add(u.getId());
-            }
-        }
-        return userIds;
     }
 }
