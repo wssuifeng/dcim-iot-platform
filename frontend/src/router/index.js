@@ -1,99 +1,162 @@
-/*
- * 文件功能:全局路由配置，定义页面路由表、嵌套路由结构和导航守卫
- *
- * 【路由架构】
- * - /login: 独立页面（无 Layout），未认证用户的唯一入口
- * - /: Layout 嵌套路由，所有后台管理页面共用一个 Layout 壳
- *
- * 【导航守卫逻辑】（beforeEach）
- *   1. 已登录访问 /login  → 重定向 /dashboard（避免重复登录）
- *   2. 未登录访问后台页面 → 重定向 /login（强制认证）
- *   3. 其他情况           → 正常放行
- */
 import { createRouter, createWebHistory } from 'vue-router'
+import { PLATFORM_ROLES, useAuthStore } from '@/stores/auth'
+
+const { PLATFORM_ADMIN, ORG_ADMIN, OPERATOR, VIEWER } = PLATFORM_ROLES
+const BUSINESS_ROLES = [ORG_ADMIN, OPERATOR, VIEWER]
+const AUDIT_ROLES = [PLATFORM_ADMIN, ORG_ADMIN, OPERATOR]
+
+const routes = [
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/login/index.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/',
+    component: () => import('@/layout/index.vue'),
+    redirect: '/dashboard',
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: 'dashboard',
+        name: 'dashboard',
+        component: () => import('@/views/dashboard/index.vue'),
+        meta: {
+          title: '仪表盘',
+          icon: 'Odometer',
+          navigation: true,
+          navigationOrder: 10,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'devices',
+        name: 'devices',
+        component: () => import('@/views/device/index.vue'),
+        meta: {
+          title: '设备管理',
+          icon: 'Monitor',
+          navigation: true,
+          navigationOrder: 20,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'data-monitor',
+        name: 'data-monitor',
+        component: () => import('@/views/data-monitor/index.vue'),
+        meta: {
+          title: '数据监控',
+          icon: 'TrendCharts',
+          navigation: true,
+          navigationOrder: 30,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'alerts',
+        name: 'alerts',
+        component: () => import('@/views/alert/index.vue'),
+        meta: {
+          title: '告警管理',
+          icon: 'Bell',
+          navigation: true,
+          navigationOrder: 40,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'metric',
+        name: 'metric',
+        component: () => import('@/views/metric/index.vue'),
+        meta: {
+          title: '指标字典',
+          icon: 'DataLine',
+          navigation: true,
+          navigationOrder: 50,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'device-types',
+        name: 'device-types',
+        component: () => import('@/views/device-types/index.vue'),
+        meta: {
+          title: '设备类型',
+          icon: 'Grid',
+          navigation: true,
+          navigationOrder: 60,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/views/user/index.vue'),
+        meta: {
+          title: '用户管理',
+          icon: 'User',
+          navigation: true,
+          navigationOrder: 70,
+          roles: [PLATFORM_ADMIN, ORG_ADMIN],
+        },
+      },
+      {
+        path: 'audit-logs',
+        name: 'audit-logs',
+        component: () => import('@/views/audit-log/index.vue'),
+        meta: {
+          title: '审计日志',
+          icon: 'Document',
+          navigation: true,
+          navigationOrder: 80,
+          roles: AUDIT_ROLES,
+        },
+      },
+    ],
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard',
+  },
+]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    // 登录页：独立全屏页面，不嵌套 Layout
-    {
-      path: '/login',
-      name: 'login',
-      component: () => import('@/views/login/index.vue'),
-    },
-    // 后台管理：Layout 作为父路由，子页面通过 <router-view /> 渲染
-    {
-      path: '/',
-      component: () => import('@/layout/index.vue'),
-      redirect: '/dashboard',
-      children: [
-        {
-          path: 'dashboard',
-          name: 'dashboard',
-          component: () => import('@/views/dashboard/index.vue'),
-        },
-        {
-          path: 'alerts',
-          name: 'alerts',
-          component: () => import('@/views/alert/index.vue'),
-        },
-        {
-          path: 'devices',
-          name: 'devices',
-          component: () => import('@/views/device/index.vue'),
-        },
-        {
-          path: 'data-monitor',
-          name: 'data-monitor',
-          component: () => import('@/views/data-monitor/index.vue'),
-        },
-        {
-          path: 'metric',
-          name: 'metric',
-          component: () => import('@/views/metric/index.vue'),
-        },
-        {
-          path: 'device-types',
-          name: 'device-types',
-          component: () => import('@/views/device-types/index.vue'),
-        },
-        {
-          path: 'users',
-          name: 'users',
-          component: () => import('@/views/user/index.vue'),
-        },
-        {
-          path: 'audit-logs',
-          name: 'audit-logs',
-          component: () => import('@/views/audit-log/index.vue'),
-        },
-      ],
-    },
-  ],
+  routes,
 })
 
-/*
- * 方法功能:全局前置守卫，在每次路由跳转前执行认证检查
- * 参数:
- *   - to: 目标路由对象
- *   - from: 来源路由对象
- *   - next: 放行函数（Vue Router 4 也支持 return 重定向）
- * 返回数据:无（调用 next 放行或重定向）
- */
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+function getFirstAccessibleRouteName(authStore) {
+  return (
+    routes[1].children
+      .filter((route) => route.meta.navigation && authStore.hasAnyRole(route.meta.roles))
+      .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
+      ?.name || 'dashboard'
+  )
+}
 
-  // 已登录用户访问登录页 → 重定向到仪表盘
-  if (to.path === '/login' && token) {
-    return next('/dashboard')
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+  authStore.syncFromStorage()
+  const loggedIn = authStore.isLoggedIn()
+
+  if (to.meta.public && loggedIn) {
+    return { name: getFirstAccessibleRouteName(authStore) }
   }
 
-  // 未登录用户访问后台页面 → 重定向到登录页
-  if (to.path !== '/login' && !token) {
-    return next('/login')
+  if (to.meta.requiresAuth && !loggedIn) {
+    return {
+      name: 'login',
+      query: to.fullPath === '/' ? {} : { redirect: to.fullPath },
+    }
   }
 
-  next()
+  if (loggedIn && Array.isArray(to.meta.roles) && !authStore.hasAnyRole(to.meta.roles)) {
+    return { name: getFirstAccessibleRouteName(authStore) }
+  }
+
+  return true
 })
 
 export default router

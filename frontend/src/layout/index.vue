@@ -1,26 +1,18 @@
-/*
- * 文件功能:全局 Layout 组件，为后台管理页面提供统一的侧边栏 + 顶部栏 + 内容区布局
- *
- * 【路由结构】
- * Layout 作为嵌套路由的父组件，子页面通过 <router-view /> 渲染在内容区：
- *   /                   → Layout
- *     ├── /dashboard    → 仪表盘
- *     ├── /devices      → 设备管理
- *     ├── /data-monitor → 数据监控
- *     └── /alerts       → 告警管理
- *
- * 【侧边栏高亮】
- * 使用 el-menu 的 router 模式 + default-active 绑定 route.path，
- * 确保刷新后当前页面对应的菜单项仍然高亮
- */
 <template>
   <el-container class="layout-container">
-    <!-- 顶部栏：系统名称 + 用户下拉菜单（退出登录） -->
     <el-header class="layout-header">
-      <span class="system-title">IoT-Platform</span>
+      <div class="brand-area">
+        <span class="system-title">IoT-Platform</span>
+        <el-tag v-if="scopeStore.isReady" size="small" effect="plain" type="info">
+          {{ scopeDisplay }}
+        </el-tag>
+      </div>
+
       <el-dropdown @command="handleCommand">
         <span class="user-info">
-          {{ authStore.username }} <el-icon><ArrowDown /></el-icon>
+          <span class="role-label">{{ roleLabel }}</span>
+          <span>{{ authStore.username }}</span>
+          <el-icon><ArrowDown /></el-icon>
         </span>
         <template #dropdown>
           <el-dropdown-menu>
@@ -29,51 +21,27 @@
         </template>
       </el-dropdown>
     </el-header>
-    <el-container>
-      <!-- 侧边栏：导航菜单（router 模式，点击自动跳转） -->
+
+    <el-container class="layout-body">
       <el-aside width="200px">
         <el-menu
           :default-active="activeMenu"
           router
           background-color="#304156"
           text-color="#bfcbd9"
-          active-text-color="#409EFF"
+          active-text-color="#409eff"
         >
-          <el-menu-item index="/dashboard">
-            <el-icon><Odometer /></el-icon>
-            <span>仪表盘</span>
-          </el-menu-item>
-          <el-menu-item index="/devices">
-            <el-icon><Monitor /></el-icon>
-            <span>设备管理</span>
-          </el-menu-item>
-          <el-menu-item index="/data-monitor">
-            <el-icon><TrendCharts /></el-icon>
-            <span>数据监控</span>
-          </el-menu-item>
-          <el-menu-item index="/alerts">
-            <el-icon><Bell /></el-icon>
-            <span>告警管理</span>
-          </el-menu-item>
-          <el-menu-item index="/metric">
-            <el-icon><DataLine /></el-icon>
-            <span>指标字典</span>
-          </el-menu-item>
-          <el-menu-item index="/device-types">
-            <el-icon><Grid /></el-icon>
-            <span>设备类型</span>
-          </el-menu-item>
-          <el-menu-item v-if="isAdmin" index="/users">
-            <el-icon><User /></el-icon>
-            <span>用户管理</span>
-          </el-menu-item>
-          <el-menu-item v-if="canViewAuditLog" index="/audit-logs">
-            <el-icon><Document /></el-icon>
-            <span>审计日志</span>
+          <el-menu-item
+            v-for="item in navigationItems"
+            :key="item.name"
+            :index="item.path"
+          >
+            <el-icon><component :is="item.meta.icon" /></el-icon>
+            <span>{{ item.meta.title }}</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
-      <!-- 内容区：子页面在此渲染 -->
+
       <el-main>
         <router-view />
       </el-main>
@@ -82,30 +50,57 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useScopeStore } from '@/stores/scope'
+
+defineOptions({ name: 'AppLayout' })
+
+const ROLE_LABELS = Object.freeze({
+  PLATFORM_ADMIN: '平台管理员',
+  ORG_ADMIN: '组织管理员',
+  OPERATOR: '运维人员',
+  VIEWER: '查看者',
+})
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const scopeStore = useScopeStore()
 
-// 当前路由路径，用于侧边栏菜单高亮
 const activeMenu = computed(() => route.path)
+const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
+const roleLabel = computed(() => ROLE_LABELS[effectiveRole.value] || effectiveRole.value)
+const navigationItems = computed(() =>
+  router
+    .getRoutes()
+    .filter((item) => item.meta.navigation)
+    .filter((item) => {
+      const roles = item.meta.roles || []
+      return roles.length === 0 || roles.includes(effectiveRole.value)
+    })
+    .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder),
+)
+const scopeDisplay = computed(() => {
+  if (scopeStore.scopeType === 'ROOMS') {
+    return `${scopeStore.scopeLabel} · ${scopeStore.cloudRoomIds.length}`
+  }
+  if (scopeStore.scopeType === 'ORG_ALL') {
+    return `${scopeStore.scopeLabel} · ${scopeStore.organizationIds.length}`
+  }
+  return scopeStore.scopeLabel
+})
 
-// 角色判断
-const isAdmin = computed(() => authStore.role === 'ADMIN')
-const canViewAuditLog = computed(() => authStore.role !== 'VIEWER')
+onMounted(() => {
+  void scopeStore.ensureCurrentScope({ silent: true })
+})
 
-/*
- * 方法功能:处理顶部栏下拉菜单命令
- * 参数:command - 'logout' 退出登录
- * 返回数据:无
- */
 function handleCommand(command) {
   if (command === 'logout') {
-    authStore.logout()     // 清除 Token 和角色信息
-    router.push('/login')  // 跳转登录页
+    scopeStore.resetCurrentScope()
+    authStore.logout()
+    router.push('/login')
   }
 }
 </script>
@@ -116,33 +111,50 @@ function handleCommand(command) {
 }
 
 .layout-header {
-  background: #fff;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid #e6e6e6;
+  background: #ffffff;
+}
+
+.brand-area,
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .system-title {
-  font-size: 20px;
-  font-weight: bold;
   color: #303133;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .user-info {
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  color: #303133;
 }
 
-/* 侧边栏背景色与菜单背景统一 */
+.role-label {
+  color: #909399;
+  font-size: 13px;
+}
+
+.layout-body {
+  min-height: 0;
+}
+
 .el-aside {
   background-color: #304156;
 }
 
-/* 去掉 el-menu 默认右侧边框 */
 .el-aside .el-menu {
-  border-right: none;
+  border-right: 0;
+}
+
+.el-main {
+  min-width: 0;
+  overflow: auto;
 }
 </style>
