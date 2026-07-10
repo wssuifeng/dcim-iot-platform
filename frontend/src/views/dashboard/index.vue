@@ -1,207 +1,331 @@
-/*
- * 文件功能:仪表盘页面，登录后的默认首页，展示设备统计、告警概览、告警趋势图和最近告警列表
- *
- * 【数据加载流程】（参见 UI-02-DashboardPage.md §3 数据流图）
- *   onMounted
- *     → fetchStats()      → GET /api/dashboard/stats        → 设备统计 + 告警概览
- *     → fetchRecentAlerts() → GET /api/alerts?isHandled=0    → 最近未处理告警
- *     → fetchTrendData()  → GET /api/alerts/stats/time-range ×7 → 7天趋势
- *     → setInterval(30s)  → fetchStats() 定时刷新
- *   onUnmounted → clearInterval（防止内存泄漏）
- *
- * 【卡片计算逻辑】
- * - 离线设备数 = totalDevices - onlineDevices（后台未直接返回离线数，前端计算）
- * - 所有卡片通过 computed 从 stats 对象推导，避免手动维护多个 ref
- */
 <template>
-  <div class="dashboard">
-    <!-- 第一行：设备统计卡片（总数/在线/离线） -->
-    <el-row :gutter="20" class="stats-row">
-      <el-col :span="6" v-for="card in deviceCards" :key="card.label">
-        <stats-card :label="card.label" :value="card.value" :color="card.color" :icon="card.icon" />
-      </el-col>
-    </el-row>
-    <!-- 第二行：告警统计卡片（总数/未处理） -->
-    <el-row :gutter="20" class="stats-row">
-      <el-col :span="6" v-for="card in alertCards" :key="card.label">
-        <stats-card
-          :label="card.label"
-          :value="card.value"
-          :color="card.color"
-          :icon="card.icon"
-          :bg-color="card.bgColor"
-        />
-      </el-col>
-    </el-row>
-    <!-- 第三行：告警趋势图 + 最近告警列表 -->
-    <el-row :gutter="20">
-      <el-col :span="14">
-        <el-card>
-          <template #header>最近 7 天告警趋势</template>
-          <alert-trend-chart :data="trendData" :loading="trendLoading" />
-        </el-card>
-      </el-col>
-      <el-col :span="10">
-        <el-card>
-          <template #header>最近告警</template>
-          <recent-alert-list :alerts="recentAlerts" :loading="loading" />
-        </el-card>
-      </el-col>
-    </el-row>
-  </div>
+  <section class="dashboard-page">
+    <header class="page-header">
+      <div>
+        <h1>告警看板</h1>
+        <p>{{ dashboard.scopeDescription || '当前授权范围' }}</p>
+      </div>
+      <el-button :icon="Refresh" :loading="loading" @click="fetchDashboard">刷新</el-button>
+    </header>
+
+    <div class="stats-grid">
+      <stats-card label="告警总量" :value="totalAlarms" color="#606266" icon="DataAnalysis" />
+      <stats-card label="活动告警" :value="activeAlarms" color="#f56c6c" icon="Warning" />
+      <stats-card label="已恢复" :value="stateCount('RECOVERED')" color="#67c23a" icon="CircleCheck" />
+      <stats-card label="已关闭" :value="stateCount('CLOSED')" color="#909399" icon="CircleClose" />
+    </div>
+
+    <div class="dashboard-grid dashboard-grid-primary">
+      <section class="dashboard-section trend-section">
+        <div class="section-heading">
+          <h2>近七日趋势</h2>
+        </div>
+        <alert-trend-chart :data="trendData" :loading="loading" />
+      </section>
+
+      <section class="dashboard-section">
+        <div class="section-heading"><h2>状态分布</h2></div>
+        <div class="distribution-list">
+          <div v-for="item in stateDistribution" :key="item.key" class="distribution-row">
+            <span>{{ item.label }}</span>
+            <el-progress :percentage="item.percentage" :stroke-width="8" :show-text="false" :color="item.color" />
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="section-heading"><h2>级别分布</h2></div>
+        <div class="level-grid">
+          <div v-for="item in levelDistribution" :key="item.key" class="level-row">
+            <el-tag :type="item.type" effect="plain">{{ item.label }}</el-tag>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="dashboard-grid dashboard-grid-secondary">
+      <section class="dashboard-section">
+        <div class="section-heading"><h2>设备告警排名</h2></div>
+        <el-table :data="ranking" size="small" :show-header="false" empty-text="暂无排名数据">
+          <el-table-column type="index" width="45" />
+          <el-table-column prop="deviceName" min-width="160" />
+          <el-table-column width="150">
+            <template #default="{ row }">
+              <el-progress :percentage="row.percentage" :show-text="false" :stroke-width="7" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="alarmCount" width="70" align="right" />
+        </el-table>
+      </section>
+
+      <section class="dashboard-section recent-section">
+        <div class="section-heading">
+          <h2>最近告警</h2>
+          <el-button link type="primary" @click="router.push('/alerts')">查看全部</el-button>
+        </div>
+        <el-table v-loading="recentLoading" :data="recentAlarms" size="small" row-key="id">
+          <el-table-column label="状态" width="95">
+            <template #default="{ row }"><el-tag :type="stateType(row.state)" size="small">{{ stateLabel(row.state) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="设备" min-width="140">
+            <template #default="{ row }">{{ deviceName(row.deviceId) }}</template>
+          </el-table-column>
+          <el-table-column prop="alarmMessage" label="告警" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="triggeredTime" label="触发时间" min-width="165" />
+        </el-table>
+      </section>
+    </div>
+  </section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getDashboardStats } from '@/api/dashboard'
-import { getAlerts, getAlertStatsByTimeRange } from '@/api/alert'
-import StatsCard from '@/components/dashboard/StatsCard.vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { getAlarmDashboardStats } from '@/api/dashboard'
+import { getAlarmEventPage } from '@/api/alarmEvent'
+import { getDevicePage } from '@/api/device'
+import { onSummary } from '@/api/realtime'
 import AlertTrendChart from '@/components/dashboard/AlertTrendChart.vue'
-import RecentAlertList from '@/components/dashboard/RecentAlertList.vue'
+import StatsCard from '@/components/dashboard/StatsCard.vue'
 
+defineOptions({ name: 'AlarmDashboard' })
+
+const router = useRouter()
 const loading = ref(false)
-const trendLoading = ref(false)
-const stats = ref({})
-const recentAlerts = ref([])
-const trendData = ref([])
-
-// 30 秒定时器句柄，组件卸载时清除
-let timer = null
-
-/*
- * 计算属性功能:根据 stats 对象动态生成设备统计卡片数据
- * 返回数据:cardConfig[] - 设备卡片配置数组
- *
- * 【注意】离线设备数通过 totalDevices - onlineDevices 计算
- * 因为后端 DashboardStatsDTO 直接返回 statusDistribution Map，
- * 前端计算比遍历 Map 更简洁
- */
-const deviceCards = computed(() => {
-  const ds = stats.value.deviceStats || {}
-  return [
-    { label: '设备总数', value: ds.total ?? '-', color: '#409EFF', icon: 'Monitor' },
-    { label: '在线设备', value: ds.online ?? '-', color: '#67C23A', icon: 'CircleCheck' },
-    { label: '离线设备', value: ds.offline ?? '-', color: '#909399', icon: 'Remove' },
-    { label: '故障设备', value: ds.fault ?? '-', color: '#F56C6C', icon: 'WarningFilled' },
-  ]
+const recentLoading = ref(false)
+const dashboard = ref({
+  scopeDescription: '',
+  stateDistribution: {},
+  levelDistribution: {},
+  dailyTrend: {},
+  deviceRanking: [],
+})
+const devices = ref([])
+const recentAlarms = ref([])
+let removeSummaryListener = null
+const totalAlarms = computed(() =>
+  Object.values(dashboard.value.stateDistribution || {}).reduce((sum, value) => sum + Number(value || 0), 0),
+)
+const activeAlarms = computed(
+  () => stateCount('TRIGGERED') + stateCount('ACKED') + stateCount('HANDLING'),
+)
+const trendData = computed(() =>
+  Object.entries(dashboard.value.dailyTrend || {}).map(([date, count]) => ({ date: date.slice(5), count })),
+)
+const stateMeta = Object.freeze([
+  { key: 'TRIGGERED', label: '已触发', color: '#f56c6c' },
+  { key: 'ACKED', label: '已确认', color: '#e6a23c' },
+  { key: 'HANDLING', label: '处理中', color: '#409eff' },
+  { key: 'RECOVERED', label: '已恢复', color: '#67c23a' },
+  { key: 'CLOSED', label: '已关闭', color: '#909399' },
+])
+const levelMeta = Object.freeze([
+  { key: '1', label: '紧急', type: 'danger' },
+  { key: '2', label: '严重', type: 'warning' },
+  { key: '3', label: '一般', type: 'primary' },
+  { key: '4', label: '警告', type: 'info' },
+  { key: '5', label: '提示', type: 'info' },
+])
+const stateDistribution = computed(() =>
+  stateMeta.map((item) => {
+    const value = stateCount(item.key)
+    return {
+      ...item,
+      value,
+      percentage: totalAlarms.value ? Math.round((value / totalAlarms.value) * 100) : 0,
+    }
+  }),
+)
+const levelDistribution = computed(() =>
+  levelMeta.map((item) => ({
+    ...item,
+    value: Number(dashboard.value.levelDistribution?.[item.key] || 0),
+  })),
+)
+const ranking = computed(() => {
+  const source = dashboard.value.deviceRanking || []
+  const max = Math.max(1, ...source.map((item) => Number(item.alarmCount) || 0))
+  return source.map((item) => ({
+    ...item,
+    deviceName: deviceName(item.deviceId),
+    percentage: Math.round(((Number(item.alarmCount) || 0) / max) * 100),
+  }))
 })
 
-/*
- * 计算属性功能:根据 stats 对象动态生成告警统计卡片数据
- * 返回数据:cardConfig[] - 告警卡片配置数组
- *
- * 【注意】未处理告警卡片使用红色背景（bgColor: '#FEF0F0'），视觉上突出紧急程度
- */
-const alertCards = computed(() => {
-  const as = stats.value.alertStats || {}
-  return [
-    { label: '总告警', value: as.total ?? '-', color: '#E6A23C', icon: 'Warning' },
-    { label: '未处理告警', value: as.unhandled ?? '-', color: '#F56C6C', icon: 'Bell', bgColor: '#FEF0F0' },
-  ]
-})
+function stateCount(state) {
+  return Number(dashboard.value.stateDistribution?.[state] || 0)
+}
 
-/*
- * 方法功能:获取仪表盘核心统计数据（设备 + 告警概览）
- * 参数:无
- * 返回数据:无（直接更新 stats.value）
- *
- * 【loading 管理】
- * fetchStats 是 P0 核心请求，控制全局 loading。
- * fetchRecentAlerts 和 fetchTrendData 是 P1 非核心请求，
- * 各自独立管理 loading，不阻塞核心统计卡片展示
- */
-async function fetchStats() {
+async function fetchDashboard() {
   loading.value = true
+  recentLoading.value = true
   try {
-    const res = await getDashboardStats()
-    stats.value = res.data
+    const [statsResult, recentResult, deviceResult] = await Promise.all([
+      getAlarmDashboardStats(),
+      getAlarmEventPage({ current: 1, size: 5 }),
+      getDevicePage({ current: 1, size: 100 }),
+    ])
+    dashboard.value = statsResult.data || dashboard.value
+    recentAlarms.value = recentResult.data?.records || []
+    devices.value = deviceResult.data?.records || []
   } finally {
     loading.value = false
+    recentLoading.value = false
   }
 }
 
-/*
- * 方法功能:获取最近 10 条未处理告警
- * 参数:无
- * 返回数据:无（直接更新 recentAlerts.value）
- *
- * 【异常处理】非核心功能，静默失败
- */
-async function fetchRecentAlerts() {
-  try {
-    const res = await getAlerts({ isHandled: 0, size: 10, current: 1 })
-    recentAlerts.value = res.data.records || []
-  } catch {
-    // 非核心功能，静默失败
-  }
+function deviceName(id) {
+  return devices.value.find((item) => item.id === id)?.deviceName || `设备 #${id}`
 }
 
-/*
- * 方法功能:按天获取最近 7 天的告警统计（用于趋势图）
- * 参数:无
- * 返回数据:无（直接更新 trendData.value）
- *
- * 【实现策略】后端 /alerts/stats/time-range 每次只支持一个时间段查询，
- * 因此 7 天需要循环调用 7 次，使用顺序 await 而非 Promise.all：
- *   - 优先保证每一天的顺序（横轴日期必须是时间递增的）
- *   - 7 次异步请求逐天执行，总耗时 ≈ 7 × 单次请求延迟
- *
- * 【日期计算】从今天往前推 6 天（共 7 天），每天的时间窗口为 00:00:00 ~ 次日 00:00:00
- */
-async function fetchTrendData() {
-  trendLoading.value = true
-  try {
-    const days = []
-    const now = new Date()
-    for (let i = 6; i >= 0; i--) {
-      // 计算当前天的起止时间
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().slice(0, 10)               // YYYY-MM-DD
-      const nextDay = new Date(d)
-      nextDay.setDate(nextDay.getDate() + 1)
-      const nextDayStr = nextDay.toISOString().slice(0, 10)
-
-      const res = await getAlertStatsByTimeRange({
-        startTime: `${dateStr} 00:00:00`,
-        endTime: `${nextDayStr} 00:00:00`,
-      })
-      days.push({
-        date: dateStr.slice(5),   // 横轴只显示 MM-DD
-        count: res.data?.total ?? 0,
-      })
-    }
-    trendData.value = days
-  } catch {
-    trendData.value = []
-  } finally {
-    trendLoading.value = false
-  }
+function stateLabel(state) {
+  return stateMeta.find((item) => item.key === state)?.label || state
 }
 
-/*
- * 【生命周期管理】
- * onMounted: 首次进入页面时并行加载所有数据
- * onUnmounted: 清除定时器，防止切换页面后仍在请求（内存泄漏）
- */
+function stateType(state) {
+  return { TRIGGERED: 'danger', ACKED: 'warning', HANDLING: 'primary', RECOVERED: 'success', CLOSED: 'info' }[state]
+}
+
 onMounted(() => {
-  fetchStats()
-  fetchRecentAlerts()
-  fetchTrendData()
-  timer = setInterval(fetchStats, 30000)  // 每 30 秒刷新核心统计
+  void fetchDashboard()
+  removeSummaryListener = onSummary((summary) => {
+    if (summary.resourceType === 'AlarmEvent') void fetchDashboard()
+  })
 })
 
-onUnmounted(() => {
-  clearInterval(timer)
-})
+onBeforeUnmount(() => removeSummaryListener?.())
 </script>
 
 <style scoped>
-.dashboard {
-  padding: 0;
+.dashboard-page {
+  min-width: 0;
 }
 
-.stats-row {
+.page-header,
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page-header {
+  align-items: flex-start;
   margin-bottom: 20px;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: #303133;
+  font-size: 22px;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: #909399;
+  font-size: 13px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.dashboard-grid {
+  display: grid;
+  border-top: 1px solid #dcdfe6;
+}
+
+.dashboard-grid-primary {
+  grid-template-columns: minmax(420px, 1.6fr) minmax(240px, 0.8fr) minmax(200px, 0.65fr);
+}
+
+.dashboard-grid-secondary {
+  grid-template-columns: minmax(300px, 0.8fr) minmax(540px, 1.5fr);
+  border-bottom: 1px solid #dcdfe6;
+}
+
+.dashboard-section {
+  min-width: 0;
+  padding: 20px;
+  border-right: 1px solid #dcdfe6;
+}
+
+.dashboard-section:last-child {
+  border-right: 0;
+}
+
+.dashboard-grid-secondary .dashboard-section {
+  border-top: 1px solid #dcdfe6;
+}
+
+.section-heading {
+  margin-bottom: 14px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.distribution-list,
+.level-grid {
+  display: grid;
+  gap: 15px;
+}
+
+.distribution-row {
+  display: grid;
+  grid-template-columns: 64px minmax(80px, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.distribution-row strong,
+.level-row strong {
+  color: #303133;
+  text-align: right;
+}
+
+.level-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+@media (max-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-grid-primary,
+  .dashboard-grid-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-section {
+    border-right: 0;
+    border-bottom: 1px solid #dcdfe6;
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-section {
+    padding: 16px 0;
+  }
 }
 </style>

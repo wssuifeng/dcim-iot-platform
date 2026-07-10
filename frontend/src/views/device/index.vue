@@ -1,105 +1,250 @@
 <template>
-  <div class="device-page">
+  <section class="device-page">
+    <header class="page-header">
+      <div>
+        <h1>设备管理</h1>
+        <p>设备归属、状态、点位绑定及告警配置</p>
+      </div>
+    </header>
+
     <device-filter :filter="filter" @search="handleSearch" @reset="handleReset" />
     <div class="toolbar">
-      <el-button v-if="canOperate" type="primary" @click="handleCreate">新增设备</el-button>
-      <el-button v-if="canOperate" type="success" @click="handleImport">批量导入</el-button>
-      <el-button type="info" @click="handleDownloadTemplate">下载导入模板</el-button>
-      <el-button type="warning" @click="handleExport">导出设备</el-button>
-      <input ref="fileInput" type="file" accept=".xlsx" style="display: none" @change="handleFileChange" />
+      <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleCreate">
+        新增设备
+      </el-button>
+      <el-button v-if="canWrite" type="success" :icon="Upload" @click="handleImport">
+        批量导入
+      </el-button>
+      <el-button :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
+      <el-button type="warning" :icon="Download" @click="handleExport">导出设备</el-button>
+      <input ref="fileInput" type="file" accept=".xlsx" hidden @change="handleFileChange" />
     </div>
-    <device-table
-      :devices="deviceList" :loading="loading" :can-operate="canOperate" :is-admin="isAdmin"
-      @edit="handleEdit" @delete="handleDelete" @status-change="handleStatusChange" @alert-config="handleAlertConfig"
+
+    <device-management-table
+      :devices="deviceList"
+      :loading="loading"
+      :can-write="canWrite"
+      :can-delete="isOrgAdmin"
+      :type-names="typeNames"
+      :organization-names="organizationNames"
+      :room-names="roomNames"
+      @edit="handleEdit"
+      @delete="handleDelete"
+      @status-change="handleStatusChange"
+      @alert-config="handleAlertConfig"
+      @points="handlePoints"
     />
+
     <el-pagination
       v-if="total > 0"
-      v-model:current-page="pagination.current" v-model:page-size="pagination.size"
-      :total="total" :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next" @change="fetchDeviceList"
-      style="margin-top: 16px; justify-content: flex-end"
+      v-model:current-page="pagination.current"
+      v-model:page-size="pagination.size"
+      :total="total"
+      :page-sizes="[10, 20, 50]"
+      layout="total, sizes, prev, pager, next"
+      class="pagination"
+      @change="fetchDeviceList"
     />
-    <device-form-dialog
-      v-model:visible="formVisible" :mode="formMode" :device="currentDevice" :device-types="deviceTypes"
+
+    <device-editor-dialog
+      v-model:visible="formVisible"
+      :mode="formMode"
+      :device="currentDevice"
+      :device-types="supportedDeviceTypes"
+      :organizations="organizations"
+      :rooms="rooms"
       @confirm="handleFormConfirm"
     />
+    <device-point-drawer
+      v-model:visible="pointDrawerVisible"
+      :device="currentDevice"
+      :can-manage="isOrgAdmin"
+    />
     <alert-config-dialog
-      v-model:visible="alertConfigVisible" :device-id="currentDeviceId" :metrics="metrics"
+      v-model:visible="alertConfigVisible"
+      :device-id="currentDeviceId"
+      :metrics="metrics"
       @confirm="handleAlertConfigConfirm"
     />
-  </div>
+  </section>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { Download, Plus, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useScopeStore } from '@/stores/scope'
 import {
-  getDevicePage, createDevice, updateDevice, deleteDevice, updateDeviceStatus,
-  importDevices, downloadDeviceImportTemplate, exportDevices
+  createDevice,
+  deleteDevice,
+  downloadDeviceImportTemplate,
+  exportDevices,
+  getDevicePage,
+  importDevices,
+  updateDevice,
+  updateDeviceStatus,
 } from '@/api/device'
 import { getDeviceTypes } from '@/api/deviceType'
+import { getMetricPage } from '@/api/metric'
+import { getOrganizationPage } from '@/api/organization'
+import { getCloudRoomPage } from '@/api/cloudRoom'
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
-import DeviceTable from '@/components/device/DeviceTable.vue'
-import DeviceFormDialog from '@/components/device/DeviceFormDialog.vue'
 import AlertConfigDialog from '@/components/device/AlertConfigDialog.vue'
+import DeviceEditorDialog from './DeviceEditorDialog.vue'
+import DeviceManagementTable from './DeviceManagementTable.vue'
+import DevicePointDrawer from './DevicePointDrawer.vue'
 
+defineOptions({ name: 'ScopedDeviceManagement' })
+
+const SUPPORTED_TYPE_CODES = new Set([
+  'UPS',
+  'PDU_METER',
+  'PRECISION_AC',
+  'TEMP_HUMIDITY',
+  'LEAK_DETECTOR',
+])
 const authStore = useAuthStore()
-const canOperate = computed(() => authStore.role !== 'VIEWER')
-const isAdmin = computed(() => authStore.role === 'ADMIN')
-
-const loading = ref(false); const deviceList = ref([]); const total = ref(0); const deviceTypes = ref([]); const metrics = ref([])
-const pagination = reactive({ current: 1, size: 10 }); const filter = reactive({ status: null, name: '' })
-const formVisible = ref(false); const formMode = ref('create'); const currentDevice = ref(null)
-const alertConfigVisible = ref(false); const currentDeviceId = ref(null)
+const scopeStore = useScopeStore()
+const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
+const hasWriteScope = computed(() => !scopeStore.isReady || scopeStore.hasWritePermission)
+const canWrite = computed(
+  () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
+)
+const isOrgAdmin = computed(
+  () => effectiveRole.value === 'ORG_ADMIN' && hasWriteScope.value,
+)
+const loading = ref(false)
+const deviceList = ref([])
+const total = ref(0)
+const deviceTypes = ref([])
+const organizations = ref([])
+const rooms = ref([])
+const metrics = ref([])
+const pagination = reactive({ current: 1, size: 10 })
+const filter = reactive({ status: null, name: '' })
+const formVisible = ref(false)
+const formMode = ref('create')
+const currentDevice = ref(null)
+const alertConfigVisible = ref(false)
+const pointDrawerVisible = ref(false)
+const currentDeviceId = ref(null)
 const fileInput = ref(null)
+const supportedDeviceTypes = computed(() =>
+  deviceTypes.value.filter((item) => SUPPORTED_TYPE_CODES.has(item.typeCode?.toUpperCase())),
+)
+const typeNames = computed(() =>
+  Object.fromEntries(deviceTypes.value.map((item) => [item.id, item.typeName])),
+)
+const organizationNames = computed(() =>
+  Object.fromEntries(organizations.value.map((item) => [item.id, item.orgName])),
+)
+const roomNames = computed(() =>
+  Object.fromEntries(rooms.value.map((item) => [item.id, item.roomName])),
+)
+
+async function fetchReferences() {
+  const [typeResult, organizationResult, roomResult, metricResult] = await Promise.all([
+    getDeviceTypes(),
+    getOrganizationPage({ current: 1, size: 100, status: 0 }),
+    getCloudRoomPage({ current: 1, size: 100, status: 0 }),
+    getMetricPage({ current: 1, size: 100 }),
+  ])
+  deviceTypes.value = typeResult.data || []
+  organizations.value = organizationResult.data?.records || []
+  rooms.value = roomResult.data?.records || []
+  metrics.value = metricResult.data?.records || []
+}
 
 async function fetchDeviceList() {
   loading.value = true
   try {
     const params = { current: pagination.current, size: pagination.size }
     if (filter.status !== null && filter.status !== '') params.status = filter.status
-    if (filter.name) params.name = filter.name
-    const res = await getDevicePage(params)
-    deviceList.value = res.data.records || []; total.value = res.data.total || 0
-  } finally { loading.value = false }
+    if (filter.name.trim()) params.name = filter.name.trim()
+    const result = await getDevicePage(params)
+    deviceList.value = result.data?.records || []
+    total.value = result.data?.total || 0
+  } finally {
+    loading.value = false
+  }
 }
 
-function handleSearch() { pagination.current = 1; fetchDeviceList() }
-function handleReset() { filter.status = null; filter.name = ''; pagination.current = 1; fetchDeviceList() }
-function handleCreate() { formMode.value = 'create'; currentDevice.value = null; formVisible.value = true }
-function handleEdit(device) { formMode.value = 'edit'; currentDevice.value = { ...device }; formVisible.value = true }
+function handleSearch() {
+  pagination.current = 1
+  void fetchDeviceList()
+}
+
+function handleReset() {
+  filter.status = null
+  filter.name = ''
+  pagination.current = 1
+  void fetchDeviceList()
+}
+
+function handleCreate() {
+  formMode.value = 'create'
+  currentDevice.value = null
+  formVisible.value = true
+}
+
+function handleEdit(device) {
+  formMode.value = 'edit'
+  currentDevice.value = { ...device }
+  formVisible.value = true
+}
+
+function handlePoints(device) {
+  currentDevice.value = device
+  pointDrawerVisible.value = true
+}
 
 async function handleDelete(device) {
-  try {
-    await ElMessageBox.confirm(`确认删除设备 "${device.deviceName}"？`, '删除确认', { type: 'warning' })
-    await deleteDevice(device.id); ElMessage.success('设备已删除'); fetchDeviceList()
-  } catch {}
+  const confirmed = await ElMessageBox.confirm(
+    `确认删除设备“${device.deviceName}”？`,
+    '删除确认',
+    { type: 'warning' },
+  ).catch(() => false)
+  if (!confirmed) return
+  await deleteDevice(device.id)
+  ElMessage.success('设备已删除')
+  await fetchDeviceList()
 }
 
-async function handleStatusChange(device, newStatus) {
-  const oldStatus = device.status
-  try {
-    await updateDeviceStatus(device.id, newStatus)
-    device.status = newStatus
-    ElMessage.success('状态已更新')
-  } catch { device.status = oldStatus }
+async function handleStatusChange(device, status) {
+  await updateDeviceStatus(device.id, status)
+  ElMessage.success('设备状态已更新')
+  await fetchDeviceList()
 }
 
-function handleAlertConfig(device) { currentDeviceId.value = device.id; alertConfigVisible.value = true }
+function handleAlertConfig(device) {
+  currentDeviceId.value = device.id
+  alertConfigVisible.value = true
+}
 
 async function handleFormConfirm(data) {
   try {
-    if (formMode.value === 'create') { await createDevice(data); ElMessage.success('设备已创建') }
-    else { await updateDevice(currentDevice.value.id, data); ElMessage.success('设备已更新') }
-    formVisible.value = false; fetchDeviceList()
-  } catch {}
+    if (formMode.value === 'create') {
+      await createDevice(data)
+      ElMessage.success('设备已创建')
+    } else {
+      await updateDevice(currentDevice.value.id, data)
+      ElMessage.success('设备已更新')
+    }
+    formVisible.value = false
+    await fetchDeviceList()
+  } catch {
+    return
+  }
 }
 
-function handleAlertConfigConfirm() { alertConfigVisible.value = false; ElMessage.success('告警规则已更新') }
+function handleAlertConfigConfirm() {
+  alertConfigVisible.value = false
+  ElMessage.success('告警规则已更新')
+}
 
 function handleImport() {
-  fileInput.value && fileInput.value.click()
+  if (fileInput.value) fileInput.value.click()
 }
 
 async function handleFileChange(event) {
@@ -107,35 +252,39 @@ async function handleFileChange(event) {
   if (!file) return
   event.target.value = ''
   try {
-    const res = await importDevices(file)
-    const { successCount, failCount, failDetails } = res.data || {}
+    const result = await importDevices(file)
+    const successCount = result.data?.successCount || 0
+    const failCount = result.data?.failCount || 0
     if (failCount > 0) {
       ElMessage.warning(`导入完成：成功 ${successCount} 条，失败 ${failCount} 条`)
-      console.warn('导入失败明细：', failDetails)
     } else {
       ElMessage.success(`成功导入 ${successCount} 条设备`)
     }
-    fetchDeviceList()
-  } catch {}
+    await fetchDeviceList()
+  } catch {
+    return
+  }
 }
 
 async function handleDownloadTemplate() {
   try {
     const response = await downloadDeviceImportTemplate()
     downloadBlob(response.data, '设备导入模板.xlsx')
-    ElMessage.success('模板下载成功')
-  } catch {}
+  } catch {
+    return
+  }
 }
 
 async function handleExport() {
   try {
     const params = {}
     if (filter.status !== null && filter.status !== '') params.status = filter.status
-    if (filter.name) params.name = filter.name
+    if (filter.name.trim()) params.name = filter.name.trim()
     const response = await exportDevices(params)
     downloadBlob(response.data, `设备列表_${formatDate(new Date())}.xlsx`)
-    ElMessage.success('导出成功')
-  } catch {}
+  } catch {
+    return
+  }
 }
 
 function downloadBlob(blob, filename) {
@@ -145,21 +294,53 @@ function downloadBlob(blob, filename) {
   link.download = filename
   document.body.appendChild(link)
   link.click()
-  document.body.removeChild(link)
+  link.remove()
   window.URL.revokeObjectURL(url)
 }
 
 function formatDate(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}${m}${d}`
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
 }
 
-onMounted(async () => { try { const res = await getDeviceTypes(); deviceTypes.value = res.data || [] } catch {}; fetchDeviceList() })
+onMounted(async () => {
+  await fetchReferences()
+  await fetchDeviceList()
+})
 </script>
 
 <style scoped>
-.device-page { padding: 0; }
-.toolbar { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.device-page {
+  min-width: 0;
+}
+
+.page-header {
+  margin-bottom: 18px;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: #303133;
+  font-size: 22px;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: #909399;
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.pagination {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
 </style>

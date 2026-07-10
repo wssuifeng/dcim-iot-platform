@@ -4,6 +4,7 @@ import { PLATFORM_ROLES, useAuthStore } from '@/stores/auth'
 const { PLATFORM_ADMIN, ORG_ADMIN, OPERATOR, VIEWER } = PLATFORM_ROLES
 const BUSINESS_ROLES = [ORG_ADMIN, OPERATOR, VIEWER]
 const AUDIT_ROLES = [PLATFORM_ADMIN, ORG_ADMIN, OPERATOR]
+const ALL_ROLES = [PLATFORM_ADMIN, ...BUSINESS_ROLES]
 
 const routes = [
   {
@@ -27,6 +28,30 @@ const routes = [
           icon: 'Odometer',
           navigation: true,
           navigationOrder: 10,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
+        path: 'organizations',
+        name: 'organizations',
+        component: () => import('@/views/organization/index.vue'),
+        meta: {
+          title: '组织管理',
+          icon: 'OfficeBuilding',
+          navigation: true,
+          navigationOrder: 12,
+          roles: [PLATFORM_ADMIN, ORG_ADMIN],
+        },
+      },
+      {
+        path: 'cloud-rooms',
+        name: 'cloud-rooms',
+        component: () => import('@/views/cloud-room/index.vue'),
+        meta: {
+          title: '机房管理',
+          icon: 'House',
+          navigation: true,
+          navigationOrder: 15,
           roles: BUSINESS_ROLES,
         },
       },
@@ -55,6 +80,18 @@ const routes = [
         },
       },
       {
+        path: 'simulation',
+        name: 'simulation',
+        component: () => import('@/views/simulation/index.vue'),
+        meta: {
+          title: '模拟运行',
+          icon: 'SetUp',
+          navigation: true,
+          navigationOrder: 35,
+          roles: BUSINESS_ROLES,
+        },
+      },
+      {
         path: 'alerts',
         name: 'alerts',
         component: () => import('@/views/alert/index.vue'),
@@ -67,6 +104,18 @@ const routes = [
         },
       },
       {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/views/notification/index.vue'),
+        meta: {
+          title: '站内通知',
+          icon: 'Message',
+          navigation: true,
+          navigationOrder: 45,
+          roles: ALL_ROLES,
+        },
+      },
+      {
         path: 'metric',
         name: 'metric',
         component: () => import('@/views/metric/index.vue'),
@@ -75,7 +124,7 @@ const routes = [
           icon: 'DataLine',
           navigation: true,
           navigationOrder: 50,
-          roles: BUSINESS_ROLES,
+          roles: [PLATFORM_ADMIN, ...BUSINESS_ROLES],
         },
       },
       {
@@ -87,7 +136,7 @@ const routes = [
           icon: 'Grid',
           navigation: true,
           navigationOrder: 60,
-          roles: BUSINESS_ROLES,
+          roles: [PLATFORM_ADMIN, ...BUSINESS_ROLES],
         },
       },
       {

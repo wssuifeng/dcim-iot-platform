@@ -8,3 +8,6 @@ export function updateUser(id, data) { return request.put(`/users/${id}`, data) 
 export function resetUserPassword(id, data) { return request.put(`/users/${id}/password`, data) }
 export function updateUserStatus(id, status) { return request.put(`/users/${id}/status`, null, { params: { status } }) }
 export function deleteUser(id) { return request.delete(`/users/${id}`) }
+export function getUserDataScopes(id) { return request.get(`/users/${id}/data-scopes`) }
+export function assignUserDataScope(id, data) { return request.post(`/users/${id}/data-scopes`, data) }
+export function removeUserDataScope(id, assignmentId) { return request.delete(`/users/${id}/data-scopes/${assignmentId}`) }
