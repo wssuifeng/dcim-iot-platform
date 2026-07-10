@@ -13,6 +13,7 @@ import com.example.platform.dto.DeviceDataExportRow;
 import com.example.platform.entity.DeviceData;
 import com.example.platform.service.DeviceDataService;
 import com.example.platform.service.DeviceService;
+import com.example.platform.security.CurrentUserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -41,24 +42,29 @@ public class DeviceDataController {
 
     private final DeviceDataService deviceDataService;
     private final DeviceService deviceService;
+    private final CurrentUserContext currentUserContext;
 
     public DeviceDataController(DeviceDataService deviceDataService,
-                                DeviceService deviceService) {
+                                DeviceService deviceService,
+                                CurrentUserContext currentUserContext) {
         this.deviceDataService = deviceDataService;
         this.deviceService = deviceService;
+        this.currentUserContext = currentUserContext;
     }
 
     @Operation(summary = "单条数据上报", description = "保存单条设备数据并触发告警规则检查；设备不存在时抛出 DeviceNotFoundException")
     @PostMapping
     public Result<Void> reportData(@Validated(CreateGroup.class) @RequestBody DeviceData deviceData) {
-        deviceDataService.saveWithAlertCheck(deviceData);
+        deviceDataService.saveWithAlertCheckScoped(
+                deviceData, currentUserContext.requireCurrentUser().userId());
         return Result.success();
     }
 
     @Operation(summary = "批量数据上报", description = "批量接收设备数据（1-1000条），逐条保存并触发告警检查")
     @PostMapping("/batch")
     public Result<Void> reportBatch(@Validated @RequestBody DeviceDataBatchDTO batchDTO) {
-        deviceDataService.saveBatchWithAlertCheck(batchDTO.getDataList());
+        deviceDataService.saveBatchWithAlertCheckScoped(
+                batchDTO.getDataList(), currentUserContext.requireCurrentUser().userId());
         return Result.success();
     }
 
@@ -68,17 +74,17 @@ public class DeviceDataController {
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
             @Parameter(description = "当前页码，默认1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小，默认20") @RequestParam(defaultValue = "20") Integer size) {
-        deviceService.getDeviceOrThrow(deviceId);
         int[] pageParams = PaginationUtils.validate(current, size);
-        return Result.success(deviceDataService.pageByDeviceId(deviceId, pageParams[0], pageParams[1]));
+        return Result.success(deviceDataService.pageByDeviceIdScoped(
+                deviceId, pageParams[0], pageParams[1], currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "查询设备最新数据", description = "返回设备最新一条采集记录；无数据时返回 404")
     @GetMapping("/device/{deviceId}/latest")
     public Result<DeviceData> getLatest(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId) {
-        deviceService.getDeviceOrThrow(deviceId);
-        DeviceData latest = deviceDataService.findLatestByDeviceId(deviceId);
+        DeviceData latest = deviceDataService.findLatestByDeviceIdScoped(
+                deviceId, currentUserContext.requireCurrentUser().userId());
         if (latest == null) {
             return Result.error(ResultCode.RESOURCE_NOT_FOUND, "该设备暂无采集数据");
         }
@@ -91,9 +97,8 @@ public class DeviceDataController {
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
-        deviceService.getDeviceOrThrow(deviceId);
-        List<DeviceData> list = deviceDataService.findByDeviceIdAndTimeRange(
-                deviceId, startTime, endTime);
+        List<DeviceData> list = deviceDataService.findByDeviceIdAndTimeRangeScoped(
+                deviceId, startTime, endTime, currentUserContext.requireCurrentUser().userId());
         return Result.success(list);
     }
 
@@ -103,9 +108,8 @@ public class DeviceDataController {
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime) {
-        deviceService.getDeviceOrThrow(deviceId);
-        Map<String, Object> stats = deviceDataService.getStatistics(
-                deviceId, startTime, endTime);
+        Map<String, Object> stats = deviceDataService.getStatisticsScoped(
+                deviceId, startTime, endTime, currentUserContext.requireCurrentUser().userId());
         return Result.success(stats);
     }
 
@@ -116,7 +120,8 @@ public class DeviceDataController {
             @Parameter(description = "每页大小，默认10") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "设备ID筛选（可选）") @RequestParam(required = false) Integer deviceId) {
         int[] pageParams = PaginationUtils.validate(current, size);
-        return Result.success(deviceDataService.pageByCondition(deviceId, pageParams[0], pageParams[1]));
+        return Result.success(deviceDataService.pageByConditionScoped(
+                deviceId, pageParams[0], pageParams[1], currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "按时间粒度聚合统计", description = "支持按 hour/day/week 聚合设备数据，返回聚合统计列表")
@@ -126,7 +131,9 @@ public class DeviceDataController {
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
             @Parameter(description = "聚合粒度 hour/day/week，默认 day") @RequestParam(defaultValue = "day") String granularity) {
-        return Result.success(deviceDataService.aggregate(deviceId, startTime, endTime, granularity));
+        return Result.success(deviceDataService.aggregateScoped(
+                deviceId, startTime, endTime, granularity,
+                currentUserContext.requireCurrentUser().userId()));
     }
 
     @Operation(summary = "导出设备数据", description = "按设备ID+时间范围导出 Excel，单次上限 10000 条，时间范围不超过 30 天")
@@ -136,15 +143,15 @@ public class DeviceDataController {
             @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
     })
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_DEVICE_DATA", detail = "设备ID:#deviceId")
     public void exportData(
             @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
             @Parameter(description = "开始时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime startTime,
             @Parameter(description = "结束时间 yyyy-MM-dd HH:mm:ss", required = true) @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime endTime,
             HttpServletResponse response) throws IOException {
-        deviceService.getDeviceOrThrow(deviceId);
-        List<DeviceData> dataList = deviceDataService.findByDeviceIdAndTimeRange(deviceId, startTime, endTime);
+        List<DeviceData> dataList = deviceDataService.findByDeviceIdAndTimeRangeScoped(
+                deviceId, startTime, endTime, currentUserContext.requireCurrentUser().userId());
         if (dataList.size() > 10000) {
             throw new com.example.platform.common.exception.BusinessException(
                     ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");

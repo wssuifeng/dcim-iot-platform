@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /*
  * 类功能:设备服务接口，定义设备的查询、状态管理、告警配置及离线检测等业务方法
@@ -94,4 +95,33 @@ public interface DeviceService extends IService<Device> {
      * 返回数据:DeviceImportResult-导入结果（成功数/失败数/失败明细）
      * */
     DeviceImportResult importFromExcel(MultipartFile file);
+
+    Device getScoped(Integer id, Long currentUserId);
+
+    Device getScopedForWrite(Integer id, Long currentUserId);
+
+    List<Device> listScoped(Long currentUserId);
+
+    List<Device> findByNameLikeScoped(String name, Long currentUserId);
+
+    List<Device> findOnlineDevicesScoped(Long currentUserId);
+
+    Page<Device> pageByConditionScoped(Integer current, Integer size, Integer status,
+                                       String name, Long currentUserId);
+
+    List<Device> listByConditionScoped(Integer status, String name, Long currentUserId);
+
+    void createScoped(Device device, Long currentUserId);
+
+    void updateScoped(Integer id, Device update, Long currentUserId);
+
+    void updateStatusScoped(Integer id, Integer status, Long currentUserId);
+
+    void updateAlertConfigScoped(Integer id, AlertRuleConfig alertRuleConfig, Long currentUserId);
+
+    void deleteScoped(Integer id, Long currentUserId);
+
+    DeviceImportResult importFromExcelScoped(MultipartFile file, Long currentUserId);
+
+    Set<Integer> authorizedDeviceIds(Long currentUserId);
 }

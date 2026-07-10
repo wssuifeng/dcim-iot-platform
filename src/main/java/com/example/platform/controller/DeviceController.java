@@ -15,6 +15,12 @@ import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
+import com.example.platform.entity.Organization;
+import com.example.platform.entity.CloudRoom;
+import com.example.platform.security.CurrentUser;
+import com.example.platform.security.CurrentUserContext;
+import com.example.platform.service.OrganizationService;
+import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,30 +51,40 @@ import java.util.stream.Collectors;
 public class DeviceController {
     private final DeviceService deviceService;
     private final DeviceTypeService deviceTypeService;
+    private final CurrentUserContext currentUserContext;
+    private final OrganizationService organizationService;
+    private final CloudRoomService cloudRoomService;
 
-    public DeviceController(DeviceService deviceService, DeviceTypeService deviceTypeService) {
+    public DeviceController(DeviceService deviceService,
+                            DeviceTypeService deviceTypeService,
+                            CurrentUserContext currentUserContext,
+                            OrganizationService organizationService,
+                            CloudRoomService cloudRoomService) {
         this.deviceService = deviceService;
         this.deviceTypeService = deviceTypeService;
+        this.currentUserContext = currentUserContext;
+        this.organizationService = organizationService;
+        this.cloudRoomService = cloudRoomService;
     }
 
     @Operation(summary = "查询所有设备列表", description = "返回全部设备信息，不分页")
     @GetMapping
     public Result<List<Device>> list() {
-        return Result.success(deviceService.list());
+        return Result.success(deviceService.listScoped(currentUser().userId()));
     }
 
     @Operation(summary = "根据ID查询设备详情", description = "设备不存在时抛出 DeviceNotFoundException，由全局异常处理器返回 404")
     @GetMapping("/{id}")
     public Result<Device> getById(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer id) {
-        return Result.success(deviceService.getDeviceOrThrow(id));
+        return Result.success(deviceService.getScoped(id, currentUser().userId()));
     }
 
     @Operation(summary = "新增设备", description = "使用 CreateGroup 分组校验；Service 层内部校验设备编码唯一性与设备类型存在性")
     @PostMapping
     @AuditLog(operation = "CREATE_DEVICE", detail = "设备名称:#device.deviceName, 设备编码:#device.deviceCode")
     public Result<Void> save(@Validated(CreateGroup.class) @RequestBody Device device) {
-        deviceService.save(device);
+        deviceService.createScoped(device, currentUser().userId());
         return Result.success();
     }
 
@@ -77,22 +93,17 @@ public class DeviceController {
     @AuditLog(operation = "UPDATE_DEVICE", detail = "设备ID:#id, 设备名称:#device.deviceName")
     public Result<Void> update(@Parameter(description = "设备ID", required = true) @PathVariable Integer id,
                                @Validated(UpdateGroup.class) @RequestBody Device device) {
-        deviceService.getDeviceOrThrow(id);
         if (device.getId() != null && !id.equals(device.getId())) {
             return Result.error(ResultCode.INVALID_PARAMETER, "请求ID不一致，无法更新");
         }
-        device.setId(id);
-        boolean updated = deviceService.updateById(device);
-        if (!updated) {
-            return Result.error(ResultCode.DEVICE_NOT_FOUND, "更新设备失败，数据可能已被他人修改");
-        }
+        deviceService.updateScoped(id, device, currentUser().userId());
         return Result.success();
     }
 
     @Operation(summary = "查询在线设备列表", description = "返回当前 status=1（在线）的全部设备")
     @GetMapping("/online")
     public Result<List<Device>> onlineList() {
-        return Result.success(deviceService.findOnlineDevices());
+        return Result.success(deviceService.findOnlineDevicesScoped(currentUser().userId()));
     }
 
     @Operation(summary = "模糊搜索设备", description = "按设备名称模糊匹配；关键词为空时返回 400")
@@ -102,7 +113,7 @@ public class DeviceController {
         if (name == null || name.trim().isEmpty()) {
             return Result.error(ResultCode.INVALID_PARAMETER, "搜索关键词不能为空");
         }
-        return Result.success(deviceService.findByNameLike(name));
+        return Result.success(deviceService.findByNameLikeScoped(name, currentUser().userId()));
     }
 
     @Operation(summary = "更新设备状态", description = "status 取值：0-离线，1-在线，2-故障；超出范围返回 400")
@@ -114,10 +125,7 @@ public class DeviceController {
         if (status < 0 || status > 2) {
             return Result.error(ResultCode.INVALID_PARAMETER, "状态值无效，允许值：0-离线，1-在线，2-故障");
         }
-        boolean updated = deviceService.updateStatus(id, status);
-        if (!updated) {
-            return Result.error(ResultCode.DEVICE_NOT_FOUND, "更新状态失败，设备不存在");
-        }
+        deviceService.updateStatusScoped(id, status, currentUser().userId());
         return Result.success();
     }
 
@@ -129,7 +137,8 @@ public class DeviceController {
             @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
             @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name) {
         int[] pageParams = PaginationUtils.validate(current, size);
-        return Result.success(deviceService.pageByCondition(pageParams[0], pageParams[1], status, name));
+        return Result.success(deviceService.pageByConditionScoped(
+                pageParams[0], pageParams[1], status, name, currentUser().userId()));
     }
 
     @Operation(summary = "删除设备", description = "设备不存在时抛出 DeviceNotFoundException")
@@ -137,8 +146,7 @@ public class DeviceController {
     @AuditLog(operation = "DELETE_DEVICE", detail = "设备ID:#id")
     public Result<Void> delete(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer id) {
-        deviceService.getDeviceOrThrow(id);
-        deviceService.removeById(id);
+        deviceService.deleteScoped(id, currentUser().userId());
         return Result.success();
     }
 
@@ -148,7 +156,7 @@ public class DeviceController {
     public Result<Void> updateAlertConfig(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer id,
             @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
-        deviceService.updateAlertConfig(id, alertRuleConfig);
+        deviceService.updateAlertConfigScoped(id, alertRuleConfig, currentUser().userId());
         return Result.success();
     }
 
@@ -159,10 +167,11 @@ public class DeviceController {
             @ApiResponse(responseCode = "400", description = "文件为空(4061)/格式错误(4062)/超过500条(4063)")
     })
     @PostMapping("/import")
+    @PreAuthorize("hasRole('ORG_ADMIN')")
     @AuditLog(operation = "IMPORT_DEVICE", detail = "批量导入设备")
     public Result<DeviceImportResult> importDevices(
             @Parameter(description = "Excel 文件", required = true) @RequestParam("file") MultipartFile file) {
-        return Result.success(deviceService.importFromExcel(file));
+        return Result.success(deviceService.importFromExcelScoped(file, currentUser().userId()));
     }
 
     @Operation(summary = "下载导入模板", description = "下载设备批量导入 Excel 模板")
@@ -182,13 +191,14 @@ public class DeviceController {
             @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
     })
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_DEVICE", detail = "导出设备列表")
     public void exportDevices(
             @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
             @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name,
             HttpServletResponse response) throws IOException {
-        List<Device> deviceList = deviceService.listByCondition(status, name);
+        List<Device> deviceList = deviceService.listByConditionScoped(
+                status, name, currentUser().userId());
         if (deviceList.size() > 10000) {
             throw new com.example.platform.common.exception.BusinessException(
                     ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");
@@ -201,6 +211,10 @@ public class DeviceController {
             row.setDeviceName(d.getDeviceName());
             row.setDeviceCode(d.getDeviceCode());
             row.setTypeName(typeNameMap.getOrDefault(d.getTypeId(), ""));
+            Organization organization = organizationService.getById(d.getOrganizationId());
+            CloudRoom room = cloudRoomService.getById(d.getCloudRoomId());
+            row.setOrganizationCode(organization != null ? organization.getOrgCode() : "");
+            row.setCloudRoomCode(room != null ? room.getRoomCode() : "");
             row.setStatusText(statusText(d.getStatus()));
             row.setLocation(d.getLocation());
             row.setIpAddress(d.getIpAddress());
@@ -222,5 +236,9 @@ public class DeviceController {
             case 2 -> "故障";
             default -> "未知";
         };
+    }
+
+    private CurrentUser currentUser() {
+        return currentUserContext.requireCurrentUser();
     }
 }
