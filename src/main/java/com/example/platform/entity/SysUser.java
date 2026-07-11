@@ -35,6 +35,19 @@ public class SysUser implements Serializable {
     @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "用户名仅允许字母数字和下划线", groups = CreateGroup.class)
     private String username;
 
+    @Schema(description = "全局唯一邮箱", example = "user@example.com")
+    @Email(message = "邮箱格式不正确")
+    @Size(max = 254, message = "邮箱最长254个字符")
+    private String email;
+
+    @Schema(description = "邮箱是否已验证", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("email_verified")
+    private Boolean emailVerified;
+
+    @Schema(description = "邮箱验证时间", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("email_verified_time")
+    private LocalDateTime emailVerifiedTime;
+
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Schema(description = "密码（BCrypt加密，明文须含大小写字母和数字）", example = "Admin@123", requiredMode = Schema.RequiredMode.REQUIRED, accessMode = Schema.AccessMode.WRITE_ONLY)
     @NotBlank(message = "密码不能为空", groups = CreateGroup.class)
@@ -52,6 +65,15 @@ public class SysUser implements Serializable {
     @Pattern(regexp = "^(PLATFORM_ADMIN|ORG_ADMIN|OPERATOR|VIEWER|ADMIN)$", message = "角色仅允许PLATFORM_ADMIN/ORG_ADMIN/OPERATOR/VIEWER，ADMIN仅用于旧数据兼容",
             groups = {CreateGroup.class, UpdateGroup.class})
     private String role;
+
+    @Schema(description = "平台角色，当前仅支持PLATFORM_ADMIN", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("platform_role")
+    private String platformRole;
+
+    @JsonIgnore
+    @Schema(description = "旧单组织归属，仅用于迁移兼容", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("organization_id")
+    private Long organizationId;
 
     public String getNormalizedRole() {
         return PlatformRole.normalize(role);

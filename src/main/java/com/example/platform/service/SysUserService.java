@@ -17,6 +17,14 @@ public interface SysUserService extends IService<SysUser> {
      * */
     SysUser findByUsername(String username);
 
+    SysUser findByLoginIdentifier(String identifier);
+
+    void requireIdentityAvailable(String email, String username);
+
+    void createRegisteredUser(SysUser user);
+
+    void createPlatformAdministrator(SysUser user);
+
     /*
      * 方法功能:用户存在性检查，不存在则抛出UserNotFoundException
      * 参数:id-用户ID

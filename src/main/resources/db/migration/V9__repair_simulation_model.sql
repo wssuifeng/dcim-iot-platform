@@ -1,7 +1,8 @@
 -- ============================================================
--- Flyway V6: 模拟端模型（BIZ-TRAE-01）
+-- Flyway V9: 修复模拟端模型（V6 历史版本冲突）
 --
--- 契约依据：共享契约 03-共享契约.md §6 模拟端契约
+-- 历史数据库已使用 V6__add_notification_log.sql，导致后续复用的 V6 模拟迁移被跳过。
+-- 本迁移仅追加修复，不修改 V1-V8 或 Flyway 历史。
 --   模拟端必须由后端服务生成事实数据，前端和脚本不能直接伪造核心业务事实。
 --   模型：SimulationScene / SimulationSceneStep / SimulationRunRecord / SimulationGeneratedDataRef
 --
@@ -84,7 +85,7 @@ CREATE TABLE IF NOT EXISTS simulation_generated_data_ref (
     id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '引用ID（主键）',
     run_id            BIGINT       NOT NULL                COMMENT '关联运行ID',
     step_id           BIGINT                                COMMENT '关联步骤ID（可空，用于 RUN 级聚合场景）',
-    device_id         INT          NOT NULL                COMMENT '生成数据目标设备ID',
+    device_id         INT                                  COMMENT '生成数据目标设备ID（SLEEP 事件可空）',
     point_id          BIGINT       NOT NULL                COMMENT '生成数据目标点位ID',
     metric_sample_id  BIGINT                                COMMENT '写入 metric_sample 的主键（可追溯依据）',
     action            VARCHAR(20)  NOT NULL DEFAULT 'WRITE_SAMPLE' COMMENT '动作：WRITE_SAMPLE/SLEEP',
@@ -97,3 +98,8 @@ CREATE TABLE IF NOT EXISTS simulation_generated_data_ref (
     KEY idx_sim_gendata_sample  (metric_sample_id),
     KEY idx_sim_gendata_device  (device_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模拟生成数据引用（生成数据可追溯到运行记录）';
+
+-- 全新数据库会先执行仓库中的 V6；历史数据库可能由本 V9 首次建表。
+-- 统一最终结构，允许 SLEEP 追踪事件不绑定设备。
+ALTER TABLE simulation_generated_data_ref
+    MODIFY COLUMN device_id INT NULL COMMENT '生成数据目标设备ID（SLEEP 事件可空）';

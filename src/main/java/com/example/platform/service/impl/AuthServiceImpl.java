@@ -77,7 +77,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public LoginResponseDTO login(LoginDTO loginDTO, String ip) {
-        SysUser user = sysUserService.findByUsername(loginDTO.getUsername());
+        String identifier = loginDTO.getIdentifier().trim();
+        if (identifier.contains("@")) {
+            identifier = identifier.toLowerCase(java.util.Locale.ROOT);
+        }
+        SysUser user = sysUserService.findByLoginIdentifier(identifier);
 
         if (user == null) {
             recordFailAndThrow(ip, null, null, "用户不存在");
@@ -92,8 +96,9 @@ public class AuthServiceImpl implements AuthService {
         cacheService.delete(FAIL_STATE_PREFIX + ip);
         sysUserService.resetLoginFailCount(user.getId());
 
-        String normalizedRole = PlatformRole.normalize(user.getRole());
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), normalizedRole);
+        String platformRole = PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())
+                ? PlatformRole.PLATFORM_ADMIN : null;
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), platformRole);
 
         sysAuditLogService.log(user.getId(), user.getUsername(), "LOGIN_SUCCESS", ip, "登录成功");
 
@@ -184,7 +189,8 @@ public class AuthServiceImpl implements AuthService {
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setNickname(user.getNickname());
-        response.setRole(PlatformRole.normalize(user.getRole()));
+        response.setRole(PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())
+                ? PlatformRole.PLATFORM_ADMIN : PlatformRole.AUTHENTICATED_USER);
         return response;
     }
 }

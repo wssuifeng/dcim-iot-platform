@@ -77,6 +77,16 @@ public final class ResultCode {
     // 功能开关模块 450x
     public static final int FEATURE_DISABLED = 4501;
 
+    // 注册与组织成员模块 451x
+    public static final int MEMBERSHIP_CONFLICT = 4511;
+    public static final int LAST_ORG_ADMIN_REQUIRED = 4512;
+    public static final int EMAIL_ALREADY_EXISTS = 4513;
+    public static final int REGISTRATION_CLOSED = 4514;
+    public static final int VERIFICATION_INVALID = 4515;
+    public static final int VERIFICATION_EXHAUSTED = 4516;
+    public static final int SETUP_ALREADY_COMPLETED = 4517;
+    public static final int SETUP_TOKEN_INVALID = 4518;
+
     // 供应链和生产门控模块 460x
     public static final int SUPPLY_CONFIG_UNSAFE = 4601;
 

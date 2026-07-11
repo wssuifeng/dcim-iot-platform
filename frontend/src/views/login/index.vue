@@ -23,10 +23,10 @@
         label-width="0"
         @keyup.enter="handleLogin"
       >
-        <el-form-item prop="username">
+        <el-form-item prop="identifier">
           <el-input
-            v-model="loginForm.username"
-            placeholder="用户名"
+            v-model="loginForm.identifier"
+            placeholder="邮箱或用户名"
             :prefix-icon="User"
           />
         </el-form-item>
@@ -42,6 +42,10 @@
         <el-form-item>
           <el-checkbox v-model="loginForm.rememberMe">记住我</el-checkbox>
         </el-form-item>
+        <div class="login-links">
+          <router-link to="/register">注册账号</router-link>
+          <router-link to="/setup">首次初始化</router-link>
+        </div>
         <el-form-item>
           <el-button
             type="primary"
@@ -58,6 +62,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'AccountLoginPage' })
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -74,14 +79,14 @@ const loading = ref(false)
 
 // 登录表单数据（reactive 实现双向绑定）
 const loginForm = reactive({
-  username: '',
+  identifier: '',
   password: '',
   rememberMe: false,
 })
 
 // 表单校验规则（Element Plus ElForm rules）
 const loginRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  identifier: [{ required: true, message: '请输入邮箱或用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
@@ -106,7 +111,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const res = await login({
-      username: loginForm.username,
+      identifier: loginForm.identifier,
       password: loginForm.password,
     })
 
@@ -121,7 +126,7 @@ async function handleLogin() {
     }
 
     ElMessage.success('登录成功')
-    router.push('/dashboard')
+    router.push('/')
   } catch {
     // 错误已由 Axios 拦截器统一处理（ElMessage.error）
   } finally {
@@ -135,12 +140,14 @@ async function handleLogin() {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
   background-color: #f5f7fa;
 }
 
 .login-card {
-  width: 400px;
+  width: min(400px, 100%);
 }
 
 .login-title {
@@ -151,5 +158,16 @@ async function handleLogin() {
 
 .login-btn {
   width: 100%;
+}
+
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.login-card :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
 }
 </style>

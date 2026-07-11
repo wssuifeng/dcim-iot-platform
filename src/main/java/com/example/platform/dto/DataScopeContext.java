@@ -74,7 +74,7 @@ public class DataScopeContext {
         if (organizationId == null) {
             return false;
         }
-        return isPlatformAdmin() || organizationIds.contains(organizationId);
+        return organizationIds.contains(organizationId);
     }
 
     /**
@@ -84,7 +84,7 @@ public class DataScopeContext {
         if (cloudRoomId == null) {
             return false;
         }
-        return isPlatformAdmin() || cloudRoomIds.contains(cloudRoomId);
+        return cloudRoomIds.contains(cloudRoomId);
     }
 
     /**

@@ -36,9 +36,7 @@ public class SimulationGeneratedDataRef implements Serializable {
     @TableField("step_id")
     private Long stepId;
 
-    @Schema(description = "生成数据目标设备ID", example = "5",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "设备ID不能为空")
+    @Schema(description = "生成数据目标设备ID（SLEEP 事件可空）", example = "5")
     @TableField("device_id")
     private Integer deviceId;
 

@@ -26,6 +26,7 @@ import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
+import com.example.platform.service.SimulationRunExecutionService;
 import com.example.platform.service.SimulationSceneService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +82,8 @@ class SimulationRunServiceImplTest {
     private PointDefinitionService pointDefinitionService;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private SimulationRunExecutionService runExecutionService;
 
     @InjectMocks
     private SimulationRunServiceImpl simulationRunService;
@@ -210,51 +213,24 @@ class SimulationRunServiceImplTest {
         }
 
         @Test
-        @DisplayName("成功执行 WRITE_SAMPLE 步骤并记录 metric_sample_id 可追溯")
-        void should_executeWriteAndRecordRef() {
+        @DisplayName("创建运行后立即返回 PENDING 并调度 WRITE_SAMPLE")
+        void should_scheduleWriteRunAndReturnPending() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
             SimulationScene scene = buildEnabledScene(1L, ORG_ID);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID)).thenReturn(scene);
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
-
-            SimulationSceneStep step = buildWriteStep(10L, 1L, 5, 100L);
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
-                    .thenReturn(List.of(step));
+                    .thenReturn(List.of(buildWriteStep(10L, 1L, 5, 100L)));
 
-            // 设备范围校验通过
             Device device = new Device();
             device.setId(5);
             device.setOrganizationId(ORG_ID);
-            when(deviceScopeHelper.ensureDeviceAccess(eq(5), eq(CURRENT_USER_ID)))
-                    .thenReturn(device);
-
-            // metric_sample 写入成功并返回带 id 的对象
-            MetricSample savedSample = new MetricSample();
-            savedSample.setId(2001L);
-            savedSample.setDeviceId(5);
-            savedSample.setPointId(100L);
-            savedSample.setSampleValue(new BigDecimal("220.5"));
-            when(metricSampleService.saveSample(any(MetricSampleDTO.class), eq(CURRENT_USER_ID)))
-                    .thenReturn(savedSample);
-
-            // run 记录写入并取回
+            when(deviceScopeHelper.ensureDeviceAccess(5, CURRENT_USER_ID)).thenReturn(device);
             when(simulationRunRecordMapper.insert((SimulationRunRecord) any())).thenAnswer(inv -> {
-                SimulationRunRecord r = inv.getArgument(0);
-                r.setId(7L);
+                SimulationRunRecord run = inv.getArgument(0);
+                run.setId(7L);
                 return 1;
-            });
-            when(simulationRunRecordMapper.updateById((SimulationRunRecord) any())).thenReturn(1);
-            when(simulationGeneratedDataRefMapper.insert((SimulationGeneratedDataRef) any())).thenReturn(1);
-            when(simulationRunRecordMapper.selectById(7L)).thenAnswer(inv -> {
-                SimulationRunRecord r = new SimulationRunRecord();
-                r.setId(7L);
-                r.setSceneId(1L);
-                r.setOrganizationId(ORG_ID);
-                r.setStatus("SUCCESS");
-                r.setTotalSteps(1);
-                r.setSuccessSteps(1);
-                return r;
             });
 
             SimulationRunStartDTO dto = new SimulationRunStartDTO();
@@ -262,15 +238,15 @@ class SimulationRunServiceImplTest {
             dto.setTargetDeviceId(5);
 
             SimulationRunVO vo = simulationRunService.startRun(dto, CURRENT_USER_ID);
-            assertThat(vo.getStatus()).isEqualTo("SUCCESS");
-            assertThat(vo.getSuccessSteps()).isEqualTo(1);
-            verify(metricSampleService, times(1)).saveSample(any(MetricSampleDTO.class), eq(CURRENT_USER_ID));
-            verify(simulationGeneratedDataRefMapper, times(1)).insert((SimulationGeneratedDataRef) any());
+
+            assertThat(vo.getStatus()).isEqualTo("PENDING");
+            assertThat(vo.getSuccessSteps()).isZero();
+            verify(runExecutionService).executeAsync(7L, 5, CURRENT_USER_ID, ORG_ID);
         }
 
         @Test
-        @DisplayName("SLEEP 步骤不调用 MetricSampleService 写入")
-        void should_skipWriteForSleep() {
+        @DisplayName("SLEEP 运行无需目标设备也可以进入后台队列")
+        void should_scheduleSleepWithoutTargetDevice() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
             SimulationScene scene = buildEnabledScene(1L, ORG_ID);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID)).thenReturn(scene);
@@ -282,43 +258,24 @@ class SimulationRunServiceImplTest {
             sleepStep.setSceneId(1L);
             sleepStep.setStepOrder(1);
             sleepStep.setPointId(100L);
-            sleepStep.setTargetDeviceId(5);
             sleepStep.setAction("SLEEP");
             sleepStep.setDelayMs(0);
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of(sleepStep));
-
-            // 设备范围校验通过
-            Device device = new Device();
-            device.setId(5);
-            device.setOrganizationId(ORG_ID);
-            when(deviceScopeHelper.ensureDeviceAccess(eq(5), eq(CURRENT_USER_ID)))
-                    .thenReturn(device);
-
             when(simulationRunRecordMapper.insert((SimulationRunRecord) any())).thenAnswer(inv -> {
-                SimulationRunRecord r = inv.getArgument(0);
-                r.setId(8L);
+                SimulationRunRecord run = inv.getArgument(0);
+                run.setId(8L);
                 return 1;
-            });
-            when(simulationRunRecordMapper.updateById((SimulationRunRecord) any())).thenReturn(1);
-            when(simulationGeneratedDataRefMapper.insert((SimulationGeneratedDataRef) any())).thenReturn(1);
-            when(simulationRunRecordMapper.selectById(8L)).thenAnswer(inv -> {
-                SimulationRunRecord r = new SimulationRunRecord();
-                r.setId(8L);
-                r.setSceneId(1L);
-                r.setOrganizationId(ORG_ID);
-                r.setStatus("SUCCESS");
-                return r;
             });
 
             SimulationRunStartDTO dto = new SimulationRunStartDTO();
             dto.setSceneId(1L);
-            dto.setTargetDeviceId(5);
 
             SimulationRunVO vo = simulationRunService.startRun(dto, CURRENT_USER_ID);
-            assertThat(vo.getStatus()).isEqualTo("SUCCESS");
+
+            assertThat(vo.getStatus()).isEqualTo("PENDING");
+            verify(runExecutionService).executeAsync(8L, null, CURRENT_USER_ID, ORG_ID);
             verify(metricSampleService, never()).saveSample(any(MetricSampleDTO.class), anyLong());
-            verify(simulationGeneratedDataRefMapper, times(1)).insert((SimulationGeneratedDataRef) any());
         }
 
         @Test
@@ -369,11 +326,11 @@ class SimulationRunServiceImplTest {
             when(simulationRunRecordMapper.selectById(31L)).thenReturn(run);
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
-            when(simulationRunRecordMapper.updateById((SimulationRunRecord) any())).thenReturn(1);
+            when(simulationRunRecordMapper.update(any(), any())).thenReturn(1);
 
             SimulationRunVO vo = simulationRunService.cancelRun(31L, CURRENT_USER_ID);
             assertThat(vo.getStatus()).isEqualTo("CANCELLED");
-            verify(simulationRunRecordMapper, times(1)).updateById((SimulationRunRecord) any());
+            verify(simulationRunRecordMapper, times(1)).update(any(), any());
         }
     }
 

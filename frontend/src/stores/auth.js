@@ -60,7 +60,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     try {
       const payload = jwtDecode(token.value)
-      role.value = payload.role || ''
+      role.value = payload.platformRole || 'AUTHENTICATED_USER'
       username.value = payload.username || ''
       userId.value = payload.sub || null
     } catch {
@@ -95,6 +95,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('rememberMe')
+    localStorage.removeItem('currentOrganizationId')
   }
 
   /*

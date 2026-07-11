@@ -11,11 +11,13 @@ import com.example.platform.dto.SimulationSceneCreateDTO;
 import com.example.platform.dto.SimulationSceneStepDTO;
 import com.example.platform.dto.SimulationSceneUpdateDTO;
 import com.example.platform.dto.SimulationSceneVO;
+import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationScene;
 import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationSceneMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
+import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationSceneService;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,6 +60,8 @@ class SimulationSceneServiceImplTest {
     private SimulationSceneStepMapper simulationSceneStepMapper;
     @Mock
     private DataScopeService dataScopeService;
+    @Mock
+    private CloudRoomService cloudRoomService;
     @Mock
     private PointDefinitionService pointDefinitionService;
 
@@ -100,6 +105,13 @@ class SimulationSceneServiceImplTest {
                 .organizationIds(Set.of(orgId))
                 .scopeType("ORG_ALL")
                 .build();
+    }
+
+    private CloudRoom buildCloudRoom(Long id, Long organizationId) {
+        CloudRoom cloudRoom = new CloudRoom();
+        cloudRoom.setId(id);
+        cloudRoom.setOrganizationId(organizationId);
+        return cloudRoom;
     }
 
     private PointDefinition buildPoint(Long id, String dataType) {
@@ -199,6 +211,58 @@ class SimulationSceneServiceImplTest {
             assertThat(vo.getOrganizationId()).isEqualTo(ORG_ID);
             verify(simulationSceneMapper, times(1)).insert((SimulationScene) any());
             verify(simulationSceneStepMapper, times(1)).insert((SimulationSceneStep) any());
+        }
+
+        @Test
+        @DisplayName("ORG_ADMIN 无需显式机房授权即可在本组织机房创建场景")
+        void should_allowOrgAdminToCreateSceneInOrganizationRoom() {
+            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
+                    .thenReturn(orgAdminContext(ORG_ID));
+            when(cloudRoomService.getCloudRoomOrThrow(21L, CURRENT_USER_ID))
+                    .thenReturn(buildCloudRoom(21L, ORG_ID));
+            when(simulationSceneMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+            when(simulationSceneMapper.insert((SimulationScene) any())).thenAnswer(inv -> {
+                SimulationScene scene = inv.getArgument(0);
+                scene.setId(2L);
+                return 1;
+            });
+            SimulationScene persisted = buildScene(2L, ORG_ID);
+            persisted.setCloudRoomId(21L);
+            when(simulationSceneMapper.selectById(2L)).thenReturn(persisted);
+            when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
+                    .thenReturn(List.of());
+
+            SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
+            dto.setSceneCode("PDU_TEST");
+            dto.setSceneName("PDU 电表测试");
+            dto.setOrganizationId(ORG_ID);
+            dto.setCloudRoomId(21L);
+            dto.setDeviceTypeCode("PDU_METER");
+
+            assertThatCode(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
+                    .doesNotThrowAnyException();
+            verify(cloudRoomService).getCloudRoomOrThrow(21L, CURRENT_USER_ID);
+            verify(simulationSceneMapper).insert((SimulationScene) any());
+        }
+
+        @Test
+        @DisplayName("机房不属于场景组织时拒绝创建")
+        void should_rejectWhenCloudRoomBelongsToAnotherOrganization() {
+            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
+                    .thenReturn(orgAdminContext(ORG_ID));
+            when(cloudRoomService.getCloudRoomOrThrow(21L, CURRENT_USER_ID))
+                    .thenReturn(buildCloudRoom(21L, OTHER_ORG_ID));
+
+            SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
+            dto.setSceneCode("PDU_TEST");
+            dto.setSceneName("PDU 电表测试");
+            dto.setOrganizationId(ORG_ID);
+            dto.setCloudRoomId(21L);
+
+            assertThatThrownBy(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
+                    .isInstanceOf(DataScopeViolationException.class)
+                    .hasMessageContaining("CloudRoom");
+            verify(simulationSceneMapper, times(0)).insert((SimulationScene) any());
         }
     }
 

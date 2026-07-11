@@ -11,6 +11,7 @@ import java.util.Set;
  * */
 public final class PlatformRole {
 
+    public static final String AUTHENTICATED_USER = "AUTHENTICATED_USER";
     public static final String PLATFORM_ADMIN = "PLATFORM_ADMIN";
     public static final String ORG_ADMIN = "ORG_ADMIN";
     public static final String OPERATOR = "OPERATOR";
@@ -47,6 +48,10 @@ public final class PlatformRole {
             );
         }
         return List.of(new SimpleGrantedAuthority("ROLE_" + normalized));
+    }
+
+    public static SimpleGrantedAuthority authenticatedUserAuthority() {
+        return new SimpleGrantedAuthority("ROLE_" + AUTHENTICATED_USER);
     }
 
 }

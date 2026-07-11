@@ -25,6 +25,19 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
     SysUser findByUsername(@Param("username") String username);
 
     @Select("""
+            SELECT * FROM sys_user
+            WHERE username = #{identifier} OR email = #{identifier}
+            LIMIT 1
+            """)
+    SysUser findByLoginIdentifier(@Param("identifier") String identifier);
+
+    @Select("SELECT * FROM sys_user WHERE id = #{userId} FOR UPDATE")
+    SysUser selectByIdForUpdate(@Param("userId") Long userId);
+
+    @Select("SELECT COUNT(*) FROM sys_user WHERE platform_role = 'PLATFORM_ADMIN' AND status = 0")
+    long countPlatformAdmins();
+
+    @Select("""
             <script>
             SELECT u.*
             FROM sys_user u

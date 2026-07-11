@@ -46,14 +46,14 @@ public class JwtUtil {
      * 参数:userId-用户ID, username-用户名, role-角色标识
      * 返回数据:String-JWT Token字符串
      * */
-    public String generateToken(Long userId, String username, String role) {
+    public String generateToken(Long userId, String username, String platformRole) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration * 1000);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
-                .claim("role", role)
+                .claim("platformRole", platformRole)
                 .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -101,7 +101,7 @@ public class JwtUtil {
      * */
     public String getRoleFromToken(String token) {
         Claims claims = parseToken(token);
-        return claims.get("role", String.class);
+        return claims.get("platformRole", String.class);
     }
 
     /*

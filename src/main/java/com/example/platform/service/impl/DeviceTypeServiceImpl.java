@@ -102,7 +102,8 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
         }
         List<Device> associatedDevices = deviceService.findByTypeId(id);
         if (!associatedDevices.isEmpty()) {
-            throw new IllegalStateException("该类型下存在" + associatedDevices.size() + "个关联设备，无法删除");
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "该类型下存在" + associatedDevices.size() + "个关联设备，请先删除或迁移关联设备");
         }
         removeById(id);
     }

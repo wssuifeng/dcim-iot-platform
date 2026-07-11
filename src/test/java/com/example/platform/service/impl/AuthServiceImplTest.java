@@ -100,7 +100,7 @@ class AuthServiceImplTest {
     @DisplayName("loginFail - 正常密码错误，提示剩余次数")
     void loginFail_NormalFailure() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(false);
         when(jwtUtil.getFailWindow()).thenReturn(1800L);
         when(jwtUtil.getLockDuration()).thenReturn(1800L);
@@ -122,7 +122,7 @@ class AuthServiceImplTest {
     @DisplayName("loginFail - 刚触发锁定，抛出锁定异常")
     void loginFail_JustTriggeredLock() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(false);
         when(jwtUtil.getFailWindow()).thenReturn(1800L);
         when(jwtUtil.getLockDuration()).thenReturn(1800L);
@@ -142,7 +142,7 @@ class AuthServiceImplTest {
     @DisplayName("loginFail - 已是锁定状态，抛出锁定异常")
     void loginFail_AlreadyLocked() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(false);
         when(jwtUtil.getFailWindow()).thenReturn(1800L);
         when(jwtUtil.getLockDuration()).thenReturn(1800L);
@@ -162,9 +162,9 @@ class AuthServiceImplTest {
     @DisplayName("loginSuccess - 清除失败计数并签发Token")
     void loginSuccess_ResetCounter() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(1L, "admin", PlatformRole.ORG_ADMIN)).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(1L, "admin", null)).thenReturn("jwt-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
@@ -174,7 +174,7 @@ class AuthServiceImplTest {
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getUserId()).isEqualTo(1L);
-        assertThat(response.getRole()).isEqualTo(PlatformRole.ORG_ADMIN);
+        assertThat(response.getRole()).isEqualTo(PlatformRole.AUTHENTICATED_USER);
 
         verify(cacheService).delete("auth:fail:state:127.0.0.1");
         verify(sysUserService).resetLoginFailCount(1L);
@@ -183,23 +183,23 @@ class AuthServiceImplTest {
     }
 
     /*
-     * 场景14.1：旧 ADMIN 角色登录时归一化为 ORG_ADMIN 签发，保持旧数据可登录
+     * 场景14.1：旧 ADMIN 只作为兼容账号登录，不再写入组织角色到 JWT
      * */
     @Test
-    @DisplayName("loginSuccess - 旧ADMIN角色归一化为ORG_ADMIN")
+    @DisplayName("loginSuccess - 旧ADMIN不写入组织角色")
     void loginSuccess_LegacyAdminRoleNormalized() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(activeUser);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(1L, "admin", PlatformRole.ORG_ADMIN)).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(1L, "admin", null)).thenReturn("jwt-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
         LoginResponseDTO response = authService.login(loginDTO, "127.0.0.1");
 
         // Then
-        assertThat(response.getRole()).isEqualTo(PlatformRole.ORG_ADMIN);
-        verify(jwtUtil).generateToken(1L, "admin", PlatformRole.ORG_ADMIN);
+        assertThat(response.getRole()).isEqualTo(PlatformRole.AUTHENTICATED_USER);
+        verify(jwtUtil).generateToken(1L, "admin", null);
     }
 
     /*
@@ -214,6 +214,7 @@ class AuthServiceImplTest {
         platformAdmin.setUsername("platform_admin");
         platformAdmin.setPassword("$2a$10$encoded");
         platformAdmin.setRole(PlatformRole.PLATFORM_ADMIN);
+        platformAdmin.setPlatformRole(PlatformRole.PLATFORM_ADMIN);
         platformAdmin.setStatus(0);
         platformAdmin.setNickname("平台管理员");
 
@@ -221,7 +222,7 @@ class AuthServiceImplTest {
         platformLogin.setUsername("platform_admin");
         platformLogin.setPassword("Admin123");
 
-        when(sysUserService.findByUsername("platform_admin")).thenReturn(platformAdmin);
+        when(sysUserService.findByLoginIdentifier("platform_admin")).thenReturn(platformAdmin);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
         when(jwtUtil.generateToken(3L, "platform_admin", PlatformRole.PLATFORM_ADMIN)).thenReturn("platform-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
@@ -243,7 +244,7 @@ class AuthServiceImplTest {
     @DisplayName("loginFail - 用户不存在时仍记录失败计数")
     void loginFail_UserNotFound() {
         // Given
-        when(sysUserService.findByUsername("admin")).thenReturn(null);
+        when(sysUserService.findByLoginIdentifier("admin")).thenReturn(null);
         when(jwtUtil.getFailWindow()).thenReturn(1800L);
         when(jwtUtil.getLockDuration()).thenReturn(1800L);
         when(cacheService.executeLua(eq(LoginFailScript.RECORD_FAIL), eq(List.class), anyList(), anyLong(), anyLong(), anyInt(), anyLong()))
@@ -268,7 +269,7 @@ class AuthServiceImplTest {
         LoginDTO disabledLogin = new LoginDTO();
         disabledLogin.setUsername("disabled");
         disabledLogin.setPassword("Admin123");
-        when(sysUserService.findByUsername("disabled")).thenReturn(disabledUser);
+        when(sysUserService.findByLoginIdentifier("disabled")).thenReturn(disabledUser);
 
         // When / Then
         assertThatThrownBy(() -> authService.login(disabledLogin, "127.0.0.1"))

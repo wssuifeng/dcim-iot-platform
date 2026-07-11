@@ -12,11 +12,13 @@ import com.example.platform.dto.SimulationSceneCreateDTO;
 import com.example.platform.dto.SimulationSceneStepDTO;
 import com.example.platform.dto.SimulationSceneUpdateDTO;
 import com.example.platform.dto.SimulationSceneVO;
+import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationScene;
 import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationSceneMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
+import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.PointDefinitionService;
@@ -29,6 +31,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /*
  * 类功能:模拟场景服务实现类
@@ -48,6 +51,7 @@ public class SimulationSceneServiceImpl
 
     private final SimulationSceneStepMapper simulationSceneStepMapper;
     private final DataScopeService dataScopeService;
+    private final CloudRoomService cloudRoomService;
     private final PointDefinitionService pointDefinitionService;
 
     private static final int STATUS_ENABLED = 0;
@@ -72,7 +76,8 @@ public class SimulationSceneServiceImpl
         }
         ensureOrganizationAccess(context, organizationId);
         if (dto.getCloudRoomId() != null) {
-            ensureCloudRoomAccess(context, dto.getCloudRoomId());
+            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, dto.getCloudRoomId());
+            ensureCloudRoomOrganization(cloudRoom, organizationId);
         }
         validateDeviceTypeCode(dto.getDeviceTypeCode());
 
@@ -115,8 +120,8 @@ public class SimulationSceneServiceImpl
             scene.setDescription(dto.getDescription());
         }
         if (dto.getCloudRoomId() != null) {
-            DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-            ensureCloudRoomAccess(context, dto.getCloudRoomId());
+            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, dto.getCloudRoomId());
+            ensureCloudRoomOrganization(cloudRoom, scene.getOrganizationId());
             scene.setCloudRoomId(dto.getCloudRoomId());
         }
         if (StringUtils.hasText(dto.getDeviceTypeCode())) {
@@ -175,7 +180,10 @@ public class SimulationSceneServiceImpl
             wrapper.eq(SimulationScene::getOrganizationId, organizationId);
         }
         if (cloudRoomId != null) {
-            ensureCloudRoomAccess(context, cloudRoomId);
+            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, cloudRoomId);
+            if (organizationId != null) {
+                ensureCloudRoomOrganization(cloudRoom, organizationId);
+            }
             wrapper.eq(SimulationScene::getCloudRoomId, cloudRoomId);
         }
         if (status != null) {
@@ -311,12 +319,13 @@ public class SimulationSceneServiceImpl
         }
     }
 
-    private void ensureCloudRoomAccess(DataScopeContext context, Long cloudRoomId) {
-        if (context.isPlatformAdmin()) {
-            return;
-        }
-        if (!context.hasCloudRoomAccess(cloudRoomId)) {
-            throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
+    private CloudRoom ensureCloudRoomAccess(Long currentUserId, Long cloudRoomId) {
+        return cloudRoomService.getCloudRoomOrThrow(cloudRoomId, currentUserId);
+    }
+
+    private void ensureCloudRoomOrganization(CloudRoom cloudRoom, Long organizationId) {
+        if (!Objects.equals(cloudRoom.getOrganizationId(), organizationId)) {
+            throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoom.getId()));
         }
     }
 

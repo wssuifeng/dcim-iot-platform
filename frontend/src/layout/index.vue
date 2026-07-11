@@ -9,6 +9,7 @@
       </div>
 
       <div class="header-actions">
+        <OrganizationSwitcher />
         <el-tooltip :content="realtimeConnected ? '站内通知' : '站内通知（实时连接中断）'">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
             <el-button circle :icon="Bell" aria-label="站内通知" @click="router.push('/notifications')" />
@@ -71,6 +72,8 @@ import {
 } from '@/api/realtime'
 import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
+import { useOrganizationStore } from '@/stores/organization'
+import OrganizationSwitcher from '@/components/OrganizationSwitcher.vue'
 
 defineOptions({ name: 'AppLayout' })
 
@@ -85,6 +88,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const scopeStore = useScopeStore()
+const organizationStore = useOrganizationStore()
 const unreadCount = ref(0)
 const realtimeConnected = ref(false)
 let removeSummaryListener = null
@@ -115,6 +119,7 @@ const scopeDisplay = computed(() => {
 })
 
 onMounted(async () => {
+  await organizationStore.loadMemberships().catch(() => [])
   void scopeStore.ensureCurrentScope({ silent: true })
   await refreshUnreadCount()
   removeSummaryListener = onSummary(handleSummary)
@@ -154,6 +159,7 @@ function handleCommand(command) {
     void disconnectSummarySocket()
     scopeStore.resetCurrentScope()
     authStore.logout()
+    organizationStore.reset()
     router.push('/login')
   }
 }

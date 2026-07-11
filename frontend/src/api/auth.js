@@ -13,3 +13,11 @@ import request from '@/utils/request'
 export function login(data) {
   return request.post('/auth/login', data)
 }
+
+export function sendRegistrationCode(email) {
+  return request.post('/auth/registration-codes', { email })
+}
+
+export function registerAccount(data) {
+  return request.post('/auth/register', data)
+}

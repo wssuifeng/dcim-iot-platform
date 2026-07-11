@@ -11,9 +11,19 @@ import lombok.Data;
 @Data
 public class LoginDTO {
 
-    @Schema(description = "用户名", example = "admin", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "用户名不能为空")
-    private String username;
+    @Schema(description = "邮箱或用户名", example = "user@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "邮箱或用户名不能为空")
+    private String identifier;
+
+    @Deprecated
+    public String getUsername() {
+        return identifier;
+    }
+
+    @Deprecated
+    public void setUsername(String username) {
+        this.identifier = username;
+    }
 
     @Schema(description = "密码（明文，Service层BCrypt校验）", example = "Admin@123", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "密码不能为空")

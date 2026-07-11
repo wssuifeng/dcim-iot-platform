@@ -30,8 +30,8 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
-    # 开发环境恢复代码时，脚本可能与历史记录 checksum 不一致，跳过校验
-    validate-on-migrate: false
+    # 已发布迁移禁止改写或复用版本号，启动时强制校验 checksum
+    validate-on-migrate: true
     locations: classpath:db/migration
 
   # 邮件通知配置（生产环境需填写真实值）
@@ -39,7 +39,7 @@ spring:
     host: ${MAIL_HOST:smtp.example.com}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    password: ${MAIL_AUTH_CODE:${MAIL_PASSWORD:}}
     protocol: smtp
     default-encoding: UTF-8
     properties:
@@ -128,3 +128,9 @@ jwt:
 # ==================== 模拟端写入开关 ====================
 simulation:
   write-enabled: ${SIMULATION_WRITE_ENABLED:false}
+
+verification:
+  hmac-secret: ${VERIFICATION_CODE_HMAC_SECRET:dev-verification-hmac-secret-change-me}
+
+platform:
+  bootstrap-token: ${PLATFORM_BOOTSTRAP_TOKEN:}

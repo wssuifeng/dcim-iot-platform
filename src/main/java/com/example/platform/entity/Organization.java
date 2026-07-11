@@ -43,6 +43,10 @@ public class Organization implements Serializable {
     @Schema(description = "状态：0-正常，1-停用", example = "0")
     private Integer status;
 
+    @Schema(description = "是否允许提交加入申请", example = "true")
+    @TableField("join_application_enabled")
+    private Boolean joinApplicationEnabled;
+
     @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
