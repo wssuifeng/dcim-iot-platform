@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.security.core.GrantedAuthority;
 
 /*
  * 类功能:统一校验 JWT 签名、黑名单和角色，并创建 HTTP/WebSocket 共用的认证对象
@@ -48,14 +51,22 @@ public class JwtAuthenticationService {
         }
 
         String username = claims.get("username", String.class);
-        String role = claims.get("role", String.class);
-        if (!StringUtils.hasText(username) || !PlatformRole.isValidDatabaseRole(role)) {
+        String platformRole = claims.get("platformRole", String.class);
+        if (!StringUtils.hasText(username)
+                || (StringUtils.hasText(platformRole)
+                && !PlatformRole.PLATFORM_ADMIN.equals(platformRole))) {
             throw new BadCredentialsException("JWT Token缺少有效用户信息");
+        }
+
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(PlatformRole.authenticatedUserAuthority());
+        if (PlatformRole.PLATFORM_ADMIN.equals(platformRole)) {
+            authorities.addAll(PlatformRole.authoritiesFor(platformRole));
         }
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                        userId, null, PlatformRole.authoritiesFor(role));
+                        userId, null, authorities);
         authentication.setDetails(username);
         return authentication;
     }

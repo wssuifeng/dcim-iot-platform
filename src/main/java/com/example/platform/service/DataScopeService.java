@@ -27,6 +27,10 @@ public interface DataScopeService {
      * */
     DataScopeContext resolveDataScope(Long userId);
 
+    DataScopeContext resolveDataScope(Long userId, Long organizationId);
+
+    DataScopeContext resolvePlatformScope(Long userId);
+
     /*
      * 方法功能:校验用户是否有权访问指定组织
      * 参数:userId-用户ID, organizationId-组织ID

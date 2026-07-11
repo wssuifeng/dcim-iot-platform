@@ -40,7 +40,7 @@ class JwtAuthenticationServiceTest {
         when(claims.getSubject()).thenReturn("42");
         when(claims.getIssuedAt()).thenReturn(issuedAt);
         when(claims.get("username", String.class)).thenReturn("operator");
-        when(claims.get("role", String.class)).thenReturn(PlatformRole.OPERATOR);
+        when(claims.get("platformRole", String.class)).thenReturn(null);
         when(tokenBlacklistService.isTokenBlacklisted("token-id")).thenReturn(false);
         when(tokenBlacklistService.isUserBlacklistedAndTokenBefore("42", issuedAt))
                 .thenReturn(false);
@@ -53,7 +53,7 @@ class JwtAuthenticationServiceTest {
         assertThat(authentication.getName()).isEqualTo("42");
         assertThat(authentication.getAuthorities())
                 .extracting("authority")
-                .containsExactly("ROLE_OPERATOR");
+                .containsExactly("ROLE_AUTHENTICATED_USER");
     }
 
     @Test
@@ -72,7 +72,7 @@ class JwtAuthenticationServiceTest {
         when(jwtUtil.parseToken("invalid-role-token")).thenReturn(claims);
         when(claims.getSubject()).thenReturn("42");
         when(claims.get("username", String.class)).thenReturn("operator");
-        when(claims.get("role", String.class)).thenReturn("ROOT");
+        when(claims.get("platformRole", String.class)).thenReturn("ROOT");
 
         assertThatThrownBy(() -> authenticationService.authenticate("invalid-role-token"))
                 .isInstanceOf(BadCredentialsException.class)

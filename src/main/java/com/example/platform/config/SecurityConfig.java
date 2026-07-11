@@ -4,6 +4,7 @@ import com.example.platform.security.CustomAccessDeniedHandler;
 import com.example.platform.security.CustomAuthenticationEntryPoint;
 import com.example.platform.security.JwtAuthenticationFilter;
 import com.example.platform.security.PlatformRole;
+import com.example.platform.security.OrganizationContextFilter;
 import com.example.platform.service.SysAuditLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,17 +58,20 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final OrganizationContextFilter organizationContextFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final SysAuditLogService sysAuditLogService;
     private final boolean apiDocsEnabled;
     private final boolean swaggerUiEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          OrganizationContextFilter organizationContextFilter,
                           CorsConfigurationSource corsConfigurationSource,
                           SysAuditLogService sysAuditLogService,
                           @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
                           @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.organizationContextFilter = organizationContextFilter;
         this.corsConfigurationSource = corsConfigurationSource;
         this.sysAuditLogService = sysAuditLogService;
         this.apiDocsEnabled = apiDocsEnabled;
@@ -128,7 +132,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(customAccessDeniedHandler(sysAuditLogService)))
                 .authorizeHttpRequests(auth -> {
                         // 公开端点：登录接口无需认证
-                        auth.requestMatchers("/auth/login").permitAll();
+                        auth.requestMatchers("/auth/login", "/auth/register",
+                                "/auth/registration-codes", "/setup/**").permitAll();
+                        auth.requestMatchers("/platform/**").hasRole(PlatformRole.PLATFORM_ADMIN);
                         // 公开端点：Actuator 健康检查与 SpringDoc 文档（开发/内网使用）
                         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
                         if (swaggerUiEnabled) {
@@ -168,7 +174,8 @@ public class SecurityConfig {
                         auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(organizationContextFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

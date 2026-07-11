@@ -65,7 +65,8 @@ public class CurrentUserContext {
             String value = authority.getAuthority();
             if (value != null && value.startsWith("ROLE_")) {
                 String role = value.substring("ROLE_".length());
-                if (PlatformRole.isValidDatabaseRole(role)) {
+                if (PlatformRole.isValidDatabaseRole(role)
+                        || PlatformRole.AUTHENTICATED_USER.equals(role)) {
                     roles.add(PlatformRole.normalize(role));
                 }
             }
@@ -75,7 +76,10 @@ public class CurrentUserContext {
         }
 
         String username = authentication.getDetails() instanceof String name ? name : null;
-        String primaryRole = roles.iterator().next();
+        String primaryRole = roles.stream()
+                .filter(role -> !PlatformRole.AUTHENTICATED_USER.equals(role))
+                .findFirst()
+                .orElse(PlatformRole.AUTHENTICATED_USER);
         return Optional.of(new CurrentUser(userId, username, primaryRole, roles));
     }
 
