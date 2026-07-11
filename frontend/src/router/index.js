@@ -201,12 +201,24 @@ function hasRouteRole(route, authStore, organizationStore) {
 }
 
 function getFirstAccessibleRouteName(authStore, organizationStore) {
-  return (
-    routes[1].children
-      .filter((route) => route.meta.navigation && hasRouteRole(route, authStore, organizationStore))
+  const navigationRoutes = routes.find((route) => route.path === '/')?.children
+    ?.filter((route) => route.meta.navigation) || []
+
+  if (authStore.normalizedRole === PLATFORM_ADMIN) {
+    return navigationRoutes
+      .filter((route) => route.meta.roles?.includes(PLATFORM_ADMIN))
+      .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
+      ?.name || 'platform-registration'
+  }
+
+  if (organizationStore.currentRole) {
+    return navigationRoutes
+      .filter((route) => route.meta.roles?.includes(organizationStore.currentRole))
       .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
       ?.name || 'dashboard'
-  )
+  }
+
+  return 'account-organizations'
 }
 
 router.beforeEach(async (to) => {

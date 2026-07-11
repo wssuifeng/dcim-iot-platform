@@ -46,7 +46,8 @@ const rules = {
 }
 
 async function sendCode() {
-  await formRef.value.validateField('email').catch(() => false)
+  const valid = await formRef.value.validateField('email').then(() => true).catch(() => false)
+  if (!valid) return
   await sendRegistrationCode(form.email)
   ElMessage.success('验证码已发送')
   cooldown.value = 60
@@ -73,4 +74,9 @@ async function submit() {
 h1 { margin: 0 0 22px; font-size: 24px; }
 .code-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; width: 100%; }
 .submit { width: 100%; margin-bottom: 18px; }
+@media (max-width: 480px) {
+  .auth-shell { padding: 12px; }
+  .auth-panel { padding: 20px; }
+  .code-row { grid-template-columns: 1fr; }
+}
 </style>

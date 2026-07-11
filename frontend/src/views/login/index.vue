@@ -140,12 +140,14 @@ async function handleLogin() {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
   background-color: #f5f7fa;
 }
 
 .login-card {
-  width: 400px;
+  width: min(400px, 100%);
 }
 
 .login-title {
@@ -161,6 +163,11 @@ async function handleLogin() {
 .login-links {
   display: flex;
   justify-content: space-between;
+  margin-bottom: 18px;
   font-size: 14px;
+}
+
+.login-card :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
 }
 </style>
