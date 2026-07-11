@@ -10,6 +10,7 @@ import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.OrganizationCreateDTO;
 import com.example.platform.dto.OrganizationUpdateDTO;
+import com.example.platform.dto.PublicOrganizationVO;
 import com.example.platform.entity.Organization;
 import com.example.platform.mapper.OrganizationMapper;
 import com.example.platform.security.PlatformRole;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
+import java.util.List;
 
 /*
  * 类功能:组织服务实现类，负责组织 CRUD、编码唯一性校验与服务层数据范围过滤
@@ -138,6 +140,32 @@ public class OrganizationServiceImpl extends ServiceImpl<OrganizationMapper, Org
         }
         return getOne(new LambdaQueryWrapper<Organization>()
                 .eq(Organization::getOrgCode, organizationCode.trim()), false);
+    }
+
+    @Override
+    public List<PublicOrganizationVO> listPublicOrganizations(String keyword) {
+        LambdaQueryWrapper<Organization> wrapper = new LambdaQueryWrapper<Organization>()
+                .eq(Organization::getStatus, 0);
+        if (keyword != null && !keyword.isBlank()) {
+            wrapper.and(query -> query.like(Organization::getOrgName, keyword.trim())
+                    .or().like(Organization::getOrgCode, keyword.trim()));
+        }
+        wrapper.orderByAsc(Organization::getOrgName).last("LIMIT 50");
+        return list(wrapper).stream()
+                .map(org -> new PublicOrganizationVO(org.getId(), org.getOrgName(),
+                        org.getOrgCode(), Boolean.TRUE.equals(org.getJoinApplicationEnabled())))
+                .toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateJoinApplicationEnabled(Long organizationId, boolean enabled) {
+        Organization organization = getById(organizationId);
+        if (organization == null) {
+            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "组织不存在");
+        }
+        organization.setJoinApplicationEnabled(enabled);
+        updateById(organization);
     }
 
     /*

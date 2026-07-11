@@ -144,7 +144,7 @@ public class SecurityConfig {
                             auth.requestMatchers("/v3/api-docs/**").permitAll();
                         }
                         // 平台/组织管理员：用户管理接口（后续由数据范围服务细化到组织）
-                        auth.requestMatchers("/users/**").hasAnyRole(ORG_MANAGE_ROLES);
+                        auth.requestMatchers("/users/**").hasRole(PlatformRole.PLATFORM_ADMIN);
                         // 平台/组织管理员：Druid监控和审计清理
                         auth.requestMatchers("/druid/**").hasAnyRole(ORG_MANAGE_ROLES);
                         auth.requestMatchers(HttpMethod.DELETE, "/audit-logs/**").hasAnyRole(ORG_MANAGE_ROLES);

@@ -261,14 +261,14 @@ class OrganizationServiceImplTest {
         }
 
         @Test
-        @DisplayName("PLATFORM_ADMIN 可访问任意组织")
-        void should_return_when_platformAdmin() {
+        @DisplayName("PLATFORM_ADMIN 不默认穿透组织业务详情")
+        void should_reject_when_platformAdminHasNoMembership() {
             Organization existing = buildOrg(99L, "ORG-X", "任意组织", 0);
             when(organizationMapper.selectById(99L)).thenReturn(existing);
             when(dataScopeService.resolveDataScope(1L)).thenReturn(platformAdminContext());
 
-            Organization result = organizationService.getOrganizationOrThrow(99L, 1L);
-            assertThat(result.getOrgCode()).isEqualTo("ORG-X");
+            assertThatThrownBy(() -> organizationService.getOrganizationOrThrow(99L, 1L))
+                    .isInstanceOf(DataScopeViolationException.class);
         }
     }
 

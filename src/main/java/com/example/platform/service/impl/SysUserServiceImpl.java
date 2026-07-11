@@ -68,6 +68,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createPlatformAdministrator(SysUser user) {
+        requireIdentityAvailable(user.getEmail(), user.getUsername());
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setStatus(0);
+        user.setRole("VIEWER");
+        user.setPlatformRole("PLATFORM_ADMIN");
+        user.setEmailVerified(true);
+        user.setEmailVerifiedTime(java.time.LocalDateTime.now());
+        if (!super.save(user)) {
+            throw new BusinessException("创建平台管理员失败");
+        }
+    }
+
     /*
      * 方法功能:用户存在性检查，不存在则抛出UserNotFoundException
      * 参数:id-用户ID

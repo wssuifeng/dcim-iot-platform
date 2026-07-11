@@ -131,3 +131,6 @@ simulation:
 
 verification:
   hmac-secret: ${VERIFICATION_CODE_HMAC_SECRET:dev-verification-hmac-secret-change-me}
+
+platform:
+  bootstrap-token: ${PLATFORM_BOOTSTRAP_TOKEN:}

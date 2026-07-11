@@ -27,6 +27,13 @@ public interface OrganizationMembershipMapper extends BaseMapper<OrganizationMem
     List<OrganizationMembership> selectActiveByUser(@Param("userId") Long userId);
 
     @Select("""
+            SELECT * FROM organization_membership
+            WHERE organization_id = #{organizationId} AND status = 'ACTIVE'
+            ORDER BY membership_role, create_time
+            """)
+    List<OrganizationMembership> selectActiveByOrganization(@Param("organizationId") Long organizationId);
+
+    @Select("""
             SELECT COUNT(*) FROM organization_membership
             WHERE user_id = #{userId} AND status = 'ACTIVE' AND organization_id <> #{organizationId}
             """)

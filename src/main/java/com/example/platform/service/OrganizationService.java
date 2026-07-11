@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.OrganizationCreateDTO;
 import com.example.platform.dto.OrganizationUpdateDTO;
 import com.example.platform.entity.Organization;
+import com.example.platform.dto.PublicOrganizationVO;
+
+import java.util.List;
 
 /*
  * 类功能:组织服务接口，定义组织生命周期管理与服务层数据范围校验
@@ -53,4 +56,8 @@ public interface OrganizationService extends IService<Organization> {
                                          String keyword, Integer status);
 
     Organization findByCode(String organizationCode);
+
+    List<PublicOrganizationVO> listPublicOrganizations(String keyword);
+
+    void updateJoinApplicationEnabled(Long organizationId, boolean enabled);
 }

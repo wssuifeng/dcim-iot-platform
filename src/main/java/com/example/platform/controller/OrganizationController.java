@@ -6,6 +6,7 @@ import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.OrganizationCreateDTO;
 import com.example.platform.dto.OrganizationUpdateDTO;
 import com.example.platform.entity.Organization;
+import com.example.platform.dto.PublicOrganizationVO;
 import com.example.platform.security.CurrentUser;
 import com.example.platform.security.CurrentUserContext;
 import com.example.platform.service.OrganizationService;
@@ -16,6 +17,7 @@ import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 /**
  * 组织管理接口层（第四阶段产品化组织生命周期管理）
@@ -53,6 +55,12 @@ public class OrganizationController {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(organizationService.pageOrganizations(
                 user.userId(), current, size, keyword, status));
+    }
+
+    @GetMapping("/public")
+    public Result<List<PublicOrganizationVO>> publicOrganizations(
+            @RequestParam(required = false) String keyword) {
+        return Result.success(organizationService.listPublicOrganizations(keyword));
     }
 
     @Operation(summary = "查询组织详情", description = "未授权组织返回 403 DataScopeViolation")

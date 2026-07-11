@@ -23,6 +23,8 @@ public interface SysUserService extends IService<SysUser> {
 
     void createRegisteredUser(SysUser user);
 
+    void createPlatformAdministrator(SysUser user);
+
     /*
      * 方法功能:用户存在性检查，不存在则抛出UserNotFoundException
      * 参数:id-用户ID
