@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @Transactional
-@Sql(scripts = "classpath:test-data.sql")
+@Sql(scripts = "classpath:test-data.sql", config = @SqlConfig(encoding = "UTF-8"))
 class DeviceMapperTest {
 
     @Autowired
@@ -83,7 +84,7 @@ class DeviceMapperTest {
         Device device = new Device();
         device.setDeviceName("MapperTest专用设备");
         device.setDeviceCode("MAPPER-TEST-001");
-        device.setTypeId(1);
+        device.setTypeId(-1001);
         device.setStatus(1);
         device.setLocation("测试位置");
 

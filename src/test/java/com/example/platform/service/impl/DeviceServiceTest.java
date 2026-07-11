@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -14,12 +15,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=1, device_code='TEMP-001'）。
+ * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=-1001, device_code='TEST-TEMP-001'）。
  * @Transactional 保证每个测试方法的数据修改自动回滚，不污染数据库。
  */
 @SpringBootTest
 @Transactional
-@Sql(scripts = "classpath:test-data.sql")
+@Sql(scripts = "classpath:test-data.sql", config = @SqlConfig(encoding = "UTF-8"))
 class DeviceServiceTest {
 
     @Autowired
@@ -34,9 +35,9 @@ class DeviceServiceTest {
 
     @Test
     void testGetById() {
-        Device device = deviceService.getById(1);
+        Device device = deviceService.getById(-1001);
         assertNotNull(device);
-        assertEquals("TEMP-001", device.getDeviceCode());
+        assertEquals("TEST-TEMP-001", device.getDeviceCode());
     }
 
     @Test
@@ -56,7 +57,7 @@ class DeviceServiceTest {
         device.setDeviceName("测试设备");
         device.setDeviceCode("TEST-UNIT-" + System.nanoTime());
         device.setStatus(0);
-        device.setTypeId(1);
+        device.setTypeId(-1001);
         boolean saved = deviceService.save(device);
         assertTrue(saved);
         assertNotNull(device.getId());
@@ -65,11 +66,11 @@ class DeviceServiceTest {
 
     @Test
     void testUpdateDevice() {
-        Device device = deviceService.getById(1);
+        Device device = deviceService.getById(-1001);
         device.setLocation("更新后的位置");
         boolean updated = deviceService.updateById(device);
         assertTrue(updated);
-        Device updatedDevice = deviceService.getById(1);
+        Device updatedDevice = deviceService.getById(-1001);
         assertEquals("更新后的位置", updatedDevice.getLocation());
     }
 
@@ -78,7 +79,7 @@ class DeviceServiceTest {
         Device device = new Device();
         device.setDeviceName("待删除设备");
         device.setDeviceCode("TEST-DEL-" + System.nanoTime());
-        device.setTypeId(1);
+        device.setTypeId(-1001);
         deviceService.save(device);
         Integer id = device.getId();
         boolean removed = deviceService.removeById(id);
@@ -102,11 +103,11 @@ class DeviceServiceTest {
 
     @Test
     void testUpdateStatus() {
-        boolean updated = deviceService.updateStatus(1, 2);
+        boolean updated = deviceService.updateStatus(-1001, 2);
         assertTrue(updated);
-        Device device = deviceService.getById(1);
+        Device device = deviceService.getById(-1001);
         assertEquals(2, device.getStatus());
-        deviceService.updateStatus(1, 1);
+        deviceService.updateStatus(-1001, 1);
     }
 
     @Test

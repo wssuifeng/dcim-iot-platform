@@ -7,17 +7,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=1 的设备）。
- * 幂等执行：test-data.sql 使用 DELETE+INSERT 模式，无需 @Transactional 也可重复运行。
+ * 真实数据库集成测试：依赖 test-data.sql 预置数据（id=-1001 的设备）。
+ * 测试数据在事务内写入并在每个测试结束后回滚，不污染开发数据库。
  */
 @SpringBootTest
-@Sql(scripts = "classpath:test-data.sql")
+@Transactional
+@Sql(scripts = "classpath:test-data.sql", config = @SqlConfig(encoding = "UTF-8"))
 class DeviceServiceImplTest {
 
     @Autowired
@@ -35,7 +38,7 @@ class DeviceServiceImplTest {
     @Test
     void testSelectById() {
         // 测试根据ID查询
-        Device device = deviceMapper.selectById(1);
+        Device device = deviceMapper.selectById(-1001);
         assertNotNull(device, "查询结果为空");
         System.out.println("查询结果：" + device);
     }
@@ -71,7 +74,7 @@ class DeviceServiceImplTest {
     @Test
     void testUpdate() {
         // 测试更新
-        Device device = deviceMapper.selectById(1);
+        Device device = deviceMapper.selectById(-1001);
         assertNotNull(device, "查询结果为空");
 
         String originalLocation = device.getLocation();
