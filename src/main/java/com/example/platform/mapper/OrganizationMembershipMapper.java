@@ -40,11 +40,11 @@ public interface OrganizationMembershipMapper extends BaseMapper<OrganizationMem
     long countActiveAdminMemberships(@Param("userId") Long userId);
 
     @Select("""
-            SELECT COUNT(*) FROM organization_membership
+            SELECT id FROM organization_membership
             WHERE organization_id = #{organizationId} AND status = 'ACTIVE' AND membership_role = 'ORG_ADMIN'
             FOR UPDATE
             """)
-    long countActiveOrgAdminsForUpdate(@Param("organizationId") Long organizationId);
+    List<Long> selectActiveOrgAdminIdsForUpdate(@Param("organizationId") Long organizationId);
 
     @Select("""
             SELECT * FROM organization_membership
