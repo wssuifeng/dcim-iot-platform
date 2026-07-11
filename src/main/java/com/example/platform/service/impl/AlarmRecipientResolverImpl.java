@@ -14,13 +14,16 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/*
+ * 类功能:告警接收人解析服务实现，根据组织ID和机房ID从数据范围分配表中匹配有权限的启用用户作为告警接收人
+ * */
 @Service
 @RequiredArgsConstructor
 public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
 
-    private static final int USER_STATUS_ENABLED = 0;
-    private static final Set<String> EXPLICIT_ROOM_SCOPE_TYPES = Set.of("ROOMS", "READ_ONLY");
-    private static final Set<String> RECIPIENT_ROLES = Set.of(
+    private static final int USER_STATUS_ENABLED = 0; // 用户启用状态
+    private static final Set<String> EXPLICIT_ROOM_SCOPE_TYPES = Set.of("ROOMS", "READ_ONLY"); // 精确机房级范围类型
+    private static final Set<String> RECIPIENT_ROLES = Set.of( // 可接收告警的角色
             PlatformRole.ORG_ADMIN,
             PlatformRole.OPERATOR,
             PlatformRole.VIEWER);
@@ -28,6 +31,11 @@ public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
     private final DataScopeAssignmentMapper dataScopeAssignmentMapper;
     private final SysUserService sysUserService;
 
+    /*
+     * 方法功能:解析指定组织和机房下可接收告警的用户ID集合
+     * 参数:organizationId-组织ID, cloudRoomId-机房ID
+     * 返回数据:Set<Long>-符合角色和状态条件的用户ID集合，无匹配时返回空集
+     * */
     @Override
     public Set<Long> resolveRecipientUserIds(Long organizationId, Long cloudRoomId) {
         if (organizationId == null || cloudRoomId == null) {

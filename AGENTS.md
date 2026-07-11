@@ -43,6 +43,48 @@
 - **XSS 防御**：请求参数由 `XssFilter` 统一 HTML 转义
 - **API 文档**：接口说明用 Swagger 注解（`@Tag`/`@Operation`/`@Schema`），启动后访问 `/swagger-ui.html`，**不要再在 src 下创建 README**
 
+### 3.1 注释规范
+
+本项目存在两套并存注释风格，**新增代码必须遵循所属分层的规范，不得混用**：
+
+#### 3.1.1 分层注释规范速查
+
+| 分层 | 类级注释 | 方法级注释 | 字段注释 |
+|------|---------|-----------|---------|
+| **Controller** | `/** Javadoc */` + `@Tag` | `@Operation`（无需 Javadoc） | N/A |
+| **Service 接口** | `/* 类功能:... */` | `/* 方法功能:... 参数:... 返回数据:... */` | N/A |
+| **ServiceImpl** | `/* 类功能:... */` | `/* 方法功能:... 参数:... 返回数据:... */` | `//` 行内注释（常量说明） |
+| **Entity** | `/** Javadoc */` + `@Schema` | N/A | `@Schema` 注解（不使用 `//`） |
+| **DTO/VO** | `/** Javadoc */` + `@Schema` | N/A（静态工厂方法不加注释） | `@Schema` 注解（不使用 `//`） |
+| **Mapper** | `/* 类功能:... */` | `/* 方法功能:... 参数:... 返回数据:... */` | N/A |
+| **Config** | `/* 类功能:... */` | `/* 方法功能:... 参数:... 返回数据:... */` | `//` 行内注释 |
+| **Exception** | `/* 类功能:... */` | 构造器不加注释 | N/A |
+
+#### 3.1.2 详细规则
+
+**Controller 层：**
+- 类级写 `/** 中文功能描述 */` + Swagger `@Tag(name = "...")`
+- 方法级 **只写 `@Operation`**，参数用 `@Parameter`，不写 Javadoc `@param`/`@return`
+- 需要声明错误响应时加 `@ApiResponse`
+
+**Service 接口 / ServiceImpl / Mapper 层（老式 `/* */` 块注释）：**
+- 类级写 `/* 类功能:中文描述 */`
+- 方法级写 `/* 方法功能:... 参数:... 返回数据:... */`，多参数用 `-` 分隔：`参数:name-描述, age-描述`
+- 无参或无返回值写 `参数:无` 或 `返回数据:无`
+- 附加说明写 `说明:...`
+- ServiceImpl 中 `private` 辅助方法不加注释
+- 常量字段用 `//` 行内注释
+
+**Entity / DTO / VO 层（Swagger 注解为主）：**
+- 类级写 `/** 中文功能描述 */` + `@Schema(description = "...")`
+- 字段级 **只写 `@Schema`**，用 `description`、`example`、`requiredMode` 等属性，**不在字段上写 `//` 注释**
+- 静态工厂方法（`fromEntity` 等）不加注释
+
+**公共规则：**
+- 不允许在类或方法上完全无注释（即使只有一行类功能描述）
+- 不使用 `@author`、`@since`、`@version`、`@deprecated` 等 Javadoc 标准标签
+- 不使用 `@param`、`@return`、`@throws` 等标准 Javadoc 标签（Swagger 或 `参数:/返回数据:` 替代）
+
 ---
 
 ## 4. 禁忌（不要做）
@@ -53,6 +95,7 @@
 - ❌ 不要在实体类用 `@Autowired`
 - ❌ 不要在 Service 接口描述与 ServiceImpl 实现之间制造矛盾（曾发生 DictMetric 缓存描述冲突）
 - ❌ 不要把 DictMetric 描述成 "ConcurrentHashMap 内存缓存"——**已迁移到 Redis**（v4.0）
+- ❌ 不要让任何 Java 类完全无注释——至少要有类级功能描述
 
 ---
 
