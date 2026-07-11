@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { PLATFORM_ROLES, useAuthStore } from '@/stores/auth'
+import { useOrganizationStore } from '@/stores/organization'
 
 const { PLATFORM_ADMIN, ORG_ADMIN, OPERATOR, VIEWER } = PLATFORM_ROLES
 const BUSINESS_ROLES = [ORG_ADMIN, OPERATOR, VIEWER]
@@ -13,12 +14,19 @@ const routes = [
     component: () => import('@/views/login/index.vue'),
     meta: { public: true },
   },
+  { path: '/register', name: 'register', component: () => import('@/views/register/index.vue'), meta: { public: true } },
+  { path: '/setup', name: 'setup', component: () => import('@/views/setup/index.vue'), meta: { public: true } },
   {
     path: '/',
     component: () => import('@/layout/index.vue'),
     redirect: '/dashboard',
     meta: { requiresAuth: true },
     children: [
+      {
+        path: 'account/organizations', name: 'account-organizations',
+        component: () => import('@/views/account/organizations/index.vue'),
+        meta: { title: '我的组织', icon: 'OfficeBuilding', navigation: true, navigationOrder: 5 },
+      },
       {
         path: 'dashboard',
         name: 'dashboard',
@@ -148,8 +156,18 @@ const routes = [
           icon: 'User',
           navigation: true,
           navigationOrder: 70,
-          roles: [PLATFORM_ADMIN, ORG_ADMIN],
+          roles: [PLATFORM_ADMIN],
         },
+      },
+      {
+        path: 'platform/registration', name: 'platform-registration',
+        component: () => import('@/views/platform/registration.vue'),
+        meta: { title: '注册审核', icon: 'Setting', navigation: true, navigationOrder: 72, roles: [PLATFORM_ADMIN] },
+      },
+      {
+        path: 'organization/members', name: 'organization-members',
+        component: () => import('@/views/organization/members.vue'),
+        meta: { title: '组织成员', icon: 'UserFilled', navigation: true, navigationOrder: 74, roles: [ORG_ADMIN] },
       },
       {
         path: 'audit-logs',
@@ -176,22 +194,30 @@ const router = createRouter({
   routes,
 })
 
-function getFirstAccessibleRouteName(authStore) {
+function hasRouteRole(route, authStore, organizationStore) {
+  const roles = route.meta.roles || []
+  if (roles.length === 0) return true
+  return roles.includes(organizationStore.currentRole) || authStore.hasAnyRole(roles)
+}
+
+function getFirstAccessibleRouteName(authStore, organizationStore) {
   return (
     routes[1].children
-      .filter((route) => route.meta.navigation && authStore.hasAnyRole(route.meta.roles))
+      .filter((route) => route.meta.navigation && hasRouteRole(route, authStore, organizationStore))
       .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
       ?.name || 'dashboard'
   )
 }
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  const organizationStore = useOrganizationStore()
   authStore.syncFromStorage()
   const loggedIn = authStore.isLoggedIn()
 
   if (to.meta.public && loggedIn) {
-    return { name: getFirstAccessibleRouteName(authStore) }
+    if (!organizationStore.loaded) await organizationStore.loadMemberships().catch(() => [])
+    return { name: getFirstAccessibleRouteName(authStore, organizationStore) }
   }
 
   if (to.meta.requiresAuth && !loggedIn) {
@@ -201,8 +227,21 @@ router.beforeEach((to) => {
     }
   }
 
-  if (loggedIn && Array.isArray(to.meta.roles) && !authStore.hasAnyRole(to.meta.roles)) {
-    return { name: getFirstAccessibleRouteName(authStore) }
+  if (loggedIn && !organizationStore.loaded) {
+    await organizationStore.loadMemberships().catch(() => [])
+  }
+
+  if (
+    loggedIn &&
+    authStore.normalizedRole !== PLATFORM_ADMIN &&
+    organizationStore.memberships.length === 0 &&
+    to.name !== 'account-organizations'
+  ) {
+    return { name: 'account-organizations' }
+  }
+
+  if (loggedIn && Array.isArray(to.meta.roles) && !hasRouteRole(to, authStore, organizationStore)) {
+    return { name: getFirstAccessibleRouteName(authStore, organizationStore) }
   }
 
   return true
