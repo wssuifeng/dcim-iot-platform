@@ -30,8 +30,8 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
-    # 开发环境恢复代码时，脚本可能与历史记录 checksum 不一致，跳过校验
-    validate-on-migrate: false
+    # 已发布迁移禁止改写或复用版本号，启动时强制校验 checksum
+    validate-on-migrate: true
     locations: classpath:db/migration
 
   # 邮件通知配置（生产环境需填写真实值）
