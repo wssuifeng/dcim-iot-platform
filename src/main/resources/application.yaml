@@ -39,7 +39,7 @@ spring:
     host: ${MAIL_HOST:smtp.example.com}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    password: ${MAIL_AUTH_CODE:${MAIL_PASSWORD:}}
     protocol: smtp
     default-encoding: UTF-8
     properties:
@@ -128,3 +128,6 @@ jwt:
 # ==================== 模拟端写入开关 ====================
 simulation:
   write-enabled: ${SIMULATION_WRITE_ENABLED:false}
+
+verification:
+  hmac-secret: ${VERIFICATION_CODE_HMAC_SECRET:dev-verification-hmac-secret-change-me}

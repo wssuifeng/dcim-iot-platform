@@ -39,6 +39,35 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         return baseMapper.findByUsername(username);
     }
 
+    @Override
+    public SysUser findByLoginIdentifier(String identifier) {
+        return baseMapper.findByLoginIdentifier(identifier);
+    }
+
+    @Override
+    public void requireIdentityAvailable(String email, String username) {
+        if (count(new LambdaQueryWrapper<SysUser>().eq(SysUser::getEmail, email)) > 0) {
+            throw new BusinessException(com.example.platform.common.ResultCode.EMAIL_ALREADY_EXISTS,
+                    "邮箱已注册");
+        }
+        checkUsernameUnique(username);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createRegisteredUser(SysUser user) {
+        requireIdentityAvailable(user.getEmail(), user.getUsername());
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setStatus(0);
+        user.setRole("VIEWER");
+        user.setPlatformRole(null);
+        user.setEmailVerified(true);
+        user.setEmailVerifiedTime(java.time.LocalDateTime.now());
+        if (!super.save(user)) {
+            throw new BusinessException("注册失败，请稍后重试");
+        }
+    }
+
     /*
      * 方法功能:用户存在性检查，不存在则抛出UserNotFoundException
      * 参数:id-用户ID

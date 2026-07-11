@@ -77,7 +77,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public LoginResponseDTO login(LoginDTO loginDTO, String ip) {
-        SysUser user = sysUserService.findByUsername(loginDTO.getUsername());
+        String identifier = loginDTO.getIdentifier().trim();
+        if (identifier.contains("@")) {
+            identifier = identifier.toLowerCase(java.util.Locale.ROOT);
+        }
+        SysUser user = sysUserService.findByLoginIdentifier(identifier);
 
         if (user == null) {
             recordFailAndThrow(ip, null, null, "用户不存在");

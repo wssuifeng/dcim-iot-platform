@@ -3,6 +3,11 @@ package com.example.platform.controller;
 import com.example.platform.common.Result;
 import com.example.platform.dto.LoginDTO;
 import com.example.platform.dto.LoginResponseDTO;
+import com.example.platform.dto.RegisterDTO;
+import com.example.platform.dto.RegistrationCodeDTO;
+import com.example.platform.service.EmailVerificationService;
+import com.example.platform.service.PublicRegistrationService;
+import com.example.platform.service.VerificationPurpose;
 import com.example.platform.service.AuthService;
 import com.example.platform.service.TokenBlacklistService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,10 +30,16 @@ public class AuthController {
 
     private final AuthService authService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final PublicRegistrationService registrationService;
+    private final EmailVerificationService verificationService;
 
-    public AuthController(AuthService authService, TokenBlacklistService tokenBlacklistService) {
+    public AuthController(AuthService authService, TokenBlacklistService tokenBlacklistService,
+                          PublicRegistrationService registrationService,
+                          EmailVerificationService verificationService) {
         this.authService = authService;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.registrationService = registrationService;
+        this.verificationService = verificationService;
     }
 
     @Operation(summary = "用户登录", description = "验证用户名密码并返回 JWT Token；自动提取客户端真实 IP（支持 X-Forwarded-For/X-Real-IP 代理转发）；该端点 permitAll，无需认证")
@@ -37,6 +48,20 @@ public class AuthController {
                                           HttpServletRequest request) {
         String ip = getClientIp(request);
         return Result.success(authService.login(loginDTO, ip));
+    }
+
+    @PostMapping("/registration-codes")
+    public Result<Void> sendRegistrationCode(@Validated @RequestBody RegistrationCodeDTO dto,
+                                             HttpServletRequest request) {
+        verificationService.sendCode(VerificationPurpose.REGISTRATION, dto.getEmail(), getClientIp(request));
+        return Result.success();
+    }
+
+    @PostMapping("/register")
+    public Result<Void> register(@Validated @RequestBody RegisterDTO dto,
+                                 HttpServletRequest request) {
+        registrationService.register(dto, getClientIp(request));
+        return Result.success();
     }
 
     @Operation(summary = "用户登出", description = "将当前请求的 JWT Token 加入黑名单，登出后该 Token 立即失效；需认证")
