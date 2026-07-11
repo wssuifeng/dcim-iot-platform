@@ -1,6 +1,7 @@
 package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
@@ -8,7 +9,6 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.DataScopeContext;
-import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.SimulationGeneratedDataRefVO;
 import com.example.platform.dto.SimulationRunStartDTO;
 import com.example.platform.dto.SimulationRunVO;
@@ -23,9 +23,8 @@ import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
-import com.example.platform.service.DevicePointBindingService;
-import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
+import com.example.platform.service.SimulationRunExecutionService;
 import com.example.platform.service.SimulationRunService;
 import com.example.platform.service.SimulationSceneService;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +32,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +48,7 @@ import java.util.List;
  *   生产环境由 ProductionSafetyGuard 强制阻断启用。
  *   开关关闭时启动运行抛 BusinessException(SIMULATION_WRITE_DISABLED)。
  *
- * 【数据生成】每次运行按步骤顺序调用 MetricSampleService 写入指标采样，
+ * 【数据生成】运行提交后由异步执行服务按步骤顺序调用 MetricSampleService 写入指标采样，
  *   并把生成的 metric_sample.id 写入 simulation_generated_data_ref。
  *   前端与脚本不能直接伪造核心事实——所有写入路径必须经过本服务。
  *
@@ -67,9 +67,8 @@ public class SimulationRunServiceImpl
     private final SimulationGeneratedDataRefMapper simulationGeneratedDataRefMapper;
     private final DataScopeService dataScopeService;
     private final DeviceScopeHelper deviceScopeHelper;
-    private final MetricSampleService metricSampleService;
     private final PointDefinitionService pointDefinitionService;
-    private final DevicePointBindingService devicePointBindingService;
+    private final SimulationRunExecutionService runExecutionService;
     private final ObjectMapper objectMapper;
 
     @Value("${simulation.write-enabled:false}")
@@ -80,8 +79,6 @@ public class SimulationRunServiceImpl
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
     private static final String STATUS_CANCELLED = "CANCELLED";
-    private static final String ACTION_WRITE_SAMPLE = "WRITE_SAMPLE";
-    private static final String ACTION_SLEEP = "SLEEP";
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -134,16 +131,13 @@ public class SimulationRunServiceImpl
         run.setStatus(STATUS_PENDING);
         run.setTotalSteps(steps.size());
         run.setSuccessSteps(0);
-        run.setStartTime(LocalDateTime.now());
         run.setSceneSnapshot(buildSceneSnapshot(scene, steps));
         if (!save(run)) {
             throw new BusinessException("创建模拟运行记录失败");
         }
 
-        // 同步执行步骤
-        executeSteps(run, steps, dto.getTargetDeviceId(), currentUserId);
-
-        return getRunDetail(run.getId(), currentUserId);
+        scheduleExecutionAfterCommit(run.getId(), dto.getTargetDeviceId(), currentUserId, organizationId);
+        return SimulationRunVO.fromEntity(run);
     }
 
     @Override
@@ -155,11 +149,21 @@ public class SimulationRunServiceImpl
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
                     "运行已结束，不能取消: status=" + run.getStatus());
         }
-        run.setStatus(STATUS_CANCELLED);
-        run.setEndTime(LocalDateTime.now());
-        if (!updateById(run)) {
-            throw new BusinessException("更新运行状态失败");
+        LocalDateTime endTime = LocalDateTime.now();
+        int updated = baseMapper.update(null, new LambdaUpdateWrapper<SimulationRunRecord>()
+                .eq(SimulationRunRecord::getId, runId)
+                .in(SimulationRunRecord::getStatus, STATUS_PENDING, STATUS_RUNNING)
+                .set(SimulationRunRecord::getStatus, STATUS_CANCELLED)
+                .set(SimulationRunRecord::getEndTime, endTime));
+        if (updated != 1) {
+            SimulationRunRecord latest = getById(runId);
+            if (latest != null && STATUS_CANCELLED.equals(latest.getStatus())) {
+                return SimulationRunVO.fromEntity(latest);
+            }
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "运行状态已变化，取消失败");
         }
+        run.setStatus(STATUS_CANCELLED);
+        run.setEndTime(endTime);
         log.info("模拟运行取消 runId={} userId={}", runId, currentUserId);
         return SimulationRunVO.fromEntity(run);
     }
@@ -251,95 +255,20 @@ public class SimulationRunServiceImpl
         }
     }
 
-    private void executeSteps(SimulationRunRecord run, List<SimulationSceneStep> steps,
-                              Integer overrideDeviceId, Long currentUserId) {
-        run.setStatus(STATUS_RUNNING);
-        run.setStartTime(LocalDateTime.now());
-        updateById(run);
-
-        int successCount = 0;
-        String failureMessage = null;
-
-        for (SimulationSceneStep step : steps) {
-            try {
-                processStep(run, step, overrideDeviceId, currentUserId);
-                successCount++;
-            } catch (Exception ex) {
-                failureMessage = truncate(ex.getMessage(), 500);
-                log.error("模拟运行步骤失败 runId={} stepId={} error={}",
-                        run.getId(), step.getId(), ex.getMessage());
-                break;
-            }
-        }
-
-        boolean allSuccess = successCount == steps.size();
-        run.setSuccessSteps(successCount);
-        run.setStatus(allSuccess ? STATUS_SUCCESS : STATUS_FAILED);
-        run.setErrorMessage(failureMessage);
-        run.setEndTime(LocalDateTime.now());
-        updateById(run);
-        log.info("模拟运行结束 runId={} status={} success/total={}/{}",
-                run.getId(), run.getStatus(), successCount, steps.size());
-    }
-
-    private void processStep(SimulationRunRecord run, SimulationSceneStep step,
-                             Integer overrideDeviceId, Long currentUserId) {
-        if (step.getDelayMs() != null && step.getDelayMs() > 0) {
-            try {
-                Thread.sleep(step.getDelayMs());
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new BusinessException("步骤延迟被中断：stepOrder=" + step.getStepOrder());
-            }
-        }
-
-        String action = StringUtils.hasText(step.getAction()) ? step.getAction().toUpperCase() : ACTION_WRITE_SAMPLE;
-        if (ACTION_SLEEP.equals(action)) {
-            // SLEEP 步骤不写入指标，仅记录引用占位
-            SimulationGeneratedDataRef ref = buildRef(run, step, overrideDeviceId, null, null);
-            simulationGeneratedDataRefMapper.insert(ref);
+    private void scheduleExecutionAfterCommit(Long runId, Integer overrideDeviceId,
+                                              Long currentUserId, Long organizationId) {
+        Runnable schedule = () -> runExecutionService.executeAsync(
+                runId, overrideDeviceId, currentUserId, organizationId);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            schedule.run();
             return;
         }
-        if (!ACTION_WRITE_SAMPLE.equals(action)) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "不支持的步骤动作: " + action);
-        }
-
-        Integer deviceId = step.getTargetDeviceId() != null
-                ? step.getTargetDeviceId() : overrideDeviceId;
-        if (deviceId == null) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "步骤未指定目标设备，也无法从运行启动参数继承: stepOrder=" + step.getStepOrder());
-        }
-
-        // 复用 MetricSampleService 写入，由其负责设备范围校验、点位绑定校验和 metric_latest 刷新
-        MetricSampleDTO sampleDTO = new MetricSampleDTO();
-        sampleDTO.setDeviceId(deviceId);
-        sampleDTO.setPointId(step.getPointId());
-        sampleDTO.setSampleValue(step.getSampleValue());
-        sampleDTO.setSampleTime(LocalDateTime.now());
-
-        var savedSample = metricSampleService.saveSample(sampleDTO, currentUserId);
-
-        SimulationGeneratedDataRef ref = buildRef(run, step, deviceId,
-                savedSample != null ? savedSample.getId() : null, step.getSampleValue());
-        simulationGeneratedDataRefMapper.insert(ref);
-    }
-
-    private SimulationGeneratedDataRef buildRef(SimulationRunRecord run, SimulationSceneStep step,
-                                                 Integer deviceId, Long metricSampleId,
-                                                 BigDecimal sampleValue) {
-        SimulationGeneratedDataRef ref = new SimulationGeneratedDataRef();
-        ref.setRunId(run.getId());
-        ref.setStepId(step != null ? step.getId() : null);
-        ref.setDeviceId(deviceId);
-        ref.setPointId(step != null ? step.getPointId() : null);
-        ref.setMetricSampleId(metricSampleId);
-        ref.setAction(step != null && StringUtils.hasText(step.getAction())
-                ? step.getAction().toUpperCase() : ACTION_WRITE_SAMPLE);
-        ref.setSampleValue(sampleValue);
-        ref.setGeneratedAt(LocalDateTime.now());
-        return ref;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                schedule.run();
+            }
+        });
     }
 
     private String buildSceneSnapshot(SimulationScene scene, List<SimulationSceneStep> steps) {
@@ -349,13 +278,6 @@ public class SimulationRunServiceImpl
             log.warn("场景快照序列化失败 sceneId={}：{}", scene.getId(), ex.getMessage());
             return null;
         }
-    }
-
-    private String truncate(String value, int max) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= max ? value : value.substring(0, max);
     }
 
     /**
