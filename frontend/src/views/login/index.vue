@@ -143,17 +143,30 @@ async function handleLogin() {
   min-height: 100vh;
   padding: 24px;
   box-sizing: border-box;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.06) 0%, transparent 35%),
+    radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 35%);
+  transition: background-color 0.25s ease;
+}
+
+[data-theme="dark"] .login-container {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 35%),
+    radial-gradient(circle at 80% 80%, rgba(0, 217, 165, 0.06) 0%, transparent 35%);
 }
 
 .login-card {
   width: min(400px, 100%);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .login-title {
   text-align: center;
   margin-bottom: 24px;
-  color: #303133;
+  color: var(--color-text);
 }
 
 .login-btn {
@@ -165,6 +178,11 @@ async function handleLogin() {
   justify-content: space-between;
   margin-bottom: 18px;
   font-size: 14px;
+}
+
+.login-links a {
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 .login-card :deep(.el-form-item:last-child) {

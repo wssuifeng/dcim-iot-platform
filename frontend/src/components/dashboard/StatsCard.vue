@@ -20,7 +20,7 @@
         <div class="stats-card-value" :style="{ color }">{{ value }}</div>
       </div>
       <!-- 右侧：彩色图标 -->
-      <div class="stats-card-icon" :style="{ backgroundColor: bgColor || color + '1a' }">
+      <div class="stats-card-icon" :style="iconStyle">
         <el-icon :size="32" :color="color">
           <component :is="icon" />
         </el-icon>
@@ -30,12 +30,21 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   label: { type: String, required: true },
   value: { type: [Number, String], required: true },
-  color: { type: String, default: '#409EFF' },
+  color: { type: String, default: 'var(--color-primary)' },
   icon: { type: String, required: true },
   bgColor: { type: String, default: '' },
+})
+
+const iconStyle = computed(() => {
+  if (props.bgColor) return { backgroundColor: props.bgColor }
+  return {
+    backgroundColor: `color-mix(in srgb, ${props.color} 12%, transparent)`,
+  }
 })
 </script>
 
@@ -48,13 +57,15 @@ defineProps({
 
 .stats-card-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-2);
   margin-bottom: 8px;
 }
 
 .stats-card-value {
   font-size: 28px;
   font-weight: bold;
+  font-family: var(--data-font);
+  font-variant-numeric: tabular-nums;
 }
 
 .stats-card-icon {
@@ -63,6 +74,6 @@ defineProps({
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 </style>

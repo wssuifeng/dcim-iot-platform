@@ -20,12 +20,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import VChart from 'vue-echarts'
 import { use, getInstanceByDom } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { useThemeStore, THEME_DARK } from '@/stores/theme'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -35,45 +36,69 @@ const props = defineProps({
 })
 
 const containerRef = ref(null)
+const themeStore = useThemeStore()
 let resizeObserver = null
 
-/*
- * 方法功能:根据 props.data 动态计算 ECharts 配置
- * 返回数据:echartsOption - ECharts 配置对象
- *
- * 【配置要点】
- * - tooltip.trigger = 'axis': 鼠标悬停显示该轴所有数据
- * - smooth = true: 平滑曲线（非折线）
- * - areaStyle: 半透明填充区域（面积图效果）
- * - yAxis.minInterval = 1: 纵轴最小间隔为 1（告警数量为整数）
- * - ECharts 6.x 默认启用标签防溢出机制，无需 containLabel
- */
+const isDark = computed(() => themeStore.theme === THEME_DARK)
+const lineColor = computed(() => (isDark.value ? '#ff5d82' : '#ef4444'))
+const areaColor = computed(() => (isDark.value ? 'rgba(255, 46, 99, 0.2)' : 'rgba(239, 68, 68, 0.1)'))
+const textColor = computed(() => (isDark.value ? '#94a3b8' : '#64748b'))
+const axisColor = computed(() => (isDark.value ? '#334155' : '#e2e8f0'))
+
 const chartOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['告警数量'] },
-  grid: { left: '3%', right: '4%', bottom: '3%' },
-  xAxis: { type: 'category', data: props.data.map((d) => d.date) },
-  yAxis: { type: 'value', minInterval: 1 },
+  tooltip: {
+    trigger: 'axis',
+    backgroundColor: isDark.value ? 'rgba(21, 29, 46, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+    borderColor: isDark.value ? '#334155' : '#e2e8f0',
+    textStyle: { color: isDark.value ? '#f1f5f9' : '#1e293b' },
+  },
+  legend: {
+    data: ['告警数量'],
+    textStyle: { color: textColor.value },
+  },
+  grid: {
+    left: '3%',
+    right: '4%',
+    bottom: '3%',
+    containLabel: true,
+  },
+  xAxis: {
+    type: 'category',
+    data: props.data.map((d) => d.date),
+    axisLine: { lineStyle: { color: axisColor.value } },
+    axisLabel: { color: textColor.value },
+    splitLine: { show: false },
+  },
+  yAxis: {
+    type: 'value',
+    minInterval: 1,
+    axisLine: { show: false },
+    axisLabel: { color: textColor.value },
+    splitLine: { lineStyle: { color: isDark.value ? 'rgba(51, 65, 85, 0.6)' : '#f1f5f9' } },
+  },
   series: [
     {
       name: '告警数量',
       type: 'line',
       data: props.data.map((d) => d.count),
       smooth: true,
-      areaStyle: { opacity: 0.1 },
-      itemStyle: { color: '#F56C6C' },
+      areaStyle: { color: areaColor.value },
+      itemStyle: { color: lineColor.value },
+      lineStyle: { color: lineColor.value, width: 3 },
     },
   ],
 }))
 
+function resizeChart() {
+  const dom = containerRef.value?.querySelector('.v-chart')
+  if (dom) {
+    const instance = getInstanceByDom(dom)
+    instance?.resize()
+  }
+}
+
 onMounted(() => {
-  resizeObserver = new ResizeObserver(() => {
-    const dom = containerRef.value?.querySelector('.v-chart')
-    if (dom) {
-      const instance = getInstanceByDom(dom)
-      instance?.resize()
-    }
-  })
+  resizeObserver = new ResizeObserver(resizeChart)
   if (containerRef.value) {
     resizeObserver.observe(containerRef.value)
   }
@@ -85,6 +110,8 @@ onUnmounted(() => {
     resizeObserver = null
   }
 })
+
+watch(() => themeStore.theme, resizeChart)
 </script>
 
 <style scoped>
