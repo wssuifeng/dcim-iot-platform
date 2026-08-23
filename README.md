@@ -1,8 +1,8 @@
 # dcim-iot-platform 数据中心动环监控平台
 
-> **产品化仓库**: 基于 `wssuifeng/iot-platform` v1.0 演进 | **当前基线**: `0b6b0cc` | **第四阶段**: 分阶段实现与测试
+> **产品化仓库**: 基于 `wssuifeng/iot-platform` v1.0 演进 | **当前基线**: `5d26eeb`（认证与产品化基础集成） | **第四阶段**: 分阶段实现与测试
 
-本仓库是数据中心动环监控平台产品化版本。当前 README 保留了 v1.0 基础项目的大量技术栈、目录结构、已有 API、前后端启动和历史能力说明，用于理解现有工程基础。
+本仓库是数据中心动环监控平台（DCIM）产品化版本。v1.0 单租户物联网平台已演进为多组织多租户架构，本文档按模块拆分描述当前后端 30 个控制器 / 29 个实体 / 44 个服务与前端 15 个业务页面的真实状态。
 
 第四阶段产品化开发的事实来源是外部公共控制包：
 
@@ -18,33 +18,30 @@
 
 `开发控制文档/` 是未纳入 Git 的分发副本，不是产品代码或正式项目文档，禁止提交。
 
-若本 README 中的旧项目身份、旧角色 `ADMIN/OPERATOR/VIEWER`、旧 Flyway `V1` 到 `V6` 迁移、手动建表 SQL、旧路线图或旧分支描述与公共控制包冲突，以公共控制包为准。开发时仍应读取本 README 和 `AGENTS.md` 来了解技术栈、目录结构、构建命令和现有模块行为。
+若本 README 与公共控制包在角色模型、数据范围、迁移策略、分支与合并顺序上冲突，以公共控制包为准。开发时应读取本 README 和 `AGENTS.md` 了解技术栈、目录结构、构建命令与各模块行为。
 
 ---
 
 ## 一、项目简介
 
-IoT-Platform 是一个前后端分离的物联网设备管理平台。后端基于 Spring Boot 4 + MyBatis-Plus，负责设备管理、数据采集、告警规则引擎、定时监控、安全认证、审计与通知日志；前端基于 Vue 3 + Vite + Element Plus，提供登录、仪表盘、设备、数据监控、告警、指标、用户与审计日志等后台管理页面。项目以真实业务场景驱动，适合初学者理解前后端联调、分层架构设计与工程化开发流程。
+dcim-iot-platform 是面向数据中心动力环境监控的多组织 SaaS 化平台。后端基于 Spring Boot 4 + MyBatis-Plus，通过 JWT 认证 + 组织上下文（`X-Organization-Id`）+ 四级数据范围实现"一个平台、多组织隔离"；前端基于 Vue 3 + Vite + Element Plus，提供 15 个业务页面与日间/夜间双主题管理后台。
 
 ### 核心能力
 
 | 能力 | 说明 |
 |------|------|
-| 设备管理 | 设备 CRUD、状态管理、分页查询、模糊搜索 |
-| 数据采集 | 单条/批量数据上报、历史查询、统计聚合 |
-| 告警引擎 | 配置化规则引擎，支持设备级/类型级规则、5级告警、去重与升级 |
-| 离线检测 | 定时任务扫描离线设备，自动生成离线告警 |
-| 设备导入导出 | Excel 批量导入（上限500条）、设备数据/告警记录导出（上限10000条）、模板下载与前端交互 |
-| 指标字典 | 指标元数据 Redis 缓存，告警消息自动填充中文名和单位 |
-| 安全认证 | JWT 无状态认证、RBAC 三级角色授权（ADMIN/OPERATOR/VIEWER）、BCrypt 密码加密 |
-| 用户管理 | 用户 CRUD、账号锁定（连续5次失败锁定30分钟）、IP频率限制、密码重置 |
-| 审计日志 | 登录/操作审计记录、多条件分页查询、过期日志自动清理 |
-| 缓存服务 | Redis 多层缓存、穿透/击穿/雪崩防御、通知去重、统一 CacheService 接口 |
-| Token 黑名单 | 登出/密码重置时 Token 失效控制，黑名单自动过期清理 |
-| 仪表盘统计 | 设备/告警聚合统计、互斥锁防缓存击穿 |
-| 通知发送日志 | 邮件/WebSocket 推送结果持久化记录，支持状态追溯 |
-| 前端管理后台 | Vue 3 单页应用，覆盖登录、仪表盘、设备、类型、数据监控、告警、指标、用户、审计日志页面 |
-| 前后端联调 | Vite 开发代理将 `/api` 转发到 `http://localhost:8080`，Axios 自动携带 JWT Token |
+| 多组织多租户 | 组织/机房两级资源模型、成员关系、创建/加入组织审批流、顶栏组织切换 |
+| 数据范围控制 | PLATFORM / ORG_ALL / ROOMS / READ_ONLY 四级数据范围，机房粒度授权，越权防护 |
+| 认证与鉴权 | JWT 无状态认证、四角色 RBAC（PLATFORM_ADMIN/ORG_ADMIN/OPERATOR/VIEWER）、Token 黑名单、账号锁定、IP 限流、邮箱验证码注册、平台初始化向导 |
+| 设备与点位 | 设备/设备类型 CRUD 与 Excel 导入导出、点位定义、类型级点位模板、设备点位绑定 |
+| 指标时序 | 指标字典（Redis 缓存）、metric_sample 时序采样、metric_latest 最新值、保留策略与每日 TTL 清理 |
+| 告警状态机 | 设备级/类型级规则引擎（降级策略）、五级告警、TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED 状态流转、处理与流转留痕 |
+| 通知 | 邮件通知、WebSocket（STOMP）用户隔离摘要推送、站内通知未读管理、通知日志与去重 |
+| 仿真推演 | 模拟场景/步骤编排、异步运行与取消、生成数据引用可追溯 |
+| 审计与可观测 | `@AuditLog` 切面结构化审计、TraceId 贯穿日志与异步线程、Druid 慢 SQL 监控、Actuator 健康检查 |
+| 离线检测 | 定时任务扫描离线设备，自动生成离线告警（去重） |
+| 前端管理后台 | 15 个业务页面 + 注册/平台初始化公开页、双主题（SaaS 浅色 / SCADA 深色）、实时摘要驱动刷新 |
+| 容器化部署 | Dockerfile + docker-compose（app + MySQL 9.6 + Redis 7）一键启动，生产安全门控 |
 
 ---
 
@@ -52,28 +49,29 @@ IoT-Platform 是一个前后端分离的物联网设备管理平台。后端基�
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| Spring Boot | 4.0.6 | 应用框架，自动配置与快速开发 |
-| Spring Security | - | 安全框架，JWT 认证、RBAC 授权、端点访问控制 |
-| MyBatis-Plus | 3.5.16 | ORM 框架，CRUD 增强、分页插件、乐观锁、自动填充 |
-| Druid | 1.2.28 | 数据库连接池，SQL 监控与性能统计 |
-| MySQL Connector | 9.6.0 | MySQL 数据库驱动 |
-| JWT (jjwt) | - | JSON Web Token，无状态用户认证与授权 |
-| BCrypt | - | 密码哈希加密算法，安全存储用户密码 |
-| Jakarta Validation | - | 声明式参数校验，支持分组校验 |
-| Lombok | - | 减少样板代码（getter/setter/构造器） |
-| Jackson | - | JSON 序列化，`JacksonTypeHandler` 处理 JSON 字段 |
-| Redis | 7.x | 缓存数据库，支持字符串/哈希等多种数据结构 |
-| Lettuce | 6.x | Redis 客户端，基于 Netty 的异步非阻塞连接 |
-| commons-pool2 | 2.x | Lettuce 连接池依赖 |
-| EasyExcel | 4.0.3 | Excel 流式导入导出，基于 Apache POI |
-| Spring Retry | 2.0.11 | 声明式重试机制，数据上报死锁自动重试 |
-| Vue | 3.5.32 | 前端单页应用框架 |
-| Vite | 8.0.8 | 前端开发服务器与构建工具，端口 `5173` |
-| Element Plus | 2.14.1 | 前端 UI 组件库 |
-| Vue Router | 4.6.4 | 前端路由与登录态导航守卫 |
-| Pinia | 3.0.4 | 前端状态管理 |
-| Axios | 1.16.1 | 前端 HTTP 客户端，统一请求/响应拦截 |
-| ECharts / vue-echarts | 6.1.0 / 8.0.1 | 仪表盘与数据趋势图表 |
+| Spring Boot | 4.0.6 | 应用框架（4.x 而非 3.x，Flyway/Security API 有差异） |
+| Spring Security | - | JWT 过滤链、四角色 RBAC、组织上下文过滤、端点访问控制 |
+| Spring WebSocket | - | STOMP + SockJS 实时摘要推送，端点 `/api/ws` |
+| MyBatis-Plus | 3.5.16 | ORM（spring-boot4-starter），分页/乐观锁/自动填充 |
+| Druid | 1.2.28 | 连接池 + SQL 监控（druid-spring-boot-4-starter） |
+| MySQL Connector | 9.6.0 | mysql-connector-j 驱动 |
+| Flyway | - | V1–V10 版本化迁移，`validate-on-migrate` 强制校验 checksum |
+| jjwt | 0.12.6 | JWT 签发与解析 |
+| SpringDoc OpenAPI | 3.0.3 | `/swagger-ui.html` 交互式文档 |
+| EasyExcel | 4.0.3 | Excel 流式导入导出 |
+| Spring Retry | 2.0.11 | 数据上报死锁自动重试 |
+| Spring Mail | - | 告警邮件与验证码邮件 |
+| Redis / Lettuce | 7.x / 6.x | 缓存（统一走 `CacheService`，不直接用 RedisTemplate） |
+| commons-pool2 | 2.x | Lettuce 连接池 |
+| Jakarta Validation | - | 声明式参数校验（CreateGroup/UpdateGroup 分组） |
+| Lombok / Jackson | - | 样板代码 / JSON（`JacksonTypeHandler` 处理 JSON 字段） |
+| Vue | 3.5.32 | 前端框架（组合式 API） |
+| Vite | 8.0.8 | 前端开发服务器与构建，端口 `5173` |
+| Element Plus | 2.14.1 | UI 组件库（主题变量整表覆盖） |
+| Vue Router / Pinia | 4.6.4 / 3.0.4 | 路由与登录态/组织/数据范围守卫 / 状态管理 |
+| Axios | 1.16.1 | HTTP 客户端，统一请求/响应拦截 |
+| ECharts / vue-echarts | 6.1.0 / 8.0.1 | 仪表盘与数据趋势图表（主题自适应重绘） |
+| @stomp/stompjs + sockjs-client | 7.3.0 / 1.6.1 | 前端 STOMP 实时通道 |
 
 ---
 
@@ -81,163 +79,39 @@ IoT-Platform 是一个前后端分离的物联网设备管理平台。后端基�
 
 ```
 iot-platform/
-├── .mvn/wrapper/                              # Maven Wrapper，无需本地安装 Maven
 ├── src/
 │   ├── main/
-│   │   ├── java/com/example/platform/
-│   │   │   ├── IotPlatformApplication.java    # 启动入口（@EnableScheduling）
-│   │   │   ├── common/                        # 通用基础设施
-│   │   │   │   ├── Result.java                # 统一响应封装
-│   │   │   │   ├── ResultCode.java            # 响应码常量
-│   │   │   │
-│   │   │   │   ├── exception/                 # 异常体系
-│   │   │   │   │   ├── BusinessException.java           # 业务异常基类
-│   │   │   │   │   ├── DeviceNotFoundException.java     # 设备不存在异常(4003)
-│   │   │   │   │   ├── DeviceCodeAlreadyExistsException.java  # 设备编码重复异常(4002)
-│   │   │   │   │   ├── DeviceTypeNotFound.java          # 设备类型不存在异常(4001)
-│   │   │   │   │   ├── DeviceTypeCodeAlreadyExistsException.java  # 设备类型编码重复异常(4051)
-│   │   │   │   ├── UserNotFoundException.java       # 用户不存在异常(4004)
-│   │   │   │   ├── UsernameAlreadyExistsException.java  # 用户名已存在异常(4005)
-│   │   │   │   ├── AccountLockedException.java      # 账号锁定异常(4006)
-│   │   │   │   ├── CacheOperationException.java     # 缓存操作异常(5001)
-│   │   │   │   └── GlobalExceptionHandler.java      # 全局异常处理器
-│   │   │   │   ├── util/                      # 工具类
-│   │   │   │   │   └── JwtUtil.java           # JWT 工具类（Token 生成/解析/验证）
-│   │   │   │   └── group/                     # 校验分组接口
-│   │   │   │       ├── CreateGroup.java
-│   │   │   │       └── UpdateGroup.java
-│   │   │   ├── config/                        # 框架配置
-│   │   │   │   ├── SecurityConfig.java        # Spring Security 配置（JWT过滤链/RBAC/密码加密）
-│   │   │   │   ├── RedisConfig.java           # Redis 配置（序列化策略/Lettuce连接池）
-│   │   │   │   ├── MybatisPlusConfig.java     # 分页+乐观锁插件配置
-│   │   │   │   ├── MyMetaObjectHandler.java   # 自动填充（createTime/updateTime/collectTime）
-│   │   │   │   ├── CorsConfig.java            # 跨域配置（支持配置文件动态读取）
-│   │   │   │
-│   │   │   ├── security/                      # 安全组件
-│   │   │   │   ├── JwtAuthenticationFilter.java        # JWT Token 提取与校验过滤器
-│   │   │   │   ├── CustomAuthenticationEntryPoint.java # 未认证请求返回 401 JSON
-│   │   │   │   └── CustomAccessDeniedHandler.java      # 权限不足请求返回 403 JSON
-│   │   │   ├── controller/                    # 控制器层
-│   │   │   │   ├── DeviceController.java      # 设备管理（13 个接口：CRUD + 导出/导入/模板 + 状态更新 + 告警配置）
-│   │   │   │   ├── DeviceDataController.java  # 数据采集与导出（9 个接口）
-│   │   │   │   ├── DeviceTypeController.java  # 设备类型管理（6 个接口：CRUD + 告警配置）
-│   │   │   │   ├── DictMetricController.java  # 指标字典（5 个接口）
-│   │   │   │   ├── AlertController.java       # 告警管理与导出（8 个接口）
-│   │   │   │   ├── AuthController.java        # 认证（2 个接口：登录、登出）
-│   │   │   │   ├── SysUserController.java     # 用户管理（8 个接口，ADMIN 专属）
-│   │   │   │   ├── SysAuditLogController.java # 审计日志（2 个接口）
-│   │   │   │   ├── DashboardController.java   # 仪表盘统计（1 个接口）
-│   │   │   │
-│   │   │   ├── dto/                           # 数据传输对象
-│   │   │   │   ├── AlertRuleConfig.java       # 告警规则配置（含规则列表）
-│   │   │   │   ├── AlertRuleDefinition.java   # 告警规则定义（指标/操作符/阈值/级别）
-│   │   │   │   ├── BatchHandleAlertDTO.java   # 批量处理告警请求
-│   │   │   │   ├── DeviceDataBatchDTO.java    # 批量数据上报请求
-│   │   │   │   ├── HandleAlertDTO.java        # 单条告警处理请求
-│   │   │   │   ├── LoginDTO.java              # 登录请求 DTO
-│   │   │   │   ├── LoginResponseDTO.java      # 登录成功响应 DTO（含 JWT Token）
-│   │   │   │   ├── PasswordResetDTO.java      # 密码重置请求 DTO
-│   │   │   │   ├── DashboardStatsDTO.java      # 仪表盘统计响应 DTO
-│   │   │   │   ├── DeviceExportRow.java       # 设备导出行映射 DTO（@ExcelProperty）
-│   │   │   │
-│   │   │   ├── entity/                        # 实体类
-│   │   │   │   ├── Device.java                # 设备（含 alertRuleConfig JSON 字段）
-│   │   │   │   ├── DeviceData.java            # 设备数据（含 metric 指标字段）
-│   │   │   │   ├── DeviceType.java            # 设备类型（含 alertRuleConfig JSON 字段）
-│   │   │   │   ├── Alert.java                 # 告警记录
-│   │   │   │   ├── DictMetric.java            # 指标字典
-│   │   │   │   ├── SysUser.java               # 用户（含 BCrypt 密码/锁定机制/角色）
-│   │   │   │   ├── SysAuditLog.java           # 审计日志
-│   │   │   │   ├── NotificationLog.java        # 通知发送日志
-│   │   │   │
-│   │   │   ├── mapper/                        # 数据访问层
-│   │   │   │   ├── DeviceMapper.java          # 含 getOnlineDetection 自定义 SQL
-│   │   │   │   ├── DeviceDataMapper.java      # 含统计聚合 SQL
-│   │   │   │   ├── AlertMapper.java           # 含 3 个告警统计 SQL
-│   │   │   │   ├── DeviceTypeMapper.java
-│   │   │   │   ├── DictMetricMapper.java
-│   │   │   │   ├── SysUserMapper.java         # 含 findByUsername 自定义 SQL
-│   │   │   │   ├── SysAuditLogMapper.java     # 含 deleteByCreateTimeBefore 清理 SQL
-│   │   │   │   ├── NotificationLogMapper.java  # 通知日志 CRUD
-│   │   │   │
-│   │   │   ├── service/                       # 业务接口层
-│   │   │   │   ├── DeviceService.java
-│   │   │   │   ├── DeviceDataService.java
-│   │   │   │   ├── DeviceTypeService.java
-│   │   │   │   ├── AlertService.java
-│   │   │   │   ├── AlertConfigService.java     # 告警规则配置缓存服务
-│   │   │   │   ├── DictMetricService.java
-│   │   │   │   ├── CacheService.java           # 统一缓存服务接口
-│   │   │   │   ├── DashboardStatsService.java  # 仪表盘统计服务
-│   │   │   │   ├── NotificationDedupService.java # 通知去重服务
-│   │   │   │   ├── TokenBlacklistService.java  # Token 黑名单服务
-│   │   │   │   ├── AuthService.java           # 认证服务接口
-│   │   │   │   ├── SysUserService.java        # 用户服务接口
-│   │   │   │   ├── SysAuditLogService.java    # 审计日志服务接口
-│   │   │   │
-│   │   │   │   └── impl/                      # 业务实现层
-│   │   │   │       ├── DeviceServiceImpl.java
-│   │   │   │       ├── DeviceDataServiceImpl.java   # saveWithAlertCheck 事务方法
-│   │   │   │       ├── DeviceTypeServiceImpl.java
-│   │   │   │       ├── AlertServiceImpl.java        # 含离线告警生成+6个统计方法
-│   │   │   │       ├── AlertConfigServiceImpl.java  # 告警规则配置缓存实现
-│   │   │   │       ├── AlertRuleEngine.java         # 告警规则引擎核心
-│   │   │   │       ├── DictMetricServiceImpl.java   # Redis 分布式缓存
-│   │   │   │       ├── CacheServiceImpl.java        # 统一缓存服务实现
-│   │   │   │       ├── DashboardStatsServiceImpl.java # 仪表盘统计（互斥锁防击穿）
-│   │   │   │       ├── NotificationDedupServiceImpl.java # 通知去重实现
-│   │   │   │       ├── AuthServiceImpl.java         # 认证实现（IP频率限制/账号锁定/JWT签发）
-│   │   │   │       ├── SysUserServiceImpl.java      # 用户管理（BCrypt加密/SQL原子递增/字段白名单）
-│   │   │   │       ├── SysAuditLogServiceImpl.java  # 审计日志（多条件查询/过期清理）
-│   │   │   │       ├── EmailNotificationServiceImpl.java # 邮件告警通知
-│   │   │   │       ├── AlertWebSocketService.java     # WebSocket 实时推送
-│   │   │   │
-│   │   │   └── task/                          # 定时任务
-│   │   │       └── DeviceMonitorTask.java     # 设备离线检测（cron+阈值配置化）
+│   │   ├── java/com/example/platform/          # 后端主源码（282 个 Java 文件）
+│   │   │   ├── IotPlatformApplication.java     # 启动入口
+│   │   │   ├── common/                         # 通用基础设施
+│   │   │   │   ├── Result / ResultCode         # 统一响应（50 个错误码 + 14 个稳定字符串码）
+│   │   │   │   ├── annotation/aspect/          # @AuditLog 注解 + 审计切面
+│   │   │   │   ├── exception/                  # BusinessException 体系 + GlobalExceptionHandler
+│   │   │   │   ├── filter/                     # 限流 / TraceId / XSS 过滤器
+│   │   │   │   ├── constant/ group/ util/      # 登录失败 Lua 脚本、校验分组、JwtUtil 等工具
+│   │   │   ├── config/                         # Security/Redis/MyBatis-Plus/CORS/WebSocket/Async/OpenAPI/生产安全门控
+│   │   │   ├── security/                       # JWT 过滤器、PlatformRole 角色模型、组织上下文、WebSocket 鉴权（14 个类）
+│   │   │   ├── controller/                     # 30 个 REST 控制器
+│   │   │   ├── dto/                            # 请求/响应 DTO 与 VO（55 个）
+│   │   │   ├── entity/                         # 实体（29 个，见"四、后端模块详解"数据模型总览）
+│   │   │   ├── mapper/                         # Mapper 接口（29 个，BaseMapper + 注解式，无 XML）
+│   │   │   ├── service/ + service/impl/        # 44 个服务接口 + 42 个实现（含 AlertRuleEngine）
+│   │   │   └── task/                           # DeviceMonitorTask（离线检测）、DataCleanupTask（TTL 清理）
 │   │   └── resources/
-│   │       ├── application.yaml               # 项目配置
-│   │       └── db/migration/                  # Flyway 数据库迁移
-│   │           ├── V1__init_schema.sql        # 初始建表
-│   │           ├── V2__add_business_indexes.sql # 业务索引
-│   │           ├── V3__add_deleted_columns.sql  # 逻辑删除字段
-│   │           ├── V4__add_deadlock_monitoring_config.sql # 死锁监控配置
-│   │           ├── V5__fix_dict_metric_and_alert_schema.sql # 修正 dict_metric 列名+alerts 注释
-│   │           └── V6__add_notification_log.sql # 通知发送日志表
-│   └── test/                                  # 测试代码
-│       ├── IotPlatformApplicationTests.java  # Spring Boot 启动测试
-│       ├── service/impl/
-│       │   ├── AlertServiceImplTest.java      # 17个Mockito纯单元测试
-│       │   ├── AlertServiceTest.java          # AlertService 集成测试
-│       │   ├── AlertConfigServiceTest.java    # AlertConfigService 单元测试
-│       │   ├── DashboardStatsServiceTest.java # DashboardStatsService 单元测试
-│       │   ├── DictMetricServiceTest.java     # DictMetricService 单元测试
-│       │   ├── NotificationDedupServiceTest.java # 通知去重单元测试
-│       │   ├── DeviceServiceImplTest.java     # Mapper基础集成测试
-│       │   ├── DeviceServiceTest.java         # Service业务逻辑集成测试
-│       │   └── AuthServiceImplTest.java       # AuthService 单元测试
-│       ├── service/
-│       │   ├── CacheServiceTest.java          # CacheService 单元测试
-│       │   └── TokenBlacklistServiceTest.java # TokenBlacklist 单元测试
-│       ├── mapper/
-│       │   └── DeviceMapperTest.java          # DeviceMapper 自定义SQL集成测试
-│       └── jmeter/
-│           └── perf-quick.jmx                  # 性能基准测试计划
-├── frontend/                                    # 前端（Vue3 + Vite + Element Plus + ECharts）
-│   ├── src/
-│   │   ├── api/                                 # 按业务模块封装后端 API 调用
-│   │   ├── components/                          # 设备、告警、指标、用户、审计等业务组件
-│   │   ├── layout/                              # 后台管理页面 Layout
-│   │   ├── router/                              # Vue Router 路由与登录态守卫
-│   │   ├── stores/                              # Pinia 状态管理
-│   │   ├── utils/request.js                     # Axios 实例，统一 Token 和错误处理
-│   │   └── views/                               # 登录、仪表盘、设备、数据监控、告警等页面
-│   ├── vite.config.js                           # Vite 配置，/api 代理到 http://localhost:8080
-│   ├── package.json                             # npm 脚本与前端依赖
-│   └── README.md                                # 指向根 README 的前端说明入口
-├── AGENTS.md                                  # AI Agent 上下文（技术栈/约定/文档导航）
-├── pom.xml                                    # Maven 配置
-├── mvnw / mvnw.cmd                            # Maven Wrapper 脚本
-└── README.md                                  # 本文件
+│   │       ├── application.yaml                # 公共配置（profile 默认 dev）
+│   │       ├── application-dev.yaml            # 开发环境（Druid 监控、限流放宽）
+│   │       ├── application-prod.yaml           # 生产环境（全量环境变量化 + SSL + 安全门控）
+│   │       └── db/migration/                   # Flyway V1–V10
+│   └── test/                                   # 64 个测试类（controller/service/mapper/migration/security/config）
+│       └── jmeter/                             # 性能基准测试计划（perf-quick.jmx 等）
+├── frontend/                                   # 前端（Vue3 + Vite + Element Plus，见"五、前端模块详解"）
+├── SQL/                                        # SQL 参考脚本
+├── docs/                                       # 设计规格与实施计划（superpowers/specs|plans）
+├── Dockerfile / docker-compose.yml             # 容器化部署（app + MySQL 9.6 + Redis 7）
+├── .env.example                                # 环境变量模板（15 个变量）
+├── AGENTS.md                                   # AI Agent 上下文（技术栈/约定/禁忌）
+├── pom.xml / mvnw / mvnw.cmd                   # Maven 配置与 Wrapper
+└── README.md                                   # 本文件
 ```
 
 ---
