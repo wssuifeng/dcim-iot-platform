@@ -180,6 +180,41 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 
 ---
 
+### 4.2 组织与数据范围模块
+
+**功能**：组织/机房两级资源模型、成员关系管理、创建/加入组织审批流、四级数据范围授权与组织上下文隔离。
+
+| 能力 | 说明 |
+|------|------|
+| 组织上下文 | 业务请求携带 `X-Organization-Id` 头，`OrganizationContextFilter` 校验成员资格后注入 `CurrentOrganizationContext`（ThreadLocal）；切换到非成员组织抛 `DataScopeViolationException`（4071/4072） |
+| 数据范围 | `sys_data_scope_assignment.scopeType` 四级：PLATFORM（全平台）/ ORG_ALL（组织全部）/ ROOMS（指定机房）/ READ_ONLY（只读），`DeviceScopeHelper` 据此做设备级过滤 |
+| 成员管理 | 成员列表、角色变更、移除成员、组织加入设置（开放加入/需审批） |
+| 审批流 | 创建组织申请（用户提交 → PLATFORM_ADMIN 审批 → `OrganizationProvisioningService` 开通）；加入组织申请（提交 → ORG_ADMIN 审批），冲突抛 `MembershipConflictException`（4511-4518） |
+| 当前上下文查询 | `GET /auth/memberships`（我的组织列表）、`GET /auth/current-scope`（当前数据范围） |
+
+**关键类**：`OrganizationController`、`CloudRoomController`、`OrganizationMemberController`、`OrganizationCreationApplicationController`、`OrganizationJoinApplicationController`、`AccountOrganizationController`、`CurrentScopeController`、`UserDataScopeController`；服务层 `OrganizationService`、`CloudRoomService`、`OrganizationMembershipService`、`OrganizationProvisioningService`、`DataScopeService`、`UserDataScopeService`、`DeviceScopeHelper`。
+
+**数据表**：`sys_organization`、`sys_cloud_room`、`organization_membership`、`organization_creation_application`、`organization_join_application`、`sys_data_scope_assignment`。
+
+### 4.3 用户与平台管理模块
+
+**功能**：全局用户管理（PLATFORM_ADMIN 专属）、用户数据范围指派、平台注册策略与组织申请审批。
+
+| 能力 | 说明 |
+|------|------|
+| 用户管理 | `/users` 8 个接口：分页/搜索/详情/创建/更新/重置密码/启停/删除；BCrypt 加密、登录失败 SQL 原子递增、更新字段白名单防注入 |
+| 数据范围指派 | `/users/{id}/data-scopes`：列表/指派/移除，控制目标用户可见的组织与机房 |
+| 注册策略 | `/platform/registration-settings`：注册开关与默认策略（PLATFORM_ADMIN 专属 `/platform/**`） |
+| 组织申请审批 | `/platform/organization-applications`：申请列表/批准/拒绝，批准后自动开通组织并建立成员关系 |
+
+**关键类**：`SysUserController`、`SysUserServiceImpl`、`UserDataScopeController`、`PlatformRegistrationSettingsController`、`PlatformRegistrationSettingsService`。
+
+**数据表**：`sys_user`、`sys_data_scope_assignment`、`platform_registration_settings`。
+
+**测试**：`SysUserMapperScopeTest`、`GlobalIdentityContractTest`、`OrganizationMembershipMigrationContractTest`、`RegistrationIdentityMigrationContractTest` 等。
+
+---
+
 ## 五、环境要求
 
 | 软件 | 版本 | 说明 |
