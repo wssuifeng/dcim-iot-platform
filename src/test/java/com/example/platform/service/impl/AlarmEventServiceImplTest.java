@@ -69,6 +69,12 @@ class AlarmEventServiceImplTest {
     private UserScopedWebSocketPublisher webSocketPublisher;
     @Mock
     private AlarmRecipientResolver alarmRecipientResolver;
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+    @Mock
+    private com.example.platform.service.DeviceService deviceService;
+    @Mock
+    private com.example.platform.service.PointDefinitionService pointDefinitionService;
 
     @InjectMocks
     private AlarmEventServiceImpl alarmEventService;
@@ -181,7 +187,7 @@ class AlarmEventServiceImplTest {
         }
 
         @Test
-        @DisplayName("Both delivery channels use exact room recipients")
+        @DisplayName("人工流转站内通知使用精确机房收件人（WS推送职责已移交分发服务）")
         void should_dispatch_to_exact_room_recipients() {
             AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
             event.setCloudRoomId(CLOUD_ROOM_ID);
@@ -198,14 +204,13 @@ class AlarmEventServiceImplTest {
 
             verify(inAppNotificationService).notifyAlarmEvent(
                     eq(1L), eq(Set.of(20L, 30L)), any(String.class), any(String.class));
-            verify(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
-            verify(webSocketPublisher).sendSummary(eq(30L), any(WebSocketSummary.class));
-            verify(webSocketPublisher, never()).sendSummary(eq(ORG_ID), any(WebSocketSummary.class));
+            // D13/D17：人工流转不再直推 WS（自动链路三事件才推），状态机无 WS 交互
+            verify(webSocketPublisher, never()).sendSummary(any(), any(WebSocketSummary.class));
         }
 
         @Test
-        @DisplayName("A failed WebSocket recipient does not block later recipients")
-        void should_continue_after_one_websocket_recipient_fails() {
+        @DisplayName("站内通知发送异常不阻断状态流转")
+        void should_continue_after_notification_failure() {
             AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
             event.setCloudRoomId(CLOUD_ROOM_ID);
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
@@ -216,13 +221,13 @@ class AlarmEventServiceImplTest {
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
             when(alarmRecipientResolver.resolveRecipientUserIds(ORG_ID, CLOUD_ROOM_ID))
                     .thenReturn(new java.util.LinkedHashSet<>(List.of(20L, 30L)));
-            org.mockito.Mockito.doThrow(new IllegalStateException("offline"))
-                    .when(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
+            org.mockito.Mockito.doThrow(new IllegalStateException("notify down"))
+                    .when(inAppNotificationService)
+                    .notifyAlarmEvent(eq(1L), any(), any(String.class), any(String.class));
 
-            alarmEventService.acknowledge(1L, CURRENT_USER_ID, null);
+            AlarmEvent result = alarmEventService.acknowledge(1L, CURRENT_USER_ID, null);
 
-            verify(webSocketPublisher).sendSummary(eq(20L), any(WebSocketSummary.class));
-            verify(webSocketPublisher).sendSummary(eq(30L), any(WebSocketSummary.class));
+            assertThat(result.getState()).isEqualTo("ACKED");
         }
     }
 
@@ -323,13 +328,13 @@ class AlarmEventServiceImplTest {
     class NotFound {
 
         @Test
-        @DisplayName("告警事件不存在抛 RESOURCE_NOT_FOUND")
+        @DisplayName("告警事件不存在抛 ALARM_EVENT_NOT_FOUND(4041)")
         void should_throw_when_eventNotFound() {
             when(alarmEventMapper.selectById(99L)).thenReturn(null);
 
             assertThatThrownBy(() -> alarmEventService.getDetail(99L, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class)
-                    .extracting("code").isEqualTo(ResultCode.RESOURCE_NOT_FOUND);
+                    .extracting("code").isEqualTo(ResultCode.ALARM_EVENT_NOT_FOUND);
         }
     }
 }

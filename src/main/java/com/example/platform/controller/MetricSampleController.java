@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
 import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.MetricSampleBatchDTO;
+import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.MetricSample;
@@ -43,22 +44,23 @@ public class MetricSampleController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "写入单条指标采样", description = "ORG_ADMIN/OPERATOR；触发 metric_latest 更新")
+    @Operation(summary = "写入单条指标采样", description = "ORG_ADMIN/OPERATOR；T1事务（采样+最新值+设备在线），提交后异步触发告警评估")
     @PostMapping
     @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
     @AuditLog(operation = "WRITE_METRIC_SAMPLE", detail = "设备ID:#dto.deviceId, 点位ID:#dto.pointId")
     public Result<MetricSample> save(@Valid @RequestBody MetricSampleDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
-        return Result.success(metricSampleService.saveSample(dto, user.userId()));
+        // HTTP 上报恒触发告警评估（模拟运行走服务层传开关值）
+        return Result.success(metricSampleService.saveSample(dto, user.userId(), true));
     }
 
-    @Operation(summary = "批量写入指标采样", description = "ORG_ADMIN/OPERATOR；逐条触发 metric_latest 更新")
+    @Operation(summary = "批量写入指标采样", description = "ORG_ADMIN/OPERATOR；逐条独立事务（非原子，部分成功合法），返回成功数与失败明细")
     @PostMapping("/batch")
     @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
     @AuditLog(operation = "WRITE_METRIC_SAMPLE_BATCH", detail = "条数:#dto.items.size")
-    public Result<List<MetricSampleVO>> saveBatch(@Valid @RequestBody MetricSampleBatchDTO dto) {
+    public Result<MetricSampleBatchResultVO> saveBatch(@Valid @RequestBody MetricSampleBatchDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
-        return Result.success(metricSampleService.saveBatch(dto, user.userId()));
+        return Result.success(metricSampleService.saveBatch(dto, user.userId(), true));
     }
 
     @Operation(summary = "分页查询指标采样历史", description = "查询时间跨度上限 90 天；必须指定 deviceId")

@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,7 +40,7 @@ class SimulationStepExecutionServiceImplTest {
         SimulationSceneStep step = step("WRITE_SAMPLE", 5);
         MetricSample sample = new MetricSample();
         sample.setId(900L);
-        when(metricSampleService.saveSample(any(MetricSampleDTO.class), eq(30L))).thenReturn(sample);
+        when(metricSampleService.saveSample(any(MetricSampleDTO.class), eq(30L), anyBoolean())).thenReturn(sample);
 
         service.executeStep(run, step, null, 30L);
 
@@ -57,7 +58,7 @@ class SimulationStepExecutionServiceImplTest {
 
         service.executeStep(run, step, null, 30L);
 
-        verify(metricSampleService, never()).saveSample(any(), any());
+        verify(metricSampleService, never()).saveSample(any(), any(), anyBoolean());
         ArgumentCaptor<SimulationGeneratedDataRef> captor =
                 ArgumentCaptor.forClass(SimulationGeneratedDataRef.class);
         verify(generatedDataRefMapper).insert(captor.capture());

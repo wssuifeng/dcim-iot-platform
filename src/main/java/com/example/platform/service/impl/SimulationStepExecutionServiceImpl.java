@@ -10,12 +10,19 @@ import com.example.platform.mapper.SimulationGeneratedDataRefMapper;
 import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.SimulationStepExecutionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
+/*
+ * 类功能:模拟场景步骤执行服务实现类，按步骤生成指标采样并记录数据引用
+ *
+ * 【告警开关（D06）】模拟写入默认不触发告警评估，由 simulation.alarm-trigger-enabled
+ *   控制；开启后模拟数据走完整告警链路（用于校验规则生效）。
+ * */
 @Service
 @RequiredArgsConstructor
 public class SimulationStepExecutionServiceImpl implements SimulationStepExecutionService {
@@ -24,6 +31,9 @@ public class SimulationStepExecutionServiceImpl implements SimulationStepExecuti
 
     private final MetricSampleService metricSampleService;
     private final SimulationGeneratedDataRefMapper generatedDataRefMapper;
+
+    @Value("${simulation.alarm-trigger-enabled:false}")
+    private boolean alarmTriggerEnabled;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -52,7 +62,7 @@ public class SimulationStepExecutionServiceImpl implements SimulationStepExecuti
         sampleDTO.setPointId(step.getPointId());
         sampleDTO.setSampleValue(step.getSampleValue());
         sampleDTO.setSampleTime(LocalDateTime.now());
-        var savedSample = metricSampleService.saveSample(sampleDTO, currentUserId);
+        var savedSample = metricSampleService.saveSample(sampleDTO, currentUserId, alarmTriggerEnabled);
 
         generatedDataRefMapper.insert(buildRef(run, step, deviceId,
                 savedSample == null ? null : savedSample.getId()));

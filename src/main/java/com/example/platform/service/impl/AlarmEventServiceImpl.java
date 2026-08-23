@@ -10,47 +10,60 @@ import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlarmEventVO;
 import com.example.platform.dto.AlarmHandlingRecordVO;
 import com.example.platform.dto.AlarmStateTransitionVO;
+import com.example.platform.dto.AlarmTriggerContext;
+import com.example.platform.dto.AlarmTriggerResult;
 import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.AlarmEvent;
 import com.example.platform.entity.AlarmHandlingRecord;
 import com.example.platform.entity.AlarmStateTransition;
+import com.example.platform.entity.Device;
+import com.example.platform.entity.PointDefinition;
+import com.example.platform.event.AlarmEventRecoveredEvent;
+import com.example.platform.event.AlarmEventTriggeredEvent;
 import com.example.platform.mapper.AlarmEventMapper;
 import com.example.platform.mapper.AlarmHandlingRecordMapper;
 import com.example.platform.mapper.AlarmStateTransitionMapper;
-import com.example.platform.security.WebSocketSummary;
-import com.example.platform.security.UserScopedWebSocketPublisher;
 import com.example.platform.service.AlarmEventService;
 import com.example.platform.service.AlarmRecipientResolver;
 import com.example.platform.service.DataScopeService;
+import com.example.platform.service.DeviceService;
 import com.example.platform.service.InAppNotificationService;
+import com.example.platform.service.PointDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /*
- * 类功能:告警事件权威状态机服务实现类
+ * 类功能:告警事件权威状态机服务实现类（产生入口+人工流转+查询）
  *
  * 【状态机流转图】
  *   TRIGGERED → ACKED → HANDLING → RECOVERED → CLOSED
  *   合法流转按顺序推进；非法流转抛 STATE_INVALID_TRANSITION；
  *   重复关闭抛 ALARM_STATE_CONFLICT。
  *
+ * 【产生入口（trigger/autoRecover）】
+ *   活动告警去重键：deviceId+pointId+alarmType 且 state NOT IN (RECOVERED,CLOSED)；
+ *   新级别数字更小时升级（数字小=更紧急）；trigger/autoRecover 事务提交后发布
+ *   单向事件（AlarmEventTriggeredEvent/AlarmEventRecoveredEvent）交由分发服务处理，
+ *   本服务不直接推送 WebSocket（职责移交，D14/D17）。
+ *
+ * 【人工流转通知】人工 ACK/HANDLING/RECOVER/CLOSE 仅发站内通知；
+ *   WS 摘要推送只属于自动链路三事件（ALARM_CREATED/UPGRADED/RECOVERED，D13）。
+ *
  * 【数据范围依据】依赖 organizationId 与 cloudRoomId；不依赖 Device.location。
- *
- * 【通知编排】状态进入 ACKED/HANDLING/RECOVERED/CLOSED 时触发站内通知和 WebSocket 摘要推送。
- *
- * 【兼容性】v1.0 alerts 表与 AlarmEvent 不强制外键；本服务不动 Alert.isHandled 字段，
- *   全部以 AlarmEvent.state 为权威状态。
  * */
 @Slf4j
 @Service
@@ -63,8 +76,10 @@ public class AlarmEventServiceImpl
     private final AlarmHandlingRecordMapper alarmHandlingRecordMapper;
     private final DataScopeService dataScopeService;
     private final InAppNotificationService inAppNotificationService;
-    private final UserScopedWebSocketPublisher webSocketPublisher;
     private final AlarmRecipientResolver alarmRecipientResolver;
+    private final ApplicationEventPublisher eventPublisher;
+    private final DeviceService deviceService;
+    private final PointDefinitionService pointDefinitionService;
 
     public static final String STATE_TRIGGERED = "TRIGGERED";
     public static final String STATE_ACKED = "ACKED";
@@ -88,6 +103,83 @@ public class AlarmEventServiceImpl
         TRANSITIONS.put(STATE_HANDLING, Set.of(STATE_RECOVERED, STATE_CLOSED));
         TRANSITIONS.put(STATE_RECOVERED, Set.of(STATE_CLOSED));
         TRANSITIONS.put(STATE_CLOSED, Set.of());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlarmTriggerResult trigger(AlarmTriggerContext context) {
+        AlarmEvent existing = findActiveEvent(
+                context.getDeviceId(), context.getPointId(), context.getAlarmType());
+
+        if (existing == null) {
+            AlarmEvent event = new AlarmEvent();
+            event.setDeviceId(context.getDeviceId());
+            event.setPointId(context.getPointId());
+            event.setAlarmType(context.getAlarmType());
+            event.setAlarmLevel(context.getAlarmLevel());
+            event.setAlarmMessage(context.getAlarmMessage());
+            event.setState(STATE_TRIGGERED);
+            event.setOrganizationId(context.getOrganizationId());
+            event.setCloudRoomId(context.getCloudRoomId());
+            if (!save(event)) {
+                throw new BusinessException("写入告警事件失败");
+            }
+            insertTransition(event.getId(), null, STATE_TRIGGERED, null, "系统触发");
+            eventPublisher.publishEvent(new AlarmEventTriggeredEvent(
+                    event.getId(), AlarmEventTriggeredEvent.KIND_CREATED));
+            log.info("告警产生 alarmEventId={} device={} type={} level={}",
+                    event.getId(), event.getDeviceId(), event.getAlarmType(), event.getAlarmLevel());
+            return AlarmTriggerResult.of(event, AlarmTriggerResult.KIND_CREATED);
+        }
+
+        // 已有活动告警：新级别数字更小（更紧急）时升级，否则去重跳过
+        if (context.getAlarmLevel() != null
+                && context.getAlarmLevel() < existing.getAlarmLevel()) {
+            int fromLevel = existing.getAlarmLevel();
+            existing.setAlarmLevel(context.getAlarmLevel());
+            existing.setAlarmMessage(context.getAlarmMessage());
+            if (!updateById(existing)) {
+                throw new BusinessException("升级告警事件失败");
+            }
+            insertTransition(existing.getId(), STATE_TRIGGERED, STATE_TRIGGERED, null,
+                    String.format("级别升级 %d → %d", fromLevel, context.getAlarmLevel()));
+            eventPublisher.publishEvent(new AlarmEventTriggeredEvent(
+                    existing.getId(), AlarmEventTriggeredEvent.KIND_UPGRADED));
+            log.info("告警升级 alarmEventId={} level {} → {}",
+                    existing.getId(), fromLevel, context.getAlarmLevel());
+            return AlarmTriggerResult.of(existing, AlarmTriggerResult.KIND_UPGRADED);
+        }
+
+        log.debug("告警去重跳过 alarmEventId={} level={}", existing.getId(), existing.getAlarmLevel());
+        return AlarmTriggerResult.of(existing, AlarmTriggerResult.KIND_SKIPPED);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean autoRecover(Integer deviceId, Long pointId, String alarmType) {
+        AlarmEvent existing = findActiveEvent(deviceId, pointId, alarmType);
+        if (existing == null) {
+            return false;
+        }
+        String fromState = existing.getState();
+        existing.setState(STATE_RECOVERED);
+        existing.setRecoveredTime(LocalDateTime.now());
+        if (!updateById(existing)) {
+            throw new BusinessException("自动恢复告警失败");
+        }
+        insertTransition(existing.getId(), fromState, STATE_RECOVERED, null, "系统自动恢复（值恢复正常/设备上线）");
+        eventPublisher.publishEvent(new AlarmEventRecoveredEvent(existing.getId()));
+        log.info("告警自动恢复 alarmEventId={} device={} type={}",
+                existing.getId(), deviceId, alarmType);
+        return true;
+    }
+
+    @Override
+    public List<AlarmEvent> listActiveByAlarmType(String alarmType) {
+        LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AlarmEvent::getAlarmType, alarmType)
+                .notIn(AlarmEvent::getState, List.of(STATE_RECOVERED, STATE_CLOSED));
+        return list(wrapper);
     }
 
     @Override
@@ -122,7 +214,9 @@ public class AlarmEventServiceImpl
 
     @Override
     public AlarmEventVO getDetail(Long alarmEventId, Long currentUserId) {
-        return AlarmEventVO.fromEntity(getEventOrThrow(alarmEventId, currentUserId));
+        AlarmEventVO vo = AlarmEventVO.fromEntity(getEventOrThrow(alarmEventId, currentUserId));
+        fillDisplayFields(new ArrayList<>(List.of(vo)));
+        return vo;
     }
 
     @Override
@@ -174,6 +268,7 @@ public class AlarmEventServiceImpl
         for (AlarmEvent event : source.getRecords()) {
             records.add(AlarmEventVO.fromEntity(event));
         }
+        fillDisplayFields(records);
         result.setRecords(records);
         return result;
     }
@@ -210,7 +305,7 @@ public class AlarmEventServiceImpl
     public AlarmEvent getEventOrThrow(Long alarmEventId, Long currentUserId) {
         AlarmEvent event = getById(alarmEventId);
         if (event == null) {
-            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND,
+            throw new BusinessException(ResultCode.ALARM_EVENT_NOT_FOUND,
                     "告警事件不存在: " + alarmEventId);
         }
         if (currentUserId != null) {
@@ -220,6 +315,34 @@ public class AlarmEventServiceImpl
     }
 
     // ===================== 内部辅助 =====================
+
+    private AlarmEvent findActiveEvent(Integer deviceId, Long pointId, String alarmType) {
+        LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AlarmEvent::getDeviceId, deviceId)
+                .eq(AlarmEvent::getAlarmType, alarmType)
+                .notIn(AlarmEvent::getState, List.of(STATE_RECOVERED, STATE_CLOSED))
+                .orderByDesc(AlarmEvent::getTriggeredTime)
+                .last("LIMIT 1");
+        if (pointId == null) {
+            wrapper.isNull(AlarmEvent::getPointId);
+        } else {
+            wrapper.eq(AlarmEvent::getPointId, pointId);
+        }
+        return getOne(wrapper, false);
+    }
+
+    private void insertTransition(Long alarmEventId, String fromState, String toState,
+                                  Long operatorUserId, String remark) {
+        AlarmStateTransition transition = new AlarmStateTransition();
+        transition.setAlarmEventId(alarmEventId);
+        transition.setFromState(fromState);
+        transition.setToState(toState);
+        transition.setOperatorUserId(operatorUserId);
+        transition.setRemark(remark);
+        if (alarmStateTransitionMapper.insert(transition) <= 0) {
+            throw new BusinessException("写入状态流转记录失败");
+        }
+    }
 
     private AlarmEvent transition(Long alarmEventId, String toState, String action,
                                   Long currentUserId, String note) {
@@ -264,8 +387,8 @@ public class AlarmEventServiceImpl
             throw new BusinessException("写入处理记录失败");
         }
 
-        // 4. 触发站内通知与 WebSocket 摘要推送
-        notifyAndPush(event, toState);
+        // 4. 人工流转仅发站内通知；WS 摘要推送只属于自动链路三事件（D13），职责在分发服务
+        notifyInApp(event, toState);
 
         log.info("告警状态流转 alarmEventId={} from={} to={} operator={}",
                 event.getId(), fromState, toState, currentUserId);
@@ -303,7 +426,7 @@ public class AlarmEventServiceImpl
         }
     }
 
-    private void notifyAndPush(AlarmEvent event, String toState) {
+    private void notifyInApp(AlarmEvent event, String toState) {
         Set<Long> recipientUserIds;
         try {
             recipientUserIds = alarmRecipientResolver.resolveRecipientUserIds(
@@ -331,19 +454,32 @@ public class AlarmEventServiceImpl
             log.warn("告警站内通知发送失败 alarmEventId={} error={}",
                     event.getId(), ex.getMessage());
         }
+    }
 
-        WebSocketSummary summary = new WebSocketSummary(
-                "ALARM_STATE_TRANSITION",
-                "AlarmEvent",
-                String.valueOf(event.getId()),
-                toState,
-                java.time.Instant.now());
-        for (Long recipientUserId : recipientUserIds) {
-            try {
-                webSocketPublisher.sendSummary(recipientUserId, summary);
-            } catch (Exception ex) {
-                log.warn("告警 WebSocket 摘要推送失败 alarmEventId={} userId={} error={}",
-                        event.getId(), recipientUserId, ex.getMessage());
+    private void fillDisplayFields(List<AlarmEventVO> vos) {
+        Set<Integer> deviceIds = vos.stream()
+                .map(AlarmEventVO::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> pointIds = vos.stream()
+                .map(AlarmEventVO::getPointId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<Device> devices = deviceIds.isEmpty() ? List.of() : deviceService.listByIds(deviceIds);
+        List<PointDefinition> points = pointIds.isEmpty() ? List.of() : pointDefinitionService.listByIds(pointIds);
+        Map<Integer, Device> deviceById = devices == null ? Map.of()
+                : devices.stream().collect(Collectors.toMap(Device::getId, Function.identity()));
+        Map<Long, PointDefinition> pointById = points == null ? Map.of()
+                : points.stream().collect(Collectors.toMap(PointDefinition::getId, Function.identity()));
+        for (AlarmEventVO vo : vos) {
+            Device device = deviceById.get(vo.getDeviceId());
+            if (device != null) {
+                vo.setDeviceName(device.getDeviceName());
+            }
+            PointDefinition point = pointById.get(vo.getPointId());
+            if (point != null) {
+                vo.setPointName(point.getPointName());
+                vo.setPointUnit(point.getUnit());
             }
         }
     }

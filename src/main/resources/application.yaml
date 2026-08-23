@@ -128,6 +128,8 @@ jwt:
 # ==================== 模拟端写入开关 ====================
 simulation:
   write-enabled: ${SIMULATION_WRITE_ENABLED:false}
+  # 模拟写入是否触发告警评估（D06，默认关闭：模拟数据不产真实告警）
+  alarm-trigger-enabled: ${SIMULATION_ALARM_TRIGGER_ENABLED:false}
 
 verification:
   hmac-secret: ${VERIFICATION_CODE_HMAC_SECRET:dev-verification-hmac-secret-change-me}

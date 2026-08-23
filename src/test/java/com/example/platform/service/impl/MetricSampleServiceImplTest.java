@@ -7,15 +7,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.dto.MetricSampleBatchDTO;
+import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.DevicePointBinding;
 import com.example.platform.entity.MetricLatest;
 import com.example.platform.entity.MetricSample;
 import com.example.platform.entity.PointDefinition;
+import com.example.platform.event.MetricSampleSavedEvent;
 import com.example.platform.mapper.MetricSampleMapper;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DevicePointBindingService;
+import com.example.platform.service.DeviceService;
 import com.example.platform.service.MetricLatestService;
 import com.example.platform.service.PointDefinitionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -27,6 +30,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -44,7 +50,8 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:MetricSampleServiceImpl 单元测试
- * 覆盖 BIZ-OPEN-02：写入范围校验、联动最新值、查询必须指定 deviceId、90 天上限保护
+ * 覆盖：写入范围校验、联动最新值、设备在线状态刷新、triggerAlarm 事件分流、
+ *   双时间基准容忍窗口、批量逐条独立语义（部分成功合法）、90 天查询上限
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MetricSampleService 单元测试")
@@ -60,6 +67,12 @@ class MetricSampleServiceImplTest {
     private PointDefinitionService pointDefinitionService;
     @Mock
     private MetricLatestService metricLatestService;
+    @Mock
+    private DeviceService deviceService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private TransactionTemplate transactionTemplate;
 
     @InjectMocks
     private MetricSampleServiceImpl metricSampleService;
@@ -89,6 +102,10 @@ class MetricSampleServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
         assistant.setCurrentNamespace(MetricSampleMapper.class.getName());
         TableInfoHelper.initTableInfo(assistant, MetricSample.class);
+        // 设备在线状态刷新使用 LambdaUpdateWrapper<Device>，需初始化 Device 表信息
+        MapperBuilderAssistant deviceAssistant = new MapperBuilderAssistant(configuration, "");
+        deviceAssistant.setCurrentNamespace(com.example.platform.mapper.DeviceMapper.class.getName());
+        TableInfoHelper.initTableInfo(deviceAssistant, com.example.platform.entity.Device.class);
     }
 
     private PointDefinition buildPoint(Long id) {
@@ -98,6 +115,14 @@ class MetricSampleServiceImplTest {
         p.setPointName("A相电压");
         p.setUnit("V");
         return p;
+    }
+
+    private DevicePointBinding activeBinding(Integer deviceId, Long pointId) {
+        DevicePointBinding binding = new DevicePointBinding();
+        binding.setDeviceId(deviceId);
+        binding.setPointId(pointId);
+        binding.setStatus(0);
+        return binding;
     }
 
     @Nested
@@ -115,7 +140,7 @@ class MetricSampleServiceImplTest {
             dto.setPointId(10L);
             dto.setSampleValue(new BigDecimal("220.5"));
 
-            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID))
+            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID, true))
                     .isInstanceOf(DataScopeViolationException.class);
             verify(metricSampleMapper, never()).insert((MetricSample) any());
         }
@@ -133,53 +158,94 @@ class MetricSampleServiceImplTest {
             dto.setPointId(10L);
             dto.setSampleValue(new BigDecimal("220.5"));
 
-            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID))
+            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID, true))
                     .isInstanceOf(BusinessException.class);
             verify(metricSampleMapper, never()).insert((MetricSample) any());
         }
 
         @Test
-        @DisplayName("写入成功后联动 upsert 最新值")
-        void should_saveAndUpsertLatest() {
+        @DisplayName("写入成功后联动 upsert 最新值、刷设备在线并发布评估事件")
+        void should_save_upsertLatest_refreshOnline_publishEvent() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(null);
             when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
-            DevicePointBinding activeBinding = new DevicePointBinding();
-            activeBinding.setDeviceId(1);
-            activeBinding.setPointId(10L);
-            activeBinding.setStatus(0);
             when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
-                    .thenReturn(activeBinding);
+                    .thenReturn(activeBinding(1, 10L));
             when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
             MetricLatest latestMock = new MetricLatest();
             latestMock.setDeviceId(1); latestMock.setPointId(10L);
             when(metricLatestService.upsertLatest(eq(1), eq(10L), eq(new BigDecimal("220.5")), any(LocalDateTime.class)))
                     .thenReturn(latestMock);
+            when(deviceService.update(any())).thenReturn(true);
 
             MetricSampleDTO dto = new MetricSampleDTO();
             dto.setDeviceId(1);
             dto.setPointId(10L);
             dto.setSampleValue(new BigDecimal("220.5"));
 
-            MetricSample saved = metricSampleService.saveSample(dto, CURRENT_USER_ID);
+            MetricSample saved = metricSampleService.saveSample(dto, CURRENT_USER_ID, true);
             assertThat(saved.getDeviceId()).isEqualTo(1);
             verify(metricSampleMapper, times(1)).insert((MetricSample) any());
             verify(metricLatestService, times(1))
                     .upsertLatest(eq(1), eq(10L), eq(new BigDecimal("220.5")), any(LocalDateTime.class));
+            verify(deviceService, times(1)).update(any());
+            verify(eventPublisher, times(1)).publishEvent(any(MetricSampleSavedEvent.class));
         }
 
         @Test
-        @DisplayName("未来采样时间超过容忍窗口应拒绝")
-        void should_rejectFutureSampleTime() {
+        @DisplayName("triggerAlarm=false（模拟写入）不发布评估事件")
+        void should_not_publishEvent_whenTriggerAlarmFalse() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(null);
             when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
-            DevicePointBinding activeBinding = new DevicePointBinding();
-            activeBinding.setDeviceId(1);
-            activeBinding.setPointId(10L);
-            activeBinding.setStatus(0);
             when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
-                    .thenReturn(activeBinding);
+                    .thenReturn(activeBinding(1, 10L));
+            when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
+            when(metricLatestService.upsertLatest(any(), any(), any(), any())).thenReturn(new MetricLatest());
+            when(deviceService.update(any())).thenReturn(true);
+
+            MetricSampleDTO dto = new MetricSampleDTO();
+            dto.setDeviceId(1);
+            dto.setPointId(10L);
+            dto.setSampleValue(new BigDecimal("220.5"));
+
+            metricSampleService.saveSample(dto, CURRENT_USER_ID, false);
+            verify(eventPublisher, never()).publishEvent(any(MetricSampleSavedEvent.class));
+        }
+
+        @Test
+        @DisplayName("未来采样时间超过5分钟容忍窗口应拒绝")
+        void should_rejectFutureSampleTimeBeyondTolerance() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
+                    .thenReturn(null);
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
+            when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
+                    .thenReturn(activeBinding(1, 10L));
+
+            MetricSampleDTO dto = new MetricSampleDTO();
+            dto.setDeviceId(1);
+            dto.setPointId(10L);
+            dto.setSampleValue(new BigDecimal("220.5"));
+            dto.setSampleTime(LocalDateTime.now().plusMinutes(6));
+
+            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID, true))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("采样时间不能晚于");
+            verify(metricSampleMapper, never()).insert((MetricSample) any());
+            verify(metricLatestService, never()).upsertLatest(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("未来采样时间在5分钟容忍窗口内可接受（设备时钟偏差）")
+        void should_acceptFutureSampleTimeWithinTolerance() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
+                    .thenReturn(null);
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
+            when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
+                    .thenReturn(activeBinding(1, 10L));
+            when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
+            when(metricLatestService.upsertLatest(any(), any(), any(), any())).thenReturn(new MetricLatest());
+            when(deviceService.update(any())).thenReturn(true);
 
             MetricSampleDTO dto = new MetricSampleDTO();
             dto.setDeviceId(1);
@@ -187,11 +253,8 @@ class MetricSampleServiceImplTest {
             dto.setSampleValue(new BigDecimal("220.5"));
             dto.setSampleTime(LocalDateTime.now().plusMinutes(1));
 
-            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("采样时间不能晚于");
-            verify(metricSampleMapper, never()).insert((MetricSample) any());
-            verify(metricLatestService, never()).upsertLatest(any(), any(), any(), any());
+            MetricSample saved = metricSampleService.saveSample(dto, CURRENT_USER_ID, true);
+            assertThat(saved.getDeviceId()).isEqualTo(1);
         }
 
         @Test
@@ -202,55 +265,94 @@ class MetricSampleServiceImplTest {
             PointDefinition booleanPoint = buildPoint(10L);
             booleanPoint.setDataType("BOOLEAN");
             when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(booleanPoint);
-            DevicePointBinding activeBinding = new DevicePointBinding();
-            activeBinding.setDeviceId(1);
-            activeBinding.setPointId(10L);
-            activeBinding.setStatus(0);
             when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
-                    .thenReturn(activeBinding);
+                    .thenReturn(activeBinding(1, 10L));
 
             MetricSampleDTO dto = new MetricSampleDTO();
             dto.setDeviceId(1);
             dto.setPointId(10L);
             dto.setSampleValue(new BigDecimal("2"));
 
-            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID))
+            assertThatThrownBy(() -> metricSampleService.saveSample(dto, CURRENT_USER_ID, true))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("仅允许 0 或 1");
             verify(metricSampleMapper, never()).insert((MetricSample) any());
         }
+    }
+
+    @Nested
+    @DisplayName("saveBatch - 批量逐条独立写入")
+    class SaveBatch {
+
+        private void stubTransactionPassThrough() {
+            // 逐条独立事务：直接执行回调（模拟每条独立提交）
+            when(transactionTemplate.execute(any()))
+                    .thenAnswer(invocation -> {
+                        TransactionCallback<?> callback = invocation.getArgument(0);
+                        return callback.doInTransaction(null);
+                    });
+        }
 
         @Test
-        @DisplayName("批量写入逐条联动最新值")
-        void should_batchSave() {
+        @DisplayName("批量全部成功返回 successCount 与空失败明细")
+        void should_batchSaveAllSuccess() {
+            stubTransactionPassThrough();
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
-
-            PointDefinition p10 = buildPoint(10L);
-            PointDefinition p20 = buildPoint(20L);
-            when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(p10);
-            when(pointDefinitionService.getPointDefinitionOrThrow(20L)).thenReturn(p20);
-            DevicePointBinding binding10 = new DevicePointBinding();
-            binding10.setDeviceId(1); binding10.setPointId(10L); binding10.setStatus(0);
-            DevicePointBinding binding20 = new DevicePointBinding();
-            binding20.setDeviceId(1); binding20.setPointId(20L); binding20.setStatus(0);
-            when(devicePointBindingService.getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
-                    .thenReturn(binding10);
-            when(devicePointBindingService.getActiveBindingOrThrow(1, 20L, CURRENT_USER_ID))
-                    .thenReturn(binding20);
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
+            when(pointDefinitionService.getPointDefinitionOrThrow(20L)).thenReturn(buildPoint(20L));
+            when(devicePointBindingService.getActiveBindingOrThrow(eq(1), eq(10L), eq(CURRENT_USER_ID)))
+                    .thenReturn(activeBinding(1, 10L));
+            when(devicePointBindingService.getActiveBindingOrThrow(eq(1), eq(20L), eq(CURRENT_USER_ID)))
+                    .thenReturn(activeBinding(1, 20L));
             when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
+            when(metricLatestService.upsertLatest(any(), any(), any(), any())).thenReturn(new MetricLatest());
+            when(deviceService.update(any())).thenReturn(true);
 
             MetricSampleDTO d1 = new MetricSampleDTO();
             d1.setDeviceId(1); d1.setPointId(10L); d1.setSampleValue(new BigDecimal("220.5"));
-
             MetricSampleDTO d2 = new MetricSampleDTO();
             d2.setDeviceId(1); d2.setPointId(20L); d2.setSampleValue(new BigDecimal("55.1"));
 
             MetricSampleBatchDTO batch = new MetricSampleBatchDTO();
             batch.setItems(List.of(d1, d2));
 
-            List<MetricSampleVO> result = metricSampleService.saveBatch(batch, CURRENT_USER_ID);
-            assertThat(result).hasSize(2);
+            MetricSampleBatchResultVO result = metricSampleService.saveBatch(batch, CURRENT_USER_ID, true);
+            assertThat(result.getSuccessCount()).isEqualTo(2);
+            assertThat(result.getFailures()).isEmpty();
             verify(metricSampleMapper, times(2)).insert((MetricSample) any());
+            verify(eventPublisher, times(2)).publishEvent(any(MetricSampleSavedEvent.class));
+        }
+
+        @Test
+        @DisplayName("批量部分失败不影响其余条目（D10 非原子）")
+        void should_batchPartialFailureNotAffectOthers() {
+            stubTransactionPassThrough();
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+            // 第2条点位不存在 → 该条失败
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
+            when(pointDefinitionService.getPointDefinitionOrThrow(20L))
+                    .thenThrow(new BusinessException(4040, "点位不存在"));
+            when(devicePointBindingService.getActiveBindingOrThrow(eq(1), eq(10L), eq(CURRENT_USER_ID)))
+                    .thenReturn(activeBinding(1, 10L));
+            when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
+            when(metricLatestService.upsertLatest(any(), any(), any(), any())).thenReturn(new MetricLatest());
+            when(deviceService.update(any())).thenReturn(true);
+
+            MetricSampleDTO d1 = new MetricSampleDTO();
+            d1.setDeviceId(1); d1.setPointId(10L); d1.setSampleValue(new BigDecimal("220.5"));
+            MetricSampleDTO d2 = new MetricSampleDTO();
+            d2.setDeviceId(1); d2.setPointId(20L); d2.setSampleValue(new BigDecimal("55.1"));
+
+            MetricSampleBatchDTO batch = new MetricSampleBatchDTO();
+            batch.setItems(List.of(d1, d2));
+
+            MetricSampleBatchResultVO result = metricSampleService.saveBatch(batch, CURRENT_USER_ID, true);
+            assertThat(result.getSuccessCount()).isEqualTo(1);
+            assertThat(result.getFailures()).hasSize(1);
+            assertThat(result.getFailures().get(0).getIndex()).isEqualTo(1);
+            assertThat(result.getFailures().get(0).getErrorCode()).isEqualTo(4040);
+            verify(metricSampleMapper, times(1)).insert((MetricSample) any());
+            verify(eventPublisher, times(1)).publishEvent(any(MetricSampleSavedEvent.class));
         }
     }
 

@@ -5,14 +5,17 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.AlarmEventVO;
 import com.example.platform.dto.AlarmHandlingRecordVO;
 import com.example.platform.dto.AlarmStateTransitionVO;
+import com.example.platform.dto.AlarmTriggerContext;
+import com.example.platform.dto.AlarmTriggerResult;
 import com.example.platform.entity.AlarmEvent;
 
 import java.util.List;
 
 /*
- * 类功能:告警事件权威状态机服务接口
+ * 类功能:告警事件权威状态机服务接口（产生入口+人工流转+查询）
  *
  * 【角色与范围】
+ *   - 产生入口 trigger/autoRecover：评估引擎与离线检测（系统调用，无用户上下文）
  *   - 处理动作（ACK/HANDLING/RECOVER/CLOSE）：ORG_ADMIN/OPERATOR（按设备组织/机房范围）
  *   - 查询：ORG_ADMIN/OPERATOR/VIEWER（按授权范围过滤）
  *
@@ -20,10 +23,34 @@ import java.util.List;
  *   - 非法流转抛 BusinessException(STATE_INVALID_TRANSITION)
  *   - 重复关闭抛 BusinessException(ALARM_STATE_CONFLICT)
  *
- * 【兼容性】v1.0 alerts 表保留不变；Alert.isHandled 仅作派生展示，
- *   AlarmEvent.state 是第四阶段权威状态。
+ * 【去重键】deviceId+pointId+alarmType 且 state NOT IN (RECOVERED,CLOSED)；
+ *   新级别数字更小时升级（数字小=更紧急），否则 SKIPPED（不通知）。
+ *
+ * 【单向事件链】trigger/autoRecover 事务提交后发布
+ *   AlarmEventTriggeredEvent / AlarmEventRecoveredEvent（仅向前传播至分发）。
  * */
 public interface AlarmEventService extends IService<AlarmEvent> {
+
+    /*
+     * 方法功能:产生或升级告警（活动告警去重，新级别更小时升级）
+     * 参数:context-触发上下文（设备/点位/类型/级别/文案/组织/机房）
+     * 返回数据:AlarmTriggerResult-事件与kind（CREATED/UPGRADED/SKIPPED）
+     * */
+    AlarmTriggerResult trigger(AlarmTriggerContext context);
+
+    /*
+     * 方法功能:系统自动恢复活动告警（值恢复正常/设备恢复上线），操作人标记为系统
+     * 参数:deviceId-设备ID, pointId-点位ID（通用告警为null）, alarmType-告警类型
+     * 返回数据:boolean-是否执行了恢复（无活动告警返回false）
+     * */
+    boolean autoRecover(Integer deviceId, Long pointId, String alarmType);
+
+    /*
+     * 方法功能:查询指定类型的全部活动告警（离线检测反向扫描用）
+     * 参数:alarmType-告警类型（如 OFFLINE）
+     * 返回数据:List<AlarmEvent>-活动态告警列表（state NOT IN RECOVERED/CLOSED）
+     * */
+    List<AlarmEvent> listActiveByAlarmType(String alarmType);
 
     AlarmEvent acknowledge(Long alarmEventId, Long currentUserId, String note);
 
