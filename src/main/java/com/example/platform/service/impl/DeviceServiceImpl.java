@@ -11,7 +11,6 @@ import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DeviceCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceNotFoundException;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.dto.DataScopeContext;
@@ -20,7 +19,6 @@ import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.Organization;
 import com.example.platform.mapper.DeviceMapper;
-import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
 import com.example.platform.service.DataScopeService;
@@ -42,7 +40,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /*
- * 类功能:设备服务实现类，负责设备的CRUD、状态管理、编码唯一性校验及告警配置更新
+ * 类功能:设备服务实现类，负责设备的CRUD、状态管理、编码唯一性校验
  * */
 @Service
 public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> implements DeviceService {
@@ -52,18 +50,15 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
             "^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$");
 
     private final DeviceTypeService deviceTypeService;
-    private final AlertConfigService alertConfigService;
     private final DataScopeService dataScopeService;
     private final OrganizationService organizationService;
     private final CloudRoomService cloudRoomService;
 
     public DeviceServiceImpl(DeviceTypeService deviceTypeService,
-                             AlertConfigService alertConfigService,
                              DataScopeService dataScopeService,
                              OrganizationService organizationService,
                              CloudRoomService cloudRoomService) {
         this.deviceTypeService = deviceTypeService;
-        this.alertConfigService = alertConfigService;
         this.dataScopeService = dataScopeService;
         this.organizationService = organizationService;
         this.cloudRoomService = cloudRoomService;
@@ -171,19 +166,6 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
             throw new DeviceNotFoundException(id);
         }
         return device;
-    }
-
-    /*
-     * 方法功能:更新指定设备的告警规则配置
-     * 参数:id-设备ID, alertRuleConfig-告警规则配置对象
-     * 返回数据:无
-     * */
-    @Override
-    public void updateAlertConfig(Integer id, AlertRuleConfig alertRuleConfig) {
-        Device device = getDeviceOrThrow(id);
-        device.setAlertRuleConfig(alertRuleConfig);
-        this.updateById(device);
-        alertConfigService.evictDeviceAlertConfig(id);
     }
 
     /*
@@ -341,13 +323,6 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         if (!updateStatus(id, status)) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND, "更新状态失败，设备不存在");
         }
-    }
-
-    @Override
-    public void updateAlertConfigScoped(Integer id, AlertRuleConfig alertRuleConfig, Long currentUserId) {
-        Device device = getDeviceOrThrow(id);
-        ensureDeviceAccess(device, currentUserId, true);
-        updateAlertConfig(id, alertRuleConfig);
     }
 
     @Override

@@ -1,19 +1,17 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.example.platform.dto.AlertRuleConfig;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 设备类型实体类，映射 device_types 表，定义设备分类及其类型级告警规则配置
+ * 设备类型实体类，映射 device_types 表，定义设备分类信息
  */
 @Schema(description = "设备类型")
 @Data
-@TableName(value="device_types",autoResultMap = true)
+@TableName("device_types")
 public class DeviceType implements Serializable {
 
     @Schema(description = "类型ID（主键，自增）", example = "1")
@@ -38,10 +36,6 @@ public class DeviceType implements Serializable {
     @Schema(description = "更新时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
-
-    @Schema(description = "类型级告警规则（JSON，作为设备级规则的降级配置）")
-    @TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)
-    private AlertRuleConfig alertRuleConfig;
 
     @Schema(hidden = true)
     @TableLogic(value = "0", delval = "1")

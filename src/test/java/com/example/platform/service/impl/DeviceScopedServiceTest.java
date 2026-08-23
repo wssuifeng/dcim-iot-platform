@@ -12,7 +12,6 @@ import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.Organization;
 import com.example.platform.mapper.DeviceMapper;
-import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceTypeService;
@@ -45,7 +44,6 @@ class DeviceScopedServiceTest {
 
     @Mock private DeviceMapper deviceMapper;
     @Mock private DeviceTypeService deviceTypeService;
-    @Mock private AlertConfigService alertConfigService;
     @Mock private DataScopeService dataScopeService;
     @Mock private OrganizationService organizationService;
     @Mock private CloudRoomService cloudRoomService;

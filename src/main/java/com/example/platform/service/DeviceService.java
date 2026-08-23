@@ -2,7 +2,6 @@ package com.example.platform.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.entity.Device;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,13 +43,6 @@ public interface DeviceService extends IService<Device> {
      * 返回数据:boolean-更新是否成功
      * */
     boolean updateStatus(Integer id, Integer status);
-
-    /*
-     * 方法功能:更新指定设备的告警规则配置
-     * 参数:id-设备ID, alertRuleConfig-告警规则配置对象
-     * 返回数据:无
-     * */
-    void updateAlertConfig(Integer id, AlertRuleConfig alertRuleConfig);
 
     /*
      * 方法功能:查询最后在线时间早于指定阈值的设备（用于离线检测）
@@ -116,8 +108,6 @@ public interface DeviceService extends IService<Device> {
     void updateScoped(Integer id, Device update, Long currentUserId);
 
     void updateStatusScoped(Integer id, Integer status, Long currentUserId);
-
-    void updateAlertConfigScoped(Integer id, AlertRuleConfig alertRuleConfig, Long currentUserId);
 
     void deleteScoped(Integer id, Long currentUserId);
 

@@ -29,7 +29,7 @@ public interface CacheService {
      *
      * 【为什么不能用 "NULL" 字符串？】
      * 序列化器是 Jackson2JsonRedisSerializer + activateDefaultTyping：
-     *   - 存 "NULL" 字符串 → 反序列化得到 String → clazz.cast() 转 DictMetric 时 ClassCastException
+     *   - 存 "NULL" 字符串 → 反序列化得到 String → clazz.cast() 转目标类型时 ClassCastException
      *   - 存 NullValue 对象 → 反序列化得到 NullValue → instanceof 判断 → 返回 null
      *
      * 【instanceof 判断的好处】

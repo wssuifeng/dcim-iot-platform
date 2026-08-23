@@ -1,7 +1,6 @@
 package com.example.platform.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.DeviceType;
 
 import java.util.List;
@@ -17,13 +16,6 @@ public interface DeviceTypeService extends IService<DeviceType> {
      * 返回数据:DeviceType-查询到的设备类型对象
      * */
     DeviceType getTypeOrThrow(Integer id);
-
-    /*
-     * 方法功能:更新指定设备类型的告警规则配置
-     * 参数:id-设备类型ID, alertRuleConfig-告警规则配置对象
-     * 返回数据:无
-     * */
-    void updateAlertConfig(Integer id, AlertRuleConfig alertRuleConfig);
 
     /*
      * 方法功能:根据类型编码查询设备类型

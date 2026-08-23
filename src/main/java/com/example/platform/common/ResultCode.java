@@ -37,9 +37,7 @@ public final class ResultCode {
     public static final int DATA_TIME_RANGE_EXCEED = 4031;
     public static final int DATA_VALUE_OUT_OF_RANGE = 4032;
 
-    // 告警模块 404x
-    public static final int ALERT_NOT_FOUND = 4041;
-    public static final int ALERT_HANDLED = 4042;
+    // 告警模块 404x（新码随告警规则/事件服务实现补充：ALARM_EVENT_NOT_FOUND 等）
 
     // 配置模块 405x
     public static final int CONFIG_NOT_FOUND = 4051;

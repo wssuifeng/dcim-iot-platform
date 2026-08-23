@@ -9,7 +9,6 @@ import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.dto.DeviceExportRow;
 import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
@@ -42,9 +41,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 设备管理接口层，提供设备的CRUD、状态更新、搜索分页及告警配置等RESTful接口
+ * 设备管理接口层，提供设备的CRUD、状态更新、搜索分页等RESTful接口
  */
-@Tag(name = "设备管理", description = "设备 CRUD、状态更新、搜索分页及告警配置")
+@Tag(name = "设备管理", description = "设备 CRUD、状态更新、搜索分页")
 @RestController
 @RequestMapping("/devices")
 @Validated
@@ -147,16 +146,6 @@ public class DeviceController {
     public Result<Void> delete(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer id) {
         deviceService.deleteScoped(id, currentUser().userId());
-        return Result.success();
-    }
-
-    @Operation(summary = "更新设备级告警规则配置", description = "配置通过 JacksonTypeHandler 以 JSON 存入 alert_rule_config 字段；设备级优先于类型级")
-    @PutMapping("/{id}/alert-config")
-    @AuditLog(operation = "UPDATE_DEVICE_ALERT_CONFIG", detail = "设备ID:#id")
-    public Result<Void> updateAlertConfig(
-            @Parameter(description = "设备ID", required = true) @PathVariable Integer id,
-            @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
-        deviceService.updateAlertConfigScoped(id, alertRuleConfig, currentUser().userId());
         return Result.success();
     }
 

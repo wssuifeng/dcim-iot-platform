@@ -13,14 +13,13 @@ import java.time.LocalDateTime;
 public class MyMetaObjectHandler implements MetaObjectHandler {
 
     /*
-     * 方法功能:插入时自动填充collectTime、createTime和updateTime
+     * 方法功能:插入时自动填充createTime、triggeredTime和updateTime
      * 参数:metaObject-MyBatis-Plus元对象
      * 返回数据:无
      * */
     @Override
     public void insertFill(MetaObject metaObject) {
         // strictInsertFill仅在字段为null时填充，尊重手动传入值
-        this.strictInsertFill(metaObject, "collectTime", LocalDateTime.class, LocalDateTime.now());
         this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
         // triggeredTime为AlarmEvent（alarm_event表）的插入自动填充字段，语义等同于createTime
         this.strictInsertFill(metaObject, "triggeredTime", LocalDateTime.class, LocalDateTime.now());

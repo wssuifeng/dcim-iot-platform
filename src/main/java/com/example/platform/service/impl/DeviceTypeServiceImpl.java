@@ -6,11 +6,9 @@ import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DeviceTypeCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceTypeNotFound;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.mapper.DeviceTypeMapper;
-import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.DeviceTypeService;
@@ -20,17 +18,15 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /*
- * 类功能:设备类型服务实现类，负责设备类型的CRUD、编码唯一性校验、删除关联检查及告警配置更新
+ * 类功能:设备类型服务实现类，负责设备类型的CRUD、编码唯一性校验、删除关联检查
  * */
 @Service
 public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceType> implements DeviceTypeService {
 
     private final DeviceService deviceService;
-    private final AlertConfigService alertConfigService;
 
-    public DeviceTypeServiceImpl(@Lazy DeviceService deviceService, AlertConfigService alertConfigService) {
+    public DeviceTypeServiceImpl(@Lazy DeviceService deviceService) {
         this.deviceService = deviceService;
-        this.alertConfigService = alertConfigService;
     }
 
     @Override
@@ -40,14 +36,6 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
             throw new DeviceTypeNotFound(id);
         }
         return type;
-    }
-
-    @Override
-    public void updateAlertConfig(Integer id, AlertRuleConfig alertRuleConfig) {
-        DeviceType type = getTypeOrThrow(id);
-        type.setAlertRuleConfig(alertRuleConfig);
-        updateById(type);
-        alertConfigService.evictTypeAlertConfig(id);
     }
 
     @Override
@@ -85,9 +73,6 @@ public class DeviceTypeServiceImpl extends ServiceImpl<DeviceTypeMapper, DeviceT
         }
         if (deviceType.getDescription() != null) {
             existing.setDescription(deviceType.getDescription());
-        }
-        if (deviceType.getAlertRuleConfig() != null) {
-            existing.setAlertRuleConfig(deviceType.getAlertRuleConfig());
         }
         updateById(existing);
         return existing;

@@ -5,7 +5,6 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.mapper.DeviceTypeMapper;
-import com.example.platform.service.AlertConfigService;
 import com.example.platform.service.DeviceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,14 +27,12 @@ class DeviceTypeServiceImplTest {
     private DeviceTypeMapper deviceTypeMapper;
     @Mock
     private DeviceService deviceService;
-    @Mock
-    private AlertConfigService alertConfigService;
 
     private DeviceTypeServiceImpl deviceTypeService;
 
     @BeforeEach
     void setUp() {
-        deviceTypeService = new DeviceTypeServiceImpl(deviceService, alertConfigService);
+        deviceTypeService = new DeviceTypeServiceImpl(deviceService);
         ReflectionTestUtils.setField(deviceTypeService, "baseMapper", deviceTypeMapper);
     }
 

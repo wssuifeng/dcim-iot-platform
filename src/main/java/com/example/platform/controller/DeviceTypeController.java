@@ -2,7 +2,6 @@ package com.example.platform.controller;
 
 import com.example.platform.common.Result;
 import com.example.platform.common.annotation.AuditLog;
-import com.example.platform.dto.AlertRuleConfig;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.service.DeviceTypeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,9 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 设备类型接口层，提供设备类型的完整CRUD及告警配置更新等RESTful接口
+ * 设备类型接口层，提供设备类型的完整CRUD等RESTful接口
  */
-@Tag(name = "设备类型", description = "设备类型 CRUD 与类型级告警规则配置")
+@Tag(name = "设备类型", description = "设备类型 CRUD")
 @RestController
 @RequestMapping("/device-types")
 @Validated
@@ -63,16 +62,6 @@ public class DeviceTypeController {
     public Result<Void> delete(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id) {
         deviceTypeService.deleteById(id);
-        return Result.success();
-    }
-
-    @Operation(summary = "更新类型级告警规则配置", description = "该配置作为设备级告警规则的降级方案（设备未配规则时使用类型级规则）")
-    @PutMapping("/{id}/alert-config")
-    @AuditLog(operation = "UPDATE_DEVICE_TYPE_ALERT_CONFIG", detail = "类型ID:#id")
-    public Result<Void> updateAlertConfig(
-            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id,
-            @RequestBody @Validated AlertRuleConfig alertRuleConfig) {
-        deviceTypeService.updateAlertConfig(id, alertRuleConfig);
         return Result.success();
     }
 }

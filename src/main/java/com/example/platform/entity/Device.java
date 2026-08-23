@@ -1,10 +1,8 @@
 package com.example.platform.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
-import com.example.platform.dto.AlertRuleConfig;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -77,10 +75,6 @@ public class Device implements Serializable {
     @Schema(description = "更新时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
-
-    @Schema(description = "设备级告警规则（JSON，设备级优先于类型级）")
-    @TableField(value = "alert_rule_config", typeHandler = JacksonTypeHandler.class)
-    private AlertRuleConfig alertRuleConfig;
 
     @Schema(hidden = true)
     @TableLogic(value = "0", delval = "1")

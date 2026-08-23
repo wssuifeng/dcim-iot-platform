@@ -1,8 +1,8 @@
 package com.example.platform.service.impl;
 
 import com.example.platform.dto.DashboardStatsDTO;
-import com.example.platform.entity.Alert;
-import com.example.platform.service.AlertService;
+import com.example.platform.entity.AlarmEvent;
+import com.example.platform.mapper.AlarmEventMapper;
 import com.example.platform.service.CacheService;
 import com.example.platform.service.DashboardStatsService;
 import com.example.platform.service.DeviceService;
@@ -46,7 +46,7 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
 
     private final CacheService cacheService;
     private final DeviceService deviceService;
-    private final AlertService alertService;
+    private final AlarmEventMapper alarmEventMapper;
 
     @Override
     public DashboardStatsDTO getDashboardStats() {
@@ -111,9 +111,9 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
      * - DeviceStats.online   ← countByStatus() 中 status=1 的 count
      * - DeviceStats.offline  ← countByStatus() 中 status=0 的 count
      * - DeviceStats.fault    ← countByStatus() 中 status=2 的 count
-     * - AlertStats.total     ← alertService.count()
-     * - AlertStats.unhandled ← alertService.count(isHandled=0)
-     * - AlertStats.last24h   ← alertService.getStatsByTimeRange(24h前, 现在) 的 alertCount
+     * - AlertStats.total     ← alarmEventMapper.selectCount(全部)
+     * - AlertStats.unhandled ← alarmEventMapper.selectCount(活动态 NOT IN RECOVERED/CLOSED)
+     * - AlertStats.last24h   ← alarmEventMapper.selectCount(triggered_time >= 24h前)
      * */
     private DashboardStatsDTO buildFromDB() {
         DashboardStatsDTO stats = new DashboardStatsDTO();
@@ -145,18 +145,15 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
     private DashboardStatsDTO.AlertStats buildAlertStats() {
         DashboardStatsDTO.AlertStats alertStats = new DashboardStatsDTO.AlertStats();
 
-        alertStats.setTotal(alertService.count());
+        // 活动告警 = 状态不在 RECOVERED/CLOSED（告警状态机权威态）
+        List<String> activeStates = List.of("RECOVERED", "CLOSED");
+        alertStats.setTotal(alarmEventMapper.selectCount(null));
+        alertStats.setUnhandled(alarmEventMapper.selectCount(new LambdaQueryWrapper<AlarmEvent>()
+                .notIn(AlarmEvent::getState, activeStates)));
 
-        long unhandled = alertService.count(new LambdaQueryWrapper<Alert>()
-                .eq(Alert::getIsHandled, 0));
-        alertStats.setUnhandled(unhandled);
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime yesterday = now.minusDays(1);
-        Map<String, Object> timeRangeStats = alertService.getStatsByTimeRange(yesterday, now);
-        if (timeRangeStats != null && timeRangeStats.get("alertCount") != null) {
-            alertStats.setLast24h(((Number) timeRangeStats.get("alertCount")).longValue());
-        }
+        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
+        alertStats.setLast24h(alarmEventMapper.selectCount(new LambdaQueryWrapper<AlarmEvent>()
+                .ge(AlarmEvent::getTriggeredTime, yesterday)));
 
         return alertStats;
     }
