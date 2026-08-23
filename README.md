@@ -599,26 +599,35 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 
 ---
 
-## 九、RBAC 权限模型
+## 九、权限模型
+
+### 角色体系（`PlatformRole`）
 
 | 角色 | 权限范围 |
 |------|----------|
-| **ADMIN** | 全部操作 + 用户管理 + 删除操作 + Druid 监控 + 审计日志清理 |
-| **OPERATOR** | 设备管理 + 告警处理 + 数据上报 + 审计日志查询 + 只读查询 |
-| **VIEWER** | 只读查询（设备/数据/告警/日志） |
+| **PLATFORM_ADMIN** | 平台级管理：`/platform/**` 注册策略与组织申请审批、`/users/**` 用户管理、数据范围指派、Druid 监控、审计清理 |
+| **ORG_ADMIN** | 组织内管理：组织/机房/成员管理、业务 DELETE 操作、加入申请审批、业务写入 |
+| **OPERATOR** | 业务写入：设备/类型/点位/指标/告警处理/仿真运行等 POST/PUT 操作 + 审计查询 |
+| **VIEWER** | 只读查询（设备/数据/告警/指标/日志） |
 
-### 端点访问规则
+> 兼容性：旧 v1.0 角色 `ADMIN` 在认证时归一化为 `ORG_ADMIN`（同时授予双 Authority），存量 Token 不失效。
+
+### 端点访问规则（`SecurityConfig`）
 
 | 规则 | 路径/方法 | 允许角色 |
 |------|-----------|----------|
-| 公开端点 | `/auth/login` | 无需认证 |
-| Druid 监控 | `/druid/**` | ADMIN |
-| DELETE 操作 | 所有 DELETE 请求 | ADMIN |
-| 用户管理 | `/users/**` | ADMIN |
-| 审计日志 | `/audit-logs/**` | ADMIN, OPERATOR |
-| 设备写入/数据上报/指标创建 | POST 相关端点 | ADMIN, OPERATOR |
-| 设备更新/类型更新/指标更新 | PUT 相关端点 | ADMIN, OPERATOR |
-| 只读查询 | 所有 GET 请求 | 已认证用户（含 VIEWER） |
+| 公开端点 | `/auth/login`、`/auth/register`、`/auth/registration-codes`、`/setup/**`、Actuator health/info、Swagger | 无需认证 |
+| 平台管理 | `/platform/**` | PLATFORM_ADMIN |
+| 用户管理 | `/users/**` | PLATFORM_ADMIN |
+| Druid 监控 / 审计清理 | `/druid/**`、DELETE `/audit-logs/**` | PLATFORM_ADMIN, ORG_ADMIN |
+| 业务删除 | 其余 DELETE 请求 | ORG_ADMIN |
+| 业务写入 | POST/PUT 相关端点 | ORG_ADMIN, OPERATOR |
+| 只读查询 | GET 请求 | 已认证用户（含 VIEWER） |
+| WebSocket | `/ws` 握手放行 | STOMP CONNECT 阶段完成认证 |
+
+### 数据范围（横向隔离）
+
+角色决定"能做什么"，数据范围决定"能看哪些"：请求携带 `X-Organization-Id` 头确定组织上下文（须为成员），`sys_data_scope_assignment` 按用户授予 PLATFORM / ORG_ALL / ROOMS / READ_ONLY 四级范围，`DeviceScopeHelper` 在查询链路过滤设备。PLATFORM_ADMIN 不默认穿透组织业务数据，需显式授权。
 
 ---
 
