@@ -18,4 +18,4 @@ const rules={beforeTime:[{required:true,message:'请选择清理时间点',trigg
 function handleOpen(){form.beforeTime=''}
 async function handleClean(){const valid=await formRef.value.validate().catch(()=>false);if(!valid)return;cleaning.value=true;try{const res=await cleanupAuditLog(form.beforeTime);const count=res?.data??0;ElMessage.success(`已清理 ${count} 条日志`);emit('update:visible',false);emit('confirm')}catch{}finally{cleaning.value=false}}
 </script>
-<style scoped>.cleanup-desc{color:#f56c6c;font-size:13px;margin:0 0 16px 0}</style>
+<style scoped>.cleanup-desc{color:var(--color-danger);font-size:13px;margin:0 0 16px 0}</style>

@@ -185,13 +185,13 @@ onMounted(async () => {
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 22px;
 }
 
 .page-header p {
   margin: 6px 0 0;
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 13px;
 }
 
@@ -199,7 +199,7 @@ onMounted(async () => {
   padding: 14px 16px 0;
   margin-bottom: 16px;
   border: 1px solid #ebeef5;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .user-input {
@@ -215,13 +215,13 @@ onMounted(async () => {
 }
 
 .primary-cell {
-  color: #303133;
+  color: var(--color-text);
 }
 
 .secondary-cell,
 .error-code {
   margin-top: 4px;
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 12px;
 }
 
@@ -233,7 +233,7 @@ onMounted(async () => {
 }
 
 .error-code {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .pagination {

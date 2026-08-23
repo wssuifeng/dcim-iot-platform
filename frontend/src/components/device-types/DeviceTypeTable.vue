@@ -17,4 +17,4 @@ defineProps({list:{type:Array,default:()=>[]},loading:{type:Boolean,default:fals
 defineEmits(['edit','delete','alert-config'])
 function ruleCount(row){const rules=row?.alertRuleConfig?.rules;return Array.isArray(rules)?rules.length:0}
 </script>
-<style scoped>.no-rule{color:#909399}</style>
+<style scoped>.no-rule{color:var(--color-text-3)}</style>

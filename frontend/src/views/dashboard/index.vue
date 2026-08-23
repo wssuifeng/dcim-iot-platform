@@ -9,10 +9,10 @@
     </header>
 
     <div class="stats-grid">
-      <stats-card label="告警总量" :value="totalAlarms" color="#606266" icon="DataAnalysis" />
-      <stats-card label="活动告警" :value="activeAlarms" color="#f56c6c" icon="Warning" />
-      <stats-card label="已恢复" :value="stateCount('RECOVERED')" color="#67c23a" icon="CircleCheck" />
-      <stats-card label="已关闭" :value="stateCount('CLOSED')" color="#909399" icon="CircleClose" />
+      <stats-card label="告警总量" :value="totalAlarms" color="var(--color-text-2)" icon="DataAnalysis" />
+      <stats-card label="活动告警" :value="activeAlarms" color="var(--color-danger)" icon="Warning" />
+      <stats-card label="已恢复" :value="stateCount('RECOVERED')" color="var(--color-success)" icon="CircleCheck" />
+      <stats-card label="已关闭" :value="stateCount('CLOSED')" color="var(--color-info)" icon="CircleClose" />
     </div>
 
     <div class="dashboard-grid dashboard-grid-primary">
@@ -219,13 +219,13 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 22px;
 }
 
 .page-header p {
   margin: 6px 0 0;
-  color: #909399;
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
@@ -238,7 +238,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .dashboard-grid {
   display: grid;
-  border-top: 1px solid #dcdfe6;
+  border-top: 1px solid var(--color-border);
 }
 
 .dashboard-grid-primary {
@@ -247,13 +247,14 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .dashboard-grid-secondary {
   grid-template-columns: minmax(300px, 0.8fr) minmax(540px, 1.5fr);
-  border-bottom: 1px solid #dcdfe6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .dashboard-section {
   min-width: 0;
   padding: 20px;
-  border-right: 1px solid #dcdfe6;
+  border-right: 1px solid var(--color-border);
+  background-color: var(--color-surface);
 }
 
 .dashboard-section:last-child {
@@ -261,7 +262,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 }
 
 .dashboard-grid-secondary .dashboard-section {
-  border-top: 1px solid #dcdfe6;
+  border-top: 1px solid var(--color-border);
 }
 
 .section-heading {
@@ -270,7 +271,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .section-heading h2 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 16px;
 }
 
@@ -285,14 +286,15 @@ onBeforeUnmount(() => removeSummaryListener?.())
   grid-template-columns: 64px minmax(80px, 1fr) 36px;
   align-items: center;
   gap: 10px;
-  color: #606266;
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
 .distribution-row strong,
 .level-row strong {
-  color: #303133;
+  color: var(--color-text);
   text-align: right;
+  font-family: var(--data-font);
 }
 
 .level-row {
@@ -300,7 +302,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
   align-items: center;
   justify-content: space-between;
   padding-bottom: 9px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 @media (max-width: 1100px) {
@@ -315,7 +317,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
   .dashboard-section {
     border-right: 0;
-    border-bottom: 1px solid #dcdfe6;
+    border-bottom: 1px solid var(--color-border);
   }
 }
 

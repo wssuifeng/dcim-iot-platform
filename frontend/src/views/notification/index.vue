@@ -166,13 +166,13 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 22px;
 }
 
 .page-header p {
   margin: 6px 0 0;
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 13px;
 }
 
@@ -182,7 +182,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 }
 
 .unread-summary {
-  color: #606266;
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
@@ -199,14 +199,14 @@ onBeforeUnmount(() => removeSummaryListener?.())
   padding: 16px 4px;
   border: 0;
   border-bottom: 1px solid #ebeef5;
-  background: #ffffff;
+  background: var(--color-surface);
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .notification-item:hover {
-  background: #f5f7fa;
+  background: var(--color-bg);
 }
 
 .notification-item.unread {
@@ -221,7 +221,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 }
 
 .unread .status-dot {
-  background: #409eff;
+  background: var(--color-primary);
 }
 
 .notification-copy {
@@ -236,13 +236,13 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .notification-content {
   overflow: hidden;
-  color: #606266;
+  color: var(--color-text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .notification-time {
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 12px;
 }
 

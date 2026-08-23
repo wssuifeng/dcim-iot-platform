@@ -174,7 +174,7 @@ async function saveTemplates() {
 
 .secondary {
   margin-top: 3px;
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 12px;
 }
 </style>

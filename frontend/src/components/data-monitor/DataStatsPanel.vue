@@ -31,6 +31,6 @@ function formatAvg(val) {
 <style scoped>
 .stats-panel { margin-bottom: 16px; }
 .stat-item { text-align: center; }
-.stat-value { font-size: 24px; font-weight: bold; color: #303133; }
-.stat-label { font-size: 12px; color: #909399; margin-top: 4px; }
+.stat-value { font-size: 24px; font-weight: bold; color: var(--color-text); }
+.stat-label { font-size: 12px; color: var(--color-text-3); margin-top: 4px; }
 </style>

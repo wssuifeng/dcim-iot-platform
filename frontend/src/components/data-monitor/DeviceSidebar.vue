@@ -40,7 +40,7 @@ function statusColor(status) {
 <style scoped>
 .device-sidebar { width: 220px; padding: 12px; border-right: 1px solid #e6e6e6; overflow-y: auto; }
 .device-item { cursor: pointer; padding: 8px 12px; border-radius: 4px; display: flex; align-items: center; gap: 8px; }
-.device-item:hover { background: #f5f7fa; }
-.device-item.active { background: #ecf5ff; color: #409eff; }
+.device-item:hover { background: var(--color-bg); }
+.device-item.active { background: #ecf5ff; color: var(--color-primary); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 </style>

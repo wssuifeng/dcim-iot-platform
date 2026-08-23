@@ -22,4 +22,4 @@ const ROLE_OPTIONS=Object.entries(USER_ROLE).map(([v,i])=>({value:v,label:i.labe
 function handleOpen(){if(props.mode==='edit'&&props.current){form.username=props.current.username||'';form.password='';form.nickname=props.current.nickname||'';form.role=props.current.role||''}else{form.username='';form.password='';form.nickname='';form.role=''}}
 async function handleSubmit(){const valid=await formRef.value.validate().catch(()=>false);if(!valid)return;submitting.value=true;try{const payload={...form};if(props.mode==='edit')delete payload.password;emit('confirm',payload)}finally{submitting.value=false}}
 </script>
-<style scoped>.tip{margin:0;color:#e6a23c;font-size:12px}</style>
+<style scoped>.tip{margin:0;color:var(--color-warning);font-size:12px}</style>

@@ -320,13 +320,13 @@ onMounted(loadReferenceData)
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 22px;
 }
 
 .page-header p {
   margin: 6px 0 0;
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 13px;
 }
 
@@ -335,7 +335,7 @@ onMounted(loadReferenceData)
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 620px;
   border: 1px solid #ebeef5;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .device-panel {
@@ -373,18 +373,18 @@ onMounted(loadReferenceData)
 
 .section-heading h2 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 16px;
 }
 
 .section-heading span {
-  color: #909399;
+  color: var(--color-text-3);
   font-size: 12px;
 }
 
 .unit {
   margin-left: 4px;
-  color: #909399;
+  color: var(--color-text-3);
 }
 
 .pagination {
@@ -404,7 +404,7 @@ onMounted(loadReferenceData)
   .device-panel {
     max-height: 240px;
     border-right: 0;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--color-border-light);
   }
 }
 </style>

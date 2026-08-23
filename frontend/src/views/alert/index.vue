@@ -315,21 +315,22 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .page-header h1 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text);
   font-size: 22px;
 }
 
 .page-header p {
   margin: 6px 0 0;
-  color: #909399;
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
 .filter-bar {
   padding: 14px 16px 0;
   margin-bottom: 16px;
-  border: 1px solid #ebeef5;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
 }
 
 .status-select,

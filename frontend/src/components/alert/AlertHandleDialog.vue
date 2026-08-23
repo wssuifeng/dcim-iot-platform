@@ -70,6 +70,6 @@ async function handleSubmit() {
 <style scoped>
 .dialog-tip {
   margin-bottom: 16px;
-  color: #606266;
+  color: var(--color-text-2);
 }
 </style>

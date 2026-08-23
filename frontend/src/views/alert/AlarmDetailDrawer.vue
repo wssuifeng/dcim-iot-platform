@@ -137,12 +137,12 @@ defineExpose({ loadDetail })
 
 .history-section h3 {
   margin: 0 0 14px;
-  color: #303133;
+  color: var(--color-text);
   font-size: 16px;
 }
 
 .history-section p {
   margin: 5px 0 0;
-  color: #606266;
+  color: var(--color-text-2);
 }
 </style>
