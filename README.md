@@ -603,45 +603,44 @@ Druid监控：http://localhost:8080/api/druid
 | `user.js` / `platformRegistration.js` | 用户 CRUD/数据范围；注册策略与组织申请审批 |
 | `dashboard.js` / `auditLog.js` | 仪表盘统计；审计查询/清理 |
 
-### 7.4 API 请求约定
+### 7.4 实时通信模块
 
-前端普通 JSON API 统一通过 `frontend/src/utils/request.js` 创建的 Axios 实例访问后端；文件导入仍走该实例，文件下载/导出因需要 `responseType: 'blob'`，在 `frontend/src/api/device.js` 和 `frontend/src/api/alert.js` 中使用原生 `axios` 并手动携带 Token。
+`src/api/realtime.js` 基于 `@stomp/stompjs` + `sockjs-client` 建立 STOMP 实时通道：
 
-| 约定 | 说明 |
+| 要素 | 说明 |
 |------|------|
-| `baseURL` | `/api`，配合 Vite 代理转发到后端 |
-| 超时 | 普通请求 `timeout: 15000` |
-| Cookie | `withCredentials: true`，配合后端 CORS 凭证配置 |
-| Token | 请求拦截器自动读取 `localStorage.token` 并添加 `Authorization: Bearer <token>` |
-| 响应处理 | HTTP 200 直接返回 `response.data` |
-| 401 | 清除本地 Token 并跳转 `/login` |
-| 403 | 使用 Element Plus 消息提示权限不足 |
-| 其他错误 | 优先展示后端返回的 `message` |
-| 文件下载 | 设备导出、设备导入模板、告警导出使用 `responseType: 'blob'`，前端创建临时链接下载 `.xlsx` |
+| 端点 | `new SockJS('/api/ws')`（Vite 代理转发到后端 STOMP 端点） |
+| 认证 | `beforeConnect` 从 localStorage 取 Token，以 `Authorization: Bearer` 连接头传递；无 Token 不连接（后端在 STOMP CONNECT 阶段完成认证） |
+| 订阅 | 仅订阅用户隔离队列 `/user/queue/summary`，校验 `resourceType/resourceId/eventType` 后分发；**不订阅业务数据 topic，业务数据一律 REST 拉取** |
+| 参数 | 重连间隔 5000ms，心跳收发各 10000ms |
+| 消费方 | `layout`（未读徽标）、`dashboard`、`notification`、`alerts` 收到摘要后各自 REST 刷新 |
 
-当前前端封装的主要后端交互包括：
+### 7.5 主题系统模块
 
-| 模块 | 前端 API 文件 | 典型能力 |
-|------|--------------|----------|
-| 认证 | `src/api/auth.js` | 登录 |
-| 仪表盘 | `src/api/dashboard.js` | 聚合统计 |
-| 设备 | `src/api/device.js` | 分页、详情、CRUD、状态更新、告警配置、导入、模板下载、导出 |
-| 设备类型 | `src/api/deviceType.js` | 列表、详情、CRUD、类型级告警配置 |
-| 数据监控 | `src/api/deviceData.js` | 历史数据、最新数据、时间范围、统计聚合 |
-| 告警 | `src/api/alert.js` | 分页、时间统计、批量处理、导出 |
-| 指标字典 | `src/api/metric.js` | 分页、CRUD、缓存刷新 |
-| 用户 | `src/api/user.js` | 分页、详情、搜索、CRUD、密码重置、状态更新 |
-| 审计日志 | `src/api/auditLog.js` | 分页、过期日志清理 |
+日间/夜间双主题，由 `<html data-theme="light|dark">` 属性驱动，无 Element Plus 官方 dark CSS 依赖：
 
-### 7.5 推荐开发环境
-
-| 工具 | 建议 |
+| 组成 | 说明 |
 |------|------|
-| IDE | VS Code + Vue Official 插件；如安装过 Vetur，建议禁用 |
-| 浏览器 | Chrome、Edge、Brave、Firefox 等现代浏览器 |
-| 调试插件 | Vue.js devtools |
-| 浏览器设置 | 可开启 Custom Object Formatter，方便调试 Vue 响应式对象 |
-| 配置参考 | Vite 配置见 `frontend/vite.config.js`，官方参考见 https://vite.dev/config/ |
+| `src/styles/theme.css` | 产品语义 Token（`--color-*`/`--radius-*`/`--shadow-*`/`--chart-*`/`--data-font`）+ Element Plus 变量整表覆盖 + 暗色组件手工适配；light 为 SaaS 浅色（主色 #2563eb），dark 为工业 SCADA 深色（背景 #0b1120，霓虹青主色 #00d4ff） |
+| `src/stores/theme.js` | 主题状态与 localStorage 持久化，`main.js` 挂载前 `init()` 防止首屏闪烁 |
+| `layout/index.vue` | 顶栏日/夜切换按钮（Moon/Sunny 图标） |
+| 图表适配 | `AlertTrendChart`/`DataTrendChart` 按 `isDark` 计算 tooltip/坐标轴/线条颜色并监听主题切换重绘 |
+| 迁移工具 | `scripts/migrate-theme.mjs` 一次性 codemod，将历史硬编码色值批量替换为 `var(--color-*)`；`public/ui-mockups/index.html` 为三套主题设计稿预览 |
+| 枚举色值 | `src/utils/constants.js` 中设备状态/告警级别/角色等枚举颜色全部使用主题变量 |
+
+### 7.6 构建与开发工具链
+
+```bash
+cd frontend
+
+npm run dev        # 开发服务器（端口 5173）
+npm run build      # 生产构建（含 legacy 浏览器兼容）
+npm run preview    # 预览构建产物
+npm run lint       # oxlint + eslint 检查并自动修复
+npm run format     # prettier 格式化 src/
+```
+
+Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.json` browserslist。推荐 VS Code + Vue Official 插件与 Vue.js devtools 调试。
 
 ---
 
