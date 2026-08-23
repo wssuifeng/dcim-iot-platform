@@ -537,96 +537,65 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 
 ---
 
-## 八、API 文档
+## 八、API 概览
 
-> **首选方式**：启动应用后访问 `/swagger-ui.html` 即可查看完整的交互式 API 文档（含请求/响应示例、JWT 认证、字段说明）。以下为静态参考清单。
+> **首选方式**：启动后访问 `/swagger-ui.html`（SpringDoc 从注解实时生成，支持 JWT 调试）。以下为 30 个控制器清单，各模块端点细节见"四、后端模块详解"。
 
-### 8.1 认证 `/auth`
+### 8.1 认证与身份
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| POST | `/auth/login` | 用户登录，返回 JWT Token | 公开 |
+| 控制器 | 基路径 | 职责 | 端点 |
+|--------|--------|------|------|
+| `AuthController` | `/auth` | 登录、登出、注册、注册验证码 | 4 |
+| `PlatformSetupController` | `/setup` | 平台初始化向导（状态/验证码/完成） | 3 |
+| `AccountOrganizationController` | `/auth/memberships` | 我的组织成员关系 | 1 |
+| `CurrentScopeController` | `/auth/current-scope` | 当前用户数据范围 | 1 |
 
-### 8.2 设备管理 `/devices`
+### 8.2 组织与平台管理
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/devices` | 查询所有设备 | 已认证 |
-| GET | `/devices/{id}` | 查询设备详情 | 已认证 |
-| POST | `/devices` | 新增设备（CreateGroup 校验） | ADMIN, OPERATOR |
-| PUT | `/devices/{id}` | 更新设备（UpdateGroup 校验） | ADMIN, OPERATOR |
-| DELETE | `/devices/{id}` | 删除设备 | ADMIN |
-| GET | `/devices/online` | 查询在线设备 | 已认证 |
-| GET | `/devices/search?name=` | 按名称模糊搜索 | 已认证 |
-| PUT | `/devices/{id}/status?status=` | 更新设备状态 | ADMIN, OPERATOR |
-| GET | `/devices/page` | 分页查询（支持状态/名称筛选） | 已认证 |
-| PUT | `/devices/{id}/alert-config` | 更新设备级告警规则 | ADMIN, OPERATOR |
+| 控制器 | 基路径 | 职责 | 端点 |
+|--------|--------|------|------|
+| `OrganizationController` | `/organizations` | 组织 CRUD 与状态 | 6 |
+| `OrganizationMemberController` | `/organizations/{orgId}` | 成员列表/改角色/移除/加入设置 | 4 |
+| `OrganizationCreationApplicationController` | `/organization-applications`、`/platform/organization-applications` | 创建组织申请提交/查询/审批 | 5 |
+| `OrganizationJoinApplicationController` | `/organizations/{orgId}/join-applications` | 加入组织申请 | 4 |
+| `PlatformRegistrationSettingsController` | `/platform/registration-settings` | 注册策略读写 | 2 |
+| `SysUserController` | `/users` | 用户管理/重置密码/状态 | 8 |
+| `UserDataScopeController` | `/users/{id}/data-scopes` | 数据范围指派/移除/列表 | 3 |
 
-### 8.3 数据采集 `/device-data`
+### 8.3 资源与采集
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| POST | `/device-data` | 单条数据上报（触发告警检查） | ADMIN, OPERATOR |
-| POST | `/device-data/batch` | 批量数据上报（逐条触发告警检查） | ADMIN, OPERATOR |
-| GET | `/device-data/device/{deviceId}` | 设备历史数据分页 | 已认证 |
-| GET | `/device-data/device/{deviceId}/latest` | 设备最新数据 | 已认证 |
-| GET | `/device-data/device/{deviceId}/range` | 时间段查询 | 已认证 |
-| GET | `/device-data/device/{deviceId}/statistics` | 统计聚合（min/max/avg/count） | 已认证 |
-| GET | `/device-data/page` | 数据分页查询 | 已认证 |
+| 控制器 | 基路径 | 职责 | 端点 |
+|--------|--------|------|------|
+| `CloudRoomController` | `/cloud-rooms` | 机房 CRUD 与按组织查询 | 5 |
+| `DeviceController` | `/devices` | 设备 CRUD/分页/导入导出/状态/告警配置 | 13 |
+| `DeviceTypeController` | `/device-types` | 设备类型 CRUD/告警配置 | 6 |
+| `PointDefinitionController` | `/point-definitions` | 点位定义 CRUD | 4 |
+| `DeviceTypePointTemplateController` | `/point-templates/device-types/{typeId}` | 类型点位模板查看/批量保存 | 2 |
+| `DevicePointBindingController` | `/device-points` | 设备点位绑定管理 | 6 |
+| `DeviceDataController` | `/device-data` | v1.0 数据上报/查询/导出/清理 | 9 |
+| `DictMetricController` | `/metric` | 指标字典 CRUD/缓存刷新 | 5 |
+| `MetricSampleController` | `/metric-samples` | 指标采样写入/查询 | 3 |
+| `MetricLatestController` | `/metric-latest` | 最新指标查询 | 2 |
+| `MetricRetentionPolicyController` | `/metric-retention-policies` | 保留策略 CRUD/生效值 | 5 |
 
-### 8.4 设备类型 `/device-types`
+### 8.4 告警、通知与统计
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| PUT | `/device-types/{id}/alert-config` | 更新类型级告警规则 | ADMIN, OPERATOR |
+| 控制器 | 基路径 | 职责 | 端点 |
+|--------|--------|------|------|
+| `AlertController` | `/alerts` | v1.0 告警查询/处理/导出/统计 | 8 |
+| `AlarmEventController` | `/alarm-events` | 告警事件分页/详情/ack/处理/恢复/关闭/记录 | 8 |
+| `InAppNotificationController` | `/in-app-notifications` | 站内通知分页/已读/未读数 | 4 |
+| `DashboardController` | `/dashboard` | 仪表盘聚合统计 | 1 |
+| `DashboardAlarmStatsController` | `/dashboard/alarm-stats` | 告警看板统计 | 1 |
+| `SysAuditLogController` | `/audit-logs` | 审计分页/清理 | 2 |
 
-### 8.5 告警管理 `/alerts`
+### 8.5 仿真与实时
 
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/alerts` | 分页查询告警（支持多条件筛选） | 已认证 |
-| GET | `/alerts/{id}` | 查询告警详情 | 已认证 |
-| GET | `/alerts/unhandled` | 查询所有未处理告警 | 已认证 |
-| PUT | `/alerts/batch-handle` | 批量处理告警 | ADMIN, OPERATOR |
-| GET | `/alerts/stats/device/{deviceId}` | 按设备统计告警 | 已认证 |
-| GET | `/alerts/stats/time-range` | 按时间段统计告警 | 已认证 |
-| GET | `/alerts/stats/device-ranking` | 设备告警排名 | 已认证 |
-
-### 8.6 指标字典 `/metric`
-
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/metric/page` | 分页查询指标 | 已认证 |
-| POST | `/metric` | 新增指标 | ADMIN, OPERATOR |
-| PUT | `/metric` | 更新指标 | ADMIN, OPERATOR |
-| DELETE | `/metric/{id}` | 删除指标 | ADMIN |
-| POST | `/metric/cache/refresh` | 手动刷新缓存 | 已认证 |
-
-### 8.7 用户管理 `/users`
-
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/users/page` | 分页查询用户（支持关键字搜索） | ADMIN |
-| GET | `/users/search?username=` | 按用户名查找 | ADMIN |
-| GET | `/users/{id}` | 查询用户详情 | ADMIN |
-| POST | `/users` | 创建用户 | ADMIN |
-| PUT | `/users/{id}` | 更新用户信息 | ADMIN |
-| PUT | `/users/{id}/password` | 重置密码 | ADMIN |
-| PUT | `/users/{id}/status?status=` | 启用/停用账号 | ADMIN |
-| DELETE | `/users/{id}` | 删除用户 | ADMIN |
-
-### 8.8 审计日志 `/audit-logs`
-
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/audit-logs/page` | 分页查询审计日志（支持多条件筛选） | ADMIN, OPERATOR |
-| DELETE | `/audit-logs/cleanup?beforeTime=` | 清理过期日志 | ADMIN |
-
-### 8.9 仪表盘 `/dashboard`
-
-| 方法 | 路径 | 说明 | 权限 |
-|------|------|------|------|
-| GET | `/dashboard/stats` | 获取仪表盘聚合统计（设备状态分布 + 告警统计） | 已认证 |
+| 控制器/端点 | 基路径 | 职责 | 端点 |
+|------------|--------|------|------|
+| `SimulationSceneController` | `/simulation/scenes` | 场景与步骤管理 | 9 |
+| `SimulationRunController` | `/simulation/runs` | 运行启动/取消/查询/事件 | 5 |
+| WebSocket（STOMP + SockJS） | `/ws` | CONNECT 认证后订阅 `/user/queue/summary` | - |
 
 ---
 
