@@ -108,7 +108,7 @@
 | `mvn spring-boot:run` | 启动应用（需先起 MySQL + Redis） |
 | `mvn clean compile` | 仅编译（快速验证语法） |
 
-**启动前置条件**：MySQL 运行中（库 `iot_platform`）、Redis 运行中、初始数据中 `sys_user` 表存在 ID=1 的管理员账号（测试依赖）。
+**启动前置条件**：MySQL 运行中（库 `iot_device_db`，与 `application-dev.yaml` / `.env.example` 默认 `DB_URL` 一致）、Redis 运行中、初始数据中 `sys_user` 表存在 ID=1 的管理员账号（测试依赖）。
 
 ---
 
