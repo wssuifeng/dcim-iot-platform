@@ -291,6 +291,55 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 
 ---
 
+### 4.8 仿真模块
+
+**功能**：模拟场景与步骤编排、异步运行与取消、生成数据引用追溯，用于演示与压测数据构造。
+
+| 能力 | 说明 |
+|------|------|
+| 场景管理 | `/simulation/scenes` 9 个接口：场景 CRUD/状态切换、场景步骤（pointId、目标值、持续时间等）增删查 |
+| 运行管理 | `/simulation/runs` 5 个接口：启动/取消（异步执行，可中途取消）、运行分页/详情/运行事件 |
+| 异步执行 | `SimulationRunExecutionService` + `SimulationStepExecutionService` 按步骤逐步生成指标采样，`@Async` 线程池携带 MDC traceId |
+| 数据追溯 | `simulation_generated_data_ref` 记录每次运行生成的数据引用，可回溯删除 |
+| 写入开关 | `simulation.write-enabled` 默认 `false`，生产环境默认关闭模拟写入 |
+
+**关键类**：`SimulationSceneController`、`SimulationRunController`、`SimulationSceneServiceImpl`、`SimulationRunServiceImpl`、`SimulationRunExecutionServiceImpl`、`SimulationStepExecutionServiceImpl`。
+
+**数据表**：`simulation_scene`、`simulation_scene_step`、`simulation_run_record`、`simulation_generated_data_ref`。
+
+**测试**：`SimulationSceneServiceImplTest`、`SimulationRunServiceImplTest`、`SimulationRunExecutionServiceImplTest`、`SimulationStepExecutionServiceImplTest`、`SimulationModelRepairMigrationContractTest`。
+
+### 4.9 审计与可观测模块
+
+**功能**：注解式结构化审计、TraceId 全链路、Druid 慢 SQL 监控、Actuator 健康检查、生产安全门控。
+
+| 能力 | 说明 |
+|------|------|
+| 注解审计 | `@AuditLog(operation, detail)` 切面自动落审计日志，`detail` 支持 SpEL 模板（如 `#dto.scopeType`）；19 个 Controller 关键写操作使用 |
+| 结构化字段 | V5 迁移扩展 `sys_audit_log`：actorUserId/actorUsername/role/organizationId/cloudRoomId/action/targetType/targetId/result/errorCode/ip/traceId/createdAt |
+| 审计查询 | `/audit-logs/page` 多条件分页（ADMIN/OPERATOR）；`/audit-logs/cleanup` 按时间清理 |
+| TraceId | `TraceIdFilter` 生成 MDC traceId，`AsyncConfig` 使异步线程继承，日志与审计贯穿 |
+| 运行时监控 | Druid 监控 `/druid/index.html`（dev 默认 admin/admin，含慢 SQL 统计）、Actuator `/actuator/health`、SpringDoc `/swagger-ui.html` |
+| 生产安全门控 | `ProductionSafetyGuard` 启动期阻断：默认 JWT 密钥、通配 CORS Origin、危险功能开关，违例抛 `ProductionSafetyException` |
+
+**关键类**：`common/annotation/AuditLog`、`common/aspect/AuditLogAspect`、`SysAuditLogController`、`SysAuditLogServiceImpl`、`config/ProductionSafetyGuard`。
+
+### 4.10 公共基础设施模块
+
+**功能**：统一响应、异常体系、缓存、限流、XSS 防御、分页校验等横切能力。
+
+| 能力 | 说明 |
+|------|------|
+| 统一响应 | `Result<T>` + `ResultCode`：50 个 int 错误码（按域分段：安全 4011-4015、设备 4021-4023、数据范围 4071-4072、状态机 4081-4082、成员 4511-4518 等）+ 14 个稳定字符串码双轨映射 |
+| 异常体系 | `BusinessException` 基类 + 11 个业务异常子类，`GlobalExceptionHandler` 20 个分支统一兜底（禁止硬编码 HTTP 状态码） |
+| 统一缓存 | `CacheService` 接口封装 Redis（穿透/击穿/雪崩防御），禁止直接使用 `RedisTemplate` |
+| 限流 | `RateLimitFilter` Redis 滑动窗口，默认 60s/1000 次，dev 放宽至 30000，可 `RATE_LIMIT_ENABLED=false` 关闭 |
+| XSS 防御 | `XssFilter` + `XssRequestWrapper` 对请求参数 HTML 转义 |
+| 分页校验 | `PaginationUtils.validate()`：`size ≤ 100, current ≥ 1` |
+| 登录失败计数 | `LoginFailScript` Lua 脚本保证"读取-递增-锁定判定"原子性 |
+
+---
+
 ## 五、环境要求
 
 | 软件 | 版本 | 说明 |
