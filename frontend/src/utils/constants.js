@@ -3,38 +3,39 @@
  *
  * 【设计原则】
  * - 所有枚举定义集中管理，页面中禁止硬编码中文标签
- * - 颜色值使用 Element Plus 品牌色系：
- *   #409EFF(蓝) #67C23A(绿) #E6A23C(橙) #F56C6C(红) #909399(灰)
+ * - 颜色值统一使用主题 CSS 变量（var(--color-*)），支持日间/夜间主题切换
  * - bgColor 为标签/Tag 的背景色（比 color 更浅的版本）
  */
 export const DEVICE_STATUS = {
-  0: { label: '离线', color: '#909399' },
-  1: { label: '在线', color: '#67C23A' },
-  2: { label: '故障', color: '#F56C6C' },
+  0: { label: '离线', color: 'var(--color-info)' },
+  1: { label: '在线', color: 'var(--color-success)' },
+  2: { label: '故障', color: 'var(--color-danger)' },
 }
 
 export const ALERT_LEVEL = {
-  1: { label: '紧急', color: '#F56C6C', bgColor: '#FEF0F0' },
-  2: { label: '严重', color: '#E6A23C', bgColor: '#FDF6EC' },
-  3: { label: '一般', color: '#409EFF', bgColor: '#ECF5FF' },
-  4: { label: '警告', color: '#909399', bgColor: '#F5F7FA' },
-  5: { label: '提示', color: '#C0C4CC', bgColor: '#FFFFFF' },
+  1: { label: '紧急', color: 'var(--color-danger)', bgColor: 'var(--color-danger-light)' },
+  2: { label: '严重', color: 'var(--color-warning)', bgColor: 'var(--color-warning-light)' },
+  3: { label: '一般', color: 'var(--color-primary)', bgColor: 'var(--color-primary-light)' },
+  4: { label: '警告', color: 'var(--color-info)', bgColor: 'var(--color-info-light)' },
+  5: { label: '提示', color: 'var(--color-text-3)', bgColor: 'var(--color-surface-2)' },
 }
 
 export const USER_STATUS = {
-  0: { label: '启用', color: '#67C23A' },
-  1: { label: '停用', color: '#F56C6C' },
+  0: { label: '启用', color: 'var(--color-success)' },
+  1: { label: '停用', color: 'var(--color-danger)' },
 }
 
 export const HANDLE_STATUS = {
-  0: { label: '未处理', color: '#F56C6C' },
-  1: { label: '已处理', color: '#67C23A' },
+  0: { label: '未处理', color: 'var(--color-danger)' },
+  1: { label: '已处理', color: 'var(--color-success)' },
 }
 
 export const USER_ROLE = {
-  ADMIN: { label: '管理员', color: '#F56C6C' },
-  OPERATOR: { label: '运维', color: '#E6A23C' },
-  VIEWER: { label: '普通用户', color: '#409EFF' },
+  PLATFORM_ADMIN: { label: '平台管理员', color: 'var(--color-danger)' },
+  ORG_ADMIN: { label: '组织管理员', color: 'var(--color-warning)' },
+  ADMIN: { label: '管理员', color: 'var(--color-warning)' },
+  OPERATOR: { label: '运维人员', color: 'var(--color-success)' },
+  VIEWER: { label: '查看者', color: 'var(--color-info)' },
 }
 
 export const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
