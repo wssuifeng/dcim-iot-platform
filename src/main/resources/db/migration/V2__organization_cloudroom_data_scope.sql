@@ -4,6 +4,9 @@
 -- 契约依据：共享契约 03-共享契约.md 数据范围章节
 --   scopeType: PLATFORM / ORG_ALL / ROOMS / READ_ONLY
 --   数据范围是服务层安全边界，不是前端概念（服务层校验逻辑属于 INFRA-CLAUDE-02）
+--
+-- 二次基线调整：sys_user 不再增补 organization_id 列（组织成员关系统一由
+--   organization_membership[V7] 承担）；devices 的组织/机房归属列保留。
 -- ============================================================
 
 -- ==================== 1. 组织表 ====================
@@ -53,14 +56,7 @@ CREATE TABLE IF NOT EXISTS sys_data_scope_assignment (
     INDEX idx_scope_room (cloud_room_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户数据范围分配表';
 
--- ==================== 4. sys_user 增补组织归属 ====================
-ALTER TABLE sys_user
-    ADD COLUMN organization_id BIGINT DEFAULT NULL COMMENT '所属组织ID（PLATFORM_ADMIN可为空）' AFTER role;
-
-ALTER TABLE sys_user
-    ADD CONSTRAINT fk_user_org FOREIGN KEY (organization_id) REFERENCES sys_organization(id);
-
--- ==================== 5. devices 增补组织/机房归属 ====================
+-- ==================== 4. devices 增补组织/机房归属 ====================
 -- location 字段保留为展示用文本，范围校验以 organization_id/cloud_room_id 为准。
 ALTER TABLE devices
     ADD COLUMN organization_id BIGINT DEFAULT NULL COMMENT '所属组织ID（数据范围校验依据）' AFTER type_id,

@@ -1,8 +1,7 @@
 -- ============================================================
--- Flyway V9: 修复模拟端模型（V6 历史版本冲突）
+-- Flyway V8: 模拟端模型
 --
--- 历史数据库已使用 V6__add_notification_log.sql，导致后续复用的 V6 模拟迁移被跳过。
--- 本迁移仅追加修复，不修改 V1-V8 或 Flyway 历史。
+-- 二次基线：本文件由原 V9 重排而来（原"V6 历史版本冲突"修复背景已随基线重置消失）。
 --   模拟端必须由后端服务生成事实数据，前端和脚本不能直接伪造核心业务事实。
 --   模型：SimulationScene / SimulationSceneStep / SimulationRunRecord / SimulationGeneratedDataRef
 --
@@ -99,7 +98,6 @@ CREATE TABLE IF NOT EXISTS simulation_generated_data_ref (
     KEY idx_sim_gendata_device  (device_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模拟生成数据引用（生成数据可追溯到运行记录）';
 
--- 全新数据库会先执行仓库中的 V6；历史数据库可能由本 V9 首次建表。
--- 统一最终结构，允许 SLEEP 追踪事件不绑定设备。
+-- 允许 SLEEP 追踪事件不绑定设备。
 ALTER TABLE simulation_generated_data_ref
     MODIFY COLUMN device_id INT NULL COMMENT '生成数据目标设备ID（SLEEP 事件可空）';

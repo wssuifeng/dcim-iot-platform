@@ -1,6 +1,10 @@
 # ==================== 开发环境配置 ====================
 
 spring:
+  # Flyway：开发环境追加 db/seed 演示数据（prod 不包含该 location）
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+
   # 数据源配置（Druid）
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource

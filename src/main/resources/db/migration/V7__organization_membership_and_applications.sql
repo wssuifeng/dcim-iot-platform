@@ -1,4 +1,5 @@
 -- Organization memberships and approval workflows.
+-- 二次基线：sys_user 不再持有 organization_id 列，成员关系仅由本表建立（开发种子数据见 db/seed）。
 CREATE TABLE organization_membership (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
@@ -60,12 +61,3 @@ CREATE TABLE organization_join_application (
     CONSTRAINT fk_org_join_org FOREIGN KEY (organization_id) REFERENCES sys_organization(id),
     CONSTRAINT fk_org_join_reviewer FOREIGN KEY (reviewer_user_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Organization join application';
-
-INSERT INTO organization_membership
-    (user_id, organization_id, membership_role, status, approved_time)
-SELECT id, organization_id,
-       CASE WHEN role = 'ADMIN' THEN 'ORG_ADMIN' ELSE role END,
-       'ACTIVE', CURRENT_TIMESTAMP
-FROM sys_user
-WHERE organization_id IS NOT NULL
-  AND role IN ('ADMIN', 'ORG_ADMIN', 'OPERATOR', 'VIEWER');
