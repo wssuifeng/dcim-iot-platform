@@ -528,70 +528,80 @@ Druid监控：http://localhost:8080/api/druid
 
 ---
 
-## 七、前端管理后台
+## 七、前端模块详解
 
-### 7.1 安装与启动
+前端位于 `frontend/`，Vue 3（组合式 API）+ Vite + Element Plus + Pinia 单页应用。开发时先启动后端 `http://localhost:8080`，再 `cd frontend && npm install && npm run dev`，访问 `http://localhost:5173`；`vite.config.js` 已将 `/api/**` 代理转发到后端。
 
-前端位于 `frontend/`，是一个 Vue 3 + Vite 单页后台管理应用。开发时先启动后端 `http://localhost:8080`，再启动前端开发服务器。
+### 7.1 页面与路由模块
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+**公开页面**（`meta.public: true`，未登录可访问）：`/login` 登录、`/register` 注册（邮箱验证码）、`/setup` 平台初始化向导。
 
-默认访问地址：
+**业务页面**（挂载于 `layout/index.vue` 主布局，需登录）：
 
-| 地址 | 说明 |
+| 路由 | 页面 | 说明 | 可见角色 |
+|------|------|------|---------|
+| `/account/organizations` | 我的组织 | 成员关系列表、创建/加入组织申请入口 | 登录即可 |
+| `/dashboard` | 仪表盘 | 统计卡、近七日趋势、状态/级别分布、设备告警排名，实时摘要刷新 | ORG_ADMIN/OPERATOR/VIEWER |
+| `/organizations` | 组织管理 | 组织 CRUD 与状态管理 | PLATFORM_ADMIN/ORG_ADMIN |
+| `/cloud-rooms` | 机房管理 | 机房 CRUD | ORG_ADMIN/OPERATOR/VIEWER |
+| `/devices` | 设备管理 | 设备 CRUD、筛选、导入导出、点位绑定抽屉 | ORG_ADMIN/OPERATOR/VIEWER |
+| `/data-monitor` | 数据监控 | 设备侧栏 + 实时/历史数据 + 趋势图 | ORG_ADMIN/OPERATOR/VIEWER |
+| `/simulation` | 模拟运行 | 场景/步骤编排、运行启动与事件查看 | ORG_ADMIN/OPERATOR/VIEWER |
+| `/alerts` | 告警管理 | 告警事件筛选、状态机操作、详情抽屉（流转/处理记录） | ORG_ADMIN/OPERATOR/VIEWER |
+| `/notifications` | 站内通知 | 未读标记、全部已读、实时摘要刷新 | 全部角色 |
+| `/metric` | 指标字典 | 指标 CRUD、点位定义、保留策略对话框 | 全部角色 |
+| `/device-types` | 设备类型 | 类型 CRUD、告警配置、点位模板编辑 | 全部角色 |
+| `/users` | 用户管理 | 用户 CRUD、数据范围分配对话框 | PLATFORM_ADMIN |
+| `/platform/registration` | 注册审核 | 注册策略、组织申请审批 | PLATFORM_ADMIN |
+| `/organization/members` | 组织成员 | 成员角色、加入申请审批、开放加入开关 | ORG_ADMIN |
+| `/audit-logs` | 审计日志 | 多条件查询与清理 | PLATFORM_ADMIN/ORG_ADMIN/OPERATOR |
+
+**导航守卫**（`router/index.js` 全局 `beforeEach`）：
+
+1. 从 localStorage 同步 Token（`authStore.syncFromStorage()`）；
+2. 已登录访问公开页 → 加载组织成员关系后跳转首个可访问路由；
+3. 未登录访问受保护页 → 跳 `/login`（携带 `redirect` 回跳参数）；
+4. 已登录且组织未加载 → `organizationStore.loadMemberships()`；
+5. **组织引导**：非平台管理员且无任何组织成员关系 → 强制跳"我的组织"页；
+6. 路由 `meta.roles` 与当前组织角色/平台角色不匹配 → 跳首个可访问路由（兜底顺序：平台管理员 → 注册审核页；组织角色 → 仪表盘；无组织 → 我的组织）。
+
+> 前端角色控制只用于导航与操作按钮显隐，最终权限以后端 RBAC 与数据范围为准。
+
+### 7.2 状态管理模块
+
+`src/stores/` 下 4 个 Pinia Setup Store：
+
+| Store | 职责 |
+|-------|------|
+| `auth.js` | Token 持久化（localStorage `token`）、`jwt-decode` 解析 `platformRole`/`username`；`normalizedRole` 将旧 `ADMIN` 别名映射为 `ORG_ADMIN`；`hasAnyRole`/`logout` |
+| `organization.js` | 组织成员关系加载与持久化（`currentOrganizationId`）、当前组织角色 `currentRole`、单组织自动选中、越权切换拦截 |
+| `scope.js` | 调用 `/auth/current-scope` 获取数据范围（scopeType/organizationIds/cloudRoomIds），`hasWritePermission`（非 READ_ONLY）；Token 切换防抖 + 请求版本号防竞态 |
+| `theme.js` | 日间/夜间主题状态：`init()` 优先 localStorage（`app-theme`）否则跟随 `prefers-color-scheme`，切换时同步 `<html data-theme>` 属性 |
+
+### 7.3 API 服务层模块
+
+`src/utils/request.js` 统一 Axios 实例，`src/api/` 下 26 个业务模块：
+
+| 约定 | 说明 |
 |------|------|
-| `http://localhost:5173` | Vite 前端开发服务器 |
-| `http://localhost:5173/login` | 登录页 |
-| `http://localhost:5173/dashboard` | 登录后的仪表盘 |
+| `baseURL` | `/api`（Vite 代理转发到 8080） |
+| 超时 / Cookie | `timeout: 15000`；`withCredentials: true` |
+| 请求头 | 拦截器自动附加 `Authorization: Bearer <token>` 与 `X-Organization-Id: <当前组织>` |
+| 响应处理 | HTTP 200 返回 `response.data`（保留 `Result<T>` 结构）；401 清 Token 跳登录；403/其他错误 ElMessage 提示（`skipErrorMessage` 可静默） |
+| 文件下载 | 设备导出/模板、告警导出使用原生 `axios` + `responseType: 'blob'` 手动携带 Token |
 
-`frontend/vite.config.js` 已配置开发代理：前端请求 `/api/**` 时会转发到 `http://localhost:8080`，因此业务代码中统一使用 `/api` 作为后端前缀。
-
-### 7.2 构建、检查与格式化
-
-```bash
-cd frontend
-
-# 生产构建
-npm run build
-
-# 预览构建产物
-npm run preview
-
-# 代码检查并自动修复（oxlint + eslint）
-npm run lint
-
-# 格式化 src 目录
-npm run format
-```
-
-### 7.3 页面路由
-
-| 路由 | 页面 | 说明 |
-|------|------|------|
-| `/login` | 登录页 | 独立全屏页面，未认证用户入口 |
-| `/dashboard` | 仪表盘 | 设备状态、告警统计、趋势与近期告警 |
-| `/devices` | 设备管理 | 设备 CRUD、筛选、导入导出、告警配置 |
-| `/device-types` | 设备类型 | 类型 CRUD、类型级告警规则配置 |
-| `/data-monitor` | 数据监控 | 设备数据列表、统计面板与趋势图 |
-| `/alerts` | 告警管理 | 告警查询、统计、处理与批量处理 |
-| `/metric` | 指标字典 | 指标元数据管理与缓存刷新 |
-| `/users` | 用户管理 | ADMIN 用户管理、状态维护、密码重置 |
-| `/audit-logs` | 审计日志 | 登录/操作审计查询与清理 |
-
-`frontend/src/router/index.js` 使用全局前置守卫读取 `localStorage.token`：未登录访问后台页面会跳转 `/login`，已登录访问 `/login` 会跳转 `/dashboard`。
-
-角色信息由 `frontend/src/stores/auth.js` 使用 `jwt-decode` 从 JWT 中解析，侧边栏菜单会根据角色做入口显隐：
-
-| 菜单 | 前端显隐规则 | 说明 |
-|------|-------------|------|
-| 用户管理 | 仅 `ADMIN` 显示 | 对应后端用户管理权限 |
-| 审计日志 | `ADMIN`、`OPERATOR` 显示，`VIEWER` 隐藏 | 对应后端审计日志查询权限 |
-
-> 前端角色控制只用于导航与操作按钮显隐，最终权限仍以后端 RBAC 为准。
+| 模块 | 典型能力 |
+|------|---------|
+| `auth.js` / `setup.js` | 登录、注册验证码、注册；平台初始化状态/验证码/完成 |
+| `accountOrganization.js` / `organization.js` / `organizationMembership.js` | 我的组织与申请；组织 CRUD；成员与加入审批 |
+| `scope.js` | 当前数据范围 |
+| `device.js` / `deviceType.js` / `devicePoint.js` / `pointDefinition.js` / `pointTemplate.js` | 设备、类型、点位绑定、点位定义、类型点位模板 |
+| `metric.js` / `metricSample.js` / `metricLatest.js` / `metricRetention.js` / `deviceData.js` | 指标字典、采样写入、最新值、保留策略、v1.0 历史数据 |
+| `alert.js` / `alarmEvent.js` | v1.0 告警统计/导出；告警事件状态机操作与记录 |
+| `notification.js` | 站内通知分页/已读/未读数 |
+| `cloudRoom.js` / `simulation.js` | 机房 CRUD；场景/步骤/运行 |
+| `user.js` / `platformRegistration.js` | 用户 CRUD/数据范围；注册策略与组织申请审批 |
+| `dashboard.js` / `auditLog.js` | 仪表盘统计；审计查询/清理 |
 
 ### 7.4 API 请求约定
 
