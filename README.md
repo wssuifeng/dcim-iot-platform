@@ -215,6 +215,43 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 
 ---
 
+### 4.4 设备与点位模块
+
+**功能**：设备/设备类型管理（含 v1.0 的 Excel 导入导出、离线检测）、点位定义、类型级点位模板、设备点位绑定。
+
+| 能力 | 说明 |
+|------|------|
+| 设备管理 | `/devices` 13 个接口：CRUD、分页/模糊搜索、在线设备、状态更新、设备级告警规则配置、Excel 导入（上限 500 条）/导出/模板下载 |
+| 设备类型 | `/device-types` 6 个接口：CRUD + 类型级告警规则（作为设备级缺失时的降级方案）；V3 迁移内置 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR 五类产品类型种子 |
+| 点位定义 | `/point-definitions` 4 个接口：点位（温度、湿度、电压等监测点）元数据 CRUD |
+| 类型点位模板 | `/point-templates/device-types/{typeId}`：查看/批量保存，新建该类型设备时按模板初始化点位 |
+| 设备点位绑定 | `/device-points` 6 个接口：查询/绑定/启停/解绑/按设备类型模板初始化；`DevicePointMetricContract` 约束设备-点位-指标三者关系 |
+| 离线检测 | `DeviceMonitorTask` 每 5 分钟扫描（阈值 `task.offline-threshold-seconds`），自动生成去重离线告警 |
+
+**关键类**：`DeviceController`、`DeviceTypeController`、`PointDefinitionController`、`DeviceTypePointTemplateController`、`DevicePointBindingController`；服务层 `DeviceService`、`DeviceTypeService`、`PointDefinitionService`、`DeviceTypePointTemplateService`、`DevicePointBindingService`。
+
+**数据表**：`devices`、`device_types`、`point_definition`、`device_type_point_template`、`device_point_binding`。
+
+### 4.5 指标数据模块
+
+**功能**：指标字典、时序采样、最新值缓存、保留策略，以及 v1.0 遗留设备数据通道。
+
+| 能力 | 说明 |
+|------|------|
+| 指标字典 | `/metric` 5 个接口：分页/CRUD/缓存刷新；元数据存 Redis（统一走 `CacheService`），告警消息自动填充中文名与单位 |
+| 指标采样 | `/metric-samples` 3 个接口：单条/批量写入（触发告警检查）、分页查询；时序数据落 `metric_sample` |
+| 最新值 | `/metric-latest` 2 个接口：按设备查询/分页；每个设备-点位仅保留最新值（`metric_latest`） |
+| 保留策略 | `/metric-retention-policies` 5 个接口：全局/按点位/生效值查询与 upsert |
+| v1.0 数据通道 | `/device-data` 9 个接口：单条/批量上报（`@Retryable` 死锁重试）、历史/区间/统计查询、导出、清理；`DataCleanupTask` 每日 2 点按 `task.device-data-ttl-days`（默认 90 天）清理 |
+
+**关键类**：`MetricSampleService`、`MetricLatestService`、`MetricRetentionPolicyService`、`DictMetricService`、`DeviceDataService`、`DataCleanupTask`。
+
+**数据表**：`metric_sample`、`metric_latest`、`metric_retention_policy`、`dict_metric`、`device_data`。
+
+**测试**：`MetricSampleServiceImplTest`、`MetricLatestServiceImplTest`、`MetricRetentionPolicyServiceImplTest`、`DeviceDataServiceImplTest` 等。
+
+---
+
 ## 五、环境要求
 
 | 软件 | 版本 | 说明 |
