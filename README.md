@@ -647,6 +647,10 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 | v4.2 | 2026-06-21 | — | 模块补完：DictMetric 补全 Jakarta Validation 校验注解与 createTime/updateTime 自动填充、Flyway V5 修正 dict_metric 列命名+alerts 告警级别注释、AuthController 新增用户登出接口 `POST /api/auth/logout`、Flyway V6 新增 notification_log 通知发送日志表、EmailNotificationServiceImpl / AlertWebSocketService 写通知日志、需求文档与 README 全面修正（账号锁定 5次、Redis 环境依赖、deleted 字段、status 描述统一） |
 | v4.3 | 2026-06-23 | — | README 合并前端说明：补充 Vue 3 + Vite 管理后台、前端目录结构、启动/构建命令、路由、Axios 联调约定与开发工具建议 |
 | v4.4 | 2026-06-23 | — | 前端 README 审查修正：补充 JWT 角色解析、菜单显隐、请求超时/Cookie、文件下载 blob 例外，以及各前端 API 模块能力映射 |
+| v5.0 | 2026-07-09 ~ 07-10 | 多提交 | 第四阶段产品化基线：Flyway 迁移基线重构（V1 折叠 v1.0 历史 V1–V6；V2–V5 新建组织/机房/数据范围、设备点位指标、告警状态机与站内通知、审计结构化字段模型）；角色拆分为 PLATFORM_ADMIN/ORG_ADMIN/OPERATOR/VIEWER；生产安全门控 `ProductionSafetyGuard`；数据范围服务与设备过滤；STOMP 用户隔离摘要通道；scope 感知前端导航 |
+| v5.1 | 2026-07-10 ~ 07-11 | 多提交 | 告警接收人按机房过滤（`AlarmRecipientResolver`）；scope 感知业务操作与告警工作流前端补全；Spring Boot 4 启动修复 |
+| v5.2 | 2026-07-11 | `5d26eeb` | 认证与产品化基础：全局身份与组织成员资格 schema（V7/V8，创建/加入组织审批流）、角色作用域收敛到当前组织、邮箱验证码注册（HMAC 防篡改）、平台初始化向导 `/setup`（bootstrap token）、前端注册/组织控制与认证入口加固、仿真模型修复与异步可取消运行（V9）、设备测试夹具隔离（V10）、历史 Flyway 校验恢复 |
+| v5.3 | 2026-08-24 | `47d21da` | 前端日间/夜间双主题系统（主题 Token + Element Plus 变量覆盖 + 图表主题适配 + 色值批量迁移）；README 按模块全面重写 |
 
 ---
 
@@ -654,16 +658,16 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 
 | 文档 | 用途 | 何时读 |
 |------|------|--------|
-| `AGENTS.md` | AI Agent 上下文（技术栈/约定/禁忌/构建命令） | 新 AI 会话第一步（与本 README 一起） |
-| `frontend/README.md` | 前端目录入口说明 | 指向根 README 的“前端管理后台”章节，避免重复维护 |
-| 外部公共控制包 `01-全员必读.md`、任务分发清单、当前 Agent 任务卡 | 第四阶段产品化事实来源 | 第四阶段任意任务 |
-| 第三阶段最终设计和追踪矩阵 | 产品化需求、架构约束、P0 门控来源 | 新增/改需求或确认边界 |
-| 对应源码、测试和 Swagger 注解 | 现有模块真实行为 | 学习模块原理或改业务代码 |
+| `AGENTS.md` | AI Agent 上下文（技术栈/分层注释规范/禁忌/构建命令） | 新 AI 会话第一步（与本 README 一起） |
+| 本 README"四、后端模块详解"/"五、前端模块详解" | 按模块拆分的职责、关键类、数据表、测试说明 | 了解模块设计与行为 |
 | `/swagger-ui.html`（启动后访问） | 交互式 API 文档，从代码注解实时生成 | 查接口/联调 |
+| `docs/superpowers/specs/`、`docs/superpowers/plans/` | 第四阶段设计规格与实施计划（告警接收人过滤、注册与成员资格、仿真修复等） | 追溯需求与实现 |
+| 外部公共控制包 `01-全员必读.md`、任务分发清单、当前 Agent 任务卡 | 第四阶段产品化事实来源 | 第四阶段任意任务 |
+| 对应源码、测试和 Swagger 注解 | 现有模块真实行为 | 学习模块原理或改业务代码 |
 | `git log` | 变更历史 | 排查问题 |
 
 > **提示**：原 `src` 各包下的 README 文档和 `开发流程学习文档/` 均已退出第四阶段事实来源；新会话请勿再读取或创建这些旧文档入口。
 
 ---
 
-*本文档基于项目 v0.0.1-SNAPSHOT 版本编写，最后更新于 2026-06-23。*
+*本文档基于第四阶段产品化基线（`5d26eeb` 及之后）按模块拆分编写，最后更新于 2026-08-24。*
