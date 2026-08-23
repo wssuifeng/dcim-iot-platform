@@ -252,6 +252,45 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 
 ---
 
+### 4.6 告警模块
+
+**功能**：配置化规则引擎、v1.0 告警兼容通道、第四阶段告警事件状态机与处理留痕、告警统计。
+
+| 能力 | 说明 |
+|------|------|
+| 规则引擎 | `AlertRuleEngine` 评估上报数据：设备级 `alert_rule_config` 优先，缺失时降级类型级配置（`getEffectiveRuleConfig`）；五级告警（1-紧急 … 5-提示，数字越小越紧急）；`rule.level < existing.level` 时升级 |
+| 告警事件状态机 | `alarm_event` 权威状态：TRIGGERED → ACKED（确认）→ HANDLING（处理中）→ RECOVERED（恢复）→ CLOSED（关闭）；非法流转抛 4081/4082 |
+| 处理留痕 | `alarm_handling_record`（处理记录）与 `alarm_state_transition`（流转记录）全程可审计回溯 |
+| v1.0 告警兼容 | `/alerts` 8 个接口：分页/详情/未处理/批量处理/导出/按设备与时间段统计/设备排名；`alerts` 表保留 |
+| 告警统计 | `/dashboard/alarm-stats` 告警看板统计；`/dashboard/stats` 聚合统计（Redis 缓存 30s + 互斥锁防击穿） |
+| 接收人解析 | `AlarmRecipientResolver` 按数据范围解析告警通知接收人 |
+
+**关键类**：`AlarmEventController`、`AlertController`、`DashboardAlarmStatsController`、`AlertRuleEngine`、`AlarmEventServiceImpl`、`AlertServiceImpl`、`AlertConfigServiceImpl`（规则缓存走 Redis）。
+
+**数据表**：`alarm_event`、`alarm_handling_record`、`alarm_state_transition`、`alerts`（v1.0 兼容）。
+
+**测试**：`AlarmEventServiceImplTest`、`AlertServiceImplTest`、`AlertConfigServiceTest`、`AlertScopedServiceImplTest` 等。
+
+### 4.7 通知模块
+
+**功能**：邮件、WebSocket 用户隔离摘要、站内通知、通知日志与去重的多通道通知体系。
+
+| 能力 | 说明 |
+|------|------|
+| 邮件通知 | `EmailNotificationServiceImpl`（Spring Mail，`notify.mail` 默认关闭，生产按需开启） |
+| WebSocket 推送 | `AlertWebSocketService` + `UserScopedWebSocketPublisher` 向 `/user/queue/summary` 推送最小事件摘要（`WebSocketSummary`），客户端收到后 REST 回查详情，不广播敏感数据 |
+| 站内通知 | `/in-app-notifications` 4 个接口：分页/单条已读/全部已读/未读数；前端铃铛徽标实时联动 |
+| 通知日志 | `notification_log` 记录邮件/WebSocket 双通道发送结果，支持状态追溯 |
+| 通知去重 | `NotificationDedupService`：AlertId 粒度 + 事件驱动删除 + 48h TTL |
+
+**关键类**：`InAppNotificationController`、`InAppNotificationServiceImpl`、`EmailNotificationServiceImpl`、`AlertWebSocketService`、`NotificationDedupServiceImpl`、`security/UserScopedWebSocketPublisher`。
+
+**数据表**：`in_app_notification`、`notification_log`。
+
+**测试**：`InAppNotificationServiceImplTest`、`NotificationDedupServiceTest`、`UserScopedWebSocketPublisherTest`、`WebSocketAuthenticationInterceptorTest`。
+
+---
+
 ## 五、环境要求
 
 | 软件 | 版本 | 说明 |
