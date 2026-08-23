@@ -39,7 +39,11 @@ public class MetricSample implements Serializable {
     @TableField("sample_value")
     private BigDecimal sampleValue;
 
-    @Schema(description = "采样时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
+    @Schema(description = "采样时间（设备侧时钟基准，自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "sample_time", fill = FieldFill.INSERT)
     private LocalDateTime sampleTime;
+
+    @Schema(description = "平台接收存储时间（服务端时钟基准，数据库默认值生成）", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("receive_time")
+    private LocalDateTime receiveTime;
 }

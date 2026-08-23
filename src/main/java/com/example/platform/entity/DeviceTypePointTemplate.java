@@ -34,6 +34,10 @@ public class DeviceTypePointTemplate implements Serializable {
     @TableField("point_id")
     private Long pointId;
 
+    @Schema(description = "归属组织ID：0=平台级默认模板，>0=组织自定义模板", example = "0")
+    @TableField("organization_id")
+    private Long organizationId;
+
     @Schema(description = "是否必选点位：0-可选 1-必选", example = "1")
     @TableField("is_required")
     private Integer isRequired;

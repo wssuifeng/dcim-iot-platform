@@ -70,11 +70,6 @@ public class SysUser implements Serializable {
     @TableField("platform_role")
     private String platformRole;
 
-    @JsonIgnore
-    @Schema(description = "旧单组织归属，仅用于迁移兼容", accessMode = Schema.AccessMode.READ_ONLY)
-    @TableField("organization_id")
-    private Long organizationId;
-
     public String getNormalizedRole() {
         return PlatformRole.normalize(role);
     }

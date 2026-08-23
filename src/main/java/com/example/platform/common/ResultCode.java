@@ -36,8 +36,15 @@ public final class ResultCode {
     // 数据模块 403x
     public static final int DATA_TIME_RANGE_EXCEED = 4031;
     public static final int DATA_VALUE_OUT_OF_RANGE = 4032;
+    public static final int SAMPLE_POINT_NOT_BOUND = 4033;
+    public static final int POINT_CODE_EXISTS = 4034;
+    public static final int POINT_IN_USE = 4035;
 
-    // 告警模块 404x（新码随告警规则/事件服务实现补充：ALARM_EVENT_NOT_FOUND 等）
+    // 告警模块 404x
+    public static final int ALARM_EVENT_NOT_FOUND = 4041;
+    public static final int ALARM_RULE_NOT_FOUND = 4042;
+    public static final int ALARM_RULE_DUPLICATE = 4043;
+    public static final int ALARM_RULE_INVALID = 4044;
 
     // 配置模块 405x
     public static final int CONFIG_NOT_FOUND = 4051;
