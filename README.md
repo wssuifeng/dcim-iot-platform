@@ -116,40 +116,67 @@ iot-platform/
 
 ---
 
-## 四、数据模型
+## 四、后端模块详解
 
-### 实体关系图（ER）
+### 4.0 数据模型总览
 
 ```
-device_types ──（1:N）──▶ devices ──（1:N）──▶ device_data
-     │                       │
-     │                       │（1:N）
-     │                       ▼
-     │                     alerts
-     │
-     └──（引用）──▶ dict_metric
+sys_user ──< organization_membership >── sys_organization ──< sys_cloud_room
+    │                                              └──< devices
+    └──< sys_data_scope_assignment（四级数据范围）
 
-alerts ──（1:N）──▶ notification_log
+device_types ──< devices ──< device_data / alerts（v1.0 遗留兼容）
+                   │
+                   ├──< device_point_binding >── point_definition
+                   │          └──< metric_sample ── metric_latest
+                   └──< alarm_event ──< alarm_handling_record / alarm_state_transition
+
+alarm_event ──< notification_log / in_app_notification
+simulation_scene ──< simulation_scene_step / simulation_run_record ──< simulation_generated_data_ref
 ```
 
-### 核心实体
+**v1.0 遗留实体（8 个，仍在线使用）**
 
-| 实体 | 表 | 核心字段 | 说明 |
-|------|----|---------|------|
-| **Device** | devices | id, device_name, device_code, type_id, status(0/1/2), location, ip_address, alert_rule_config(JSON) | 设备基础信息，设备级告警规则优先于类型级 |
-| **DeviceType** | device_types | id, type_name, type_code, description, alert_rule_config(JSON) | 设备分类，类型级告警规则作为降级方案 |
-| **DeviceData** | device_data | id, device_id, metric, data_value, collect_time | 设备上报数据，触发告警检查 |
-| **Alert** | alerts | id, device_id, alert_type, alert_level(1-5), alert_message, is_handled, handle_user | 告警记录，级别越小越紧急 |
-| **DictMetric** | dict_metric | id, metric_key, metric_name, metric_unit, create_time, update_time | 指标元数据，Redis 缓存，告警消息填充中文名/单位 |
-| **SysUser** | sys_user | id, username, password(BCrypt), nickname, role, status, login_fail_count, lock_time | 用户认证，RBAC 三级角色，连续5次失败锁定30分钟 |
-| **SysAuditLog** | sys_audit_log | id, user_id, username, operation, ip, detail, create_time | 操作审计，过期自动清理 |
-| **NotificationLog** | notification_log | id, alert_id, notification_type, recipient, content, status, error_message, send_time | 通知发送日志，记录邮件/WebSocket推送结果 |
+| 实体 | 表 | 说明 |
+|------|----|------|
+| Device | devices | 设备档案，含 `alert_rule_config` JSON（设备级告警规则） |
+| DeviceType | device_types | 设备类型，类型级告警规则作为降级方案；V3 起挂载点位模板 |
+| DeviceData | device_data | v1.0 上报数据，每日 TTL 清理；新数据走 metric_sample |
+| Alert | alerts | v1.0 告警，保留兼容；权威告警为 alarm_event |
+| DictMetric | dict_metric | 指标字典，Redis 缓存，告警消息填充中文名/单位 |
+| SysUser | sys_user | 全局身份（BCrypt 密码、角色、锁定机制） |
+| SysAuditLog | sys_audit_log | 审计日志，V5 扩展结构化字段 |
+| NotificationLog | notification_log | 通知发送日志（邮件/WebSocket 双通道追溯） |
 
-**关系说明**：
-- `device_types` 1:N `devices`：一个设备类型下有多个设备
-- `devices` 1:N `device_data`：一个设备产生多条采集数据
-- `devices` 1:N `alerts`：一个设备产生多条告警记录
-- `dict_metric` 被告警引擎引用，用于告警消息中填充指标中文名和单位
+**第四阶段新增实体（21 个）**
+
+| 域 | 实体（表） |
+|----|-----------|
+| 组织与身份 | Organization（sys_organization）、CloudRoom（sys_cloud_room）、OrganizationMembership（organization_membership）、OrganizationCreationApplication、OrganizationJoinApplication、DataScopeAssignment（sys_data_scope_assignment）、PlatformRegistrationSettings（platform_registration_settings） |
+| 设备点位 | PointDefinition（point_definition）、DeviceTypePointTemplate（device_type_point_template）、DevicePointBinding（device_point_binding） |
+| 指标时序 | MetricSample（metric_sample）、MetricLatest（metric_latest）、MetricRetentionPolicy（metric_retention_policy） |
+| 告警状态机 | AlarmEvent（alarm_event）、AlarmHandlingRecord（alarm_handling_record）、AlarmStateTransition（alarm_state_transition） |
+| 站内通知 | InAppNotification（in_app_notification） |
+| 仿真 | SimulationScene、SimulationSceneStep、SimulationRunRecord、SimulationGeneratedDataRef |
+
+### 4.1 用户认证与鉴权模块
+
+**功能**：登录（账号锁定 + IP 限流）、登出（Token 黑名单）、邮箱验证码注册、平台初始化向导、JWT 无状态认证与四角色 RBAC。
+
+| 能力 | 说明 |
+|------|------|
+| 登录/登出 | `POST /auth/login` 连续 5 次失败锁定 30 分钟（Lua 脚本原子计数）；`POST /auth/logout` Token 入黑名单自动过期 |
+| 注册 | `POST /auth/registration-codes` 申请邮箱验证码（HMAC 防篡改）→ `POST /auth/register`；开关与策略由 PlatformRegistrationSettings 控制 |
+| 平台初始化 | `/setup` 向导：首次部署用 bootstrap token（`platform.bootstrap-token`）创建 PLATFORM_ADMIN |
+| 角色模型 | `PlatformRole`：PLATFORM_ADMIN / ORG_ADMIN / OPERATOR / VIEWER；旧 `ADMIN` 归一化为 ORG_ADMIN 并授予双 Authority 兼容 |
+| JWT 过滤链 | `JwtAuthenticationFilter` 提取 Bearer Token，`JwtAuthenticationService` 统一校验签名/有效期/黑名单（HTTP 与 WebSocket 共用） |
+| 请求防护 | `RateLimitFilter`（Redis 滑动窗口）、`TraceIdFilter`（MDC）、`XssFilter`（参数 HTML 转义） |
+
+**关键类**：`AuthController`、`AuthServiceImpl`、`PublicRegistrationServiceImpl`、`EmailVerificationServiceImpl` + `QqVerificationMailSender`、`PlatformSetupServiceImpl`、`TokenBlacklistService`、`common/util/JwtUtil`。
+
+**数据表**：`sys_user`、`platform_registration_settings`。
+
+**测试**：`AuthServiceImplTest`、`JwtAuthenticationFilterTest`、`JwtAuthenticationServiceTest`、`PlatformRoleTest`、`SecurityConfigRoleContractTest` 等 8 个 security 包测试类。
 
 ---
 
