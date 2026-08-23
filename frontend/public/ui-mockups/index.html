@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="saas-light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>dcim-iot-platform UI 风格示例</title>
+  <style>
+    /* ===== 基础重置与工具 ===== */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* ===== 方案 B：现代 SaaS 浅色（默认） ===== */
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-2: #64748b;
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      --info: #64748b;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px 0 rgba(0,0,0,0.05), 0 1px 2px 0 rgba(0,0,0,0.03);
+      --shadow-card: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.03);
+      --sidebar-bg: #ffffff;
+      --sidebar-text: #475569;
+      --header-bg: #ffffff;
+      --accent-glow: none;
+      --data-font: inherit;
+      --chart-grid: #e2e8f0;
+    }
+
+    /* ===== 方案 A：工业 SCADA 深色 ===== */
+    [data-theme="scada-dark"] {
+      --bg: #0b1120;
+      --surface: #151d2e;
+      --surface-2: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-2: #94a3b8;
+      --primary: #00d4ff;
+      --primary-light: rgba(0, 212, 255, 0.12);
+      --success: #00d9a5;
+      --success-light: rgba(0, 217, 165, 0.12);
+      --warning: #ff9f43;
+      --warning-light: rgba(255, 159, 67, 0.12);
+      --danger: #ff2e63;
+      --danger-light: rgba(255, 46, 99, 0.12);
+      --info: #94a3b8;
+      --radius: 8px;
+      --radius-sm: 6px;
+      --shadow: 0 0 0 1px rgba(0, 212, 255, 0.08);
+      --shadow-card: 0 0 16px rgba(0, 212, 255, 0.06), inset 0 1px 0 rgba(255,255,255,0.04);
+      --sidebar-bg: #0f172a;
+      --sidebar-text: #cbd5e1;
+      --header-bg: #0f172a;
+      --accent-glow: 0 0 12px rgba(0, 212, 255, 0.35);
+      --data-font: "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+      --chart-grid: #334155;
+    }
+
+    /* ===== 方案 C：数据中心混合（本页用深色仪表盘模拟） ===== */
+    [data-theme="dcim-hybrid"] {
+      --bg: #0b1120;
+      --surface: #151d2e;
+      --surface-2: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-2: #94a3b8;
+      --primary: #38bdf8;
+      --primary-light: rgba(56, 189, 248, 0.12);
+      --success: #34d399;
+      --success-light: rgba(52, 211, 153, 0.12);
+      --warning: #fbbf24;
+      --warning-light: rgba(251, 191, 36, 0.12);
+      --danger: #f87171;
+      --danger-light: rgba(248, 113, 113, 0.12);
+      --info: #94a3b8;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow: 0 0 0 1px rgba(56, 189, 248, 0.08);
+      --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.25);
+      --sidebar-bg: #0f172a;
+      --sidebar-text: #cbd5e1;
+      --header-bg: #0f172a;
+      --accent-glow: none;
+      --data-font: "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+      --chart-grid: #334155;
+    }
+
+    /* ===== 页面包装 ===== */
+    .page-wrap {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    /* ===== 顶部切换条 ===== */
+    .theme-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+    .theme-bar h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .theme-bar p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--text-2);
+    }
+    .theme-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .theme-tabs button {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      color: var(--text-2);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .theme-tabs button.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+      box-shadow: var(--accent-glow);
+    }
+
+    /* ===== 布局 ===== */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 70px);
+    }
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      padding: 16px 12px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+    }
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: var(--accent-glow);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      border-radius: var(--radius-sm);
+      color: var(--sidebar-text);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .nav-item:hover,
+    .nav-item.active {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      opacity: 0.8;
+    }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 24px;
+      overflow: auto;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+    .topbar-left {
+      font-size: 14px;
+      color: var(--text-2);
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* ===== 通用卡片与页面头 ===== */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .page-header h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .page-header small {
+      color: var(--text-2);
+      font-size: 13px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      box-shadow: var(--accent-glow);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-card);
+      transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .card-body { padding: 16px; }
+    .card-title {
+      margin: 0 0 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ===== 统计卡片 ===== */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-accent, var(--primary));
+    }
+    .stat-card .card-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--card-accent, var(--text));
+      font-family: var(--data-font);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      background: var(--icon-bg, var(--primary-light));
+      color: var(--card-accent, var(--primary));
+    }
+
+    /* ===== 图表 ===== */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 0.8fr 0.65fr;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .dashboard-section {
+      padding: 20px;
+      border-right: 1px solid var(--border);
+    }
+    .dashboard-section:last-child { border-right: 0; }
+    .chart-area {
+      height: 160px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 16px;
+    }
+    .chart-bar {
+      flex: 1;
+      border-radius: 4px 4px 0 0;
+      background: var(--primary);
+      opacity: 0.8;
+      transition: opacity 0.2s ease;
+    }
+    .chart-bar:hover { opacity: 1; }
+    .chart-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-2);
+      font-family: var(--data-font);
+    }
+
+    .distribution-row {
+      display: grid;
+      grid-template-columns: 56px 1fr 36px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--text-2);
+    }
+    .progress {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--row-color, var(--primary));
+    }
+    .level-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .level-row:last-child { border-bottom: 0; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    /* ===== 表格 ===== */
+    .table-section {
+      display: grid;
+      grid-template-columns: 0.8fr 1.5fr;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mock-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .mock-table th,
+    .mock-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .mock-table th {
+      color: var(--text-2);
+      font-weight: 600;
+      background: var(--surface-2);
+    }
+    .mock-table tr:last-child td { border-bottom: 0; }
+    .rank-bar {
+      height: 7px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .rank-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--danger);
+    }
+
+    /* ===== 登录页预览 ===== */
+    .login-preview {
+      margin-top: 24px;
+      padding: 40px;
+      border-radius: var(--radius);
+      background: var(--login-bg, var(--surface-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      border: 1px solid var(--border);
+    }
+    .login-card {
+      width: 360px;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-card);
+    }
+    .login-card h3 {
+      margin: 0 0 20px;
+      text-align: center;
+      color: var(--text);
+    }
+    .input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 14px;
+    }
+    .input::placeholder { color: var(--text-2); }
+    .login-card .btn-primary {
+      width: 100%;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    /* ===== 主题特殊微调 ===== */
+    [data-theme="scada-dark"] .stat-card,
+    [data-theme="dcim-hybrid"] .stat-card {
+      box-shadow: var(--shadow-card);
+    }
+    [data-theme="scada-dark"] .stat-icon,
+    [data-theme="dcim-hybrid"] .stat-icon {
+      box-shadow: 0 0 12px var(--icon-glow, rgba(0,0,0,0.2));
+    }
+    [data-theme="saas-light"] .login-preview {
+      background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+    }
+    [data-theme="scada-dark"] .login-preview,
+    [data-theme="dcim-hybrid"] .login-preview {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 35%),
+        radial-gradient(circle at 80% 80%, rgba(0, 217, 165, 0.06) 0%, transparent 35%),
+        var(--surface-2);
+    }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 1100px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-grid,
+      .table-section { grid-template-columns: 1fr; }
+      .dashboard-section,
+      .table-section > .dashboard-section { border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .theme-bar { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- 主题切换条 -->
+    <div class="theme-bar">
+      <div>
+        <h1>dcim-iot-platform 前端 UI 风格示例</h1>
+        <p>点击下方按钮切换方案 A / B / C，实时预览同一套界面的不同视觉表现</p>
+      </div>
+      <div class="theme-tabs">
+        <button class="active" data-set="scada-dark">方案 A · SCADA 深色</button>
+        <button data-set="saas-light">方案 B · SaaS 浅色（推荐）</button>
+        <button data-set="dcim-hybrid">方案 C · 混合主题</button>
+      </div>
+    </div>
+
+    <!-- 顶部栏 -->
+    <div class="topbar">
+      <div class="topbar-left">当前范围：全部组织 · 3 个机房</div>
+      <div class="topbar-right">
+        <span>🔔</span>
+        <span>admin</span>
+        <span style="color: var(--text-2); font-size: 12px;">平台管理员</span>
+        <div class="avatar">A</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <!-- 侧边栏 -->
+      <aside class="sidebar">
+        <div class="brand"><div class="brand-dot"></div> IoT-Platform</div>
+        <nav>
+          <div class="nav-item active"><span class="nav-icon">📊</span> 告警看板</div>
+          <div class="nav-item"><span class="nav-icon">🖥️</span> 设备管理</div>
+          <div class="nav-item"><span class="nav-icon">📈</span> 数据监控</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span> 告警管理</div>
+          <div class="nav-item"><span class="nav-icon">⚙️</span> 设备类型</div>
+          <div class="nav-item"><span class="nav-icon">👤</span> 用户管理</div>
+        </nav>
+      </aside>
+
+      <!-- 主内容 -->
+      <main class="main">
+        <!-- 页面头 -->
+        <div class="page-header">
+          <div>
+            <h2>告警看板</h2>
+            <small>当前授权范围内的设备告警统计与趋势</small>
+          </div>
+          <button class="btn btn-primary">🔄 刷新</button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+          <div class="card stat-card" style="--card-accent: #606266; --icon-bg: rgba(96,98,102,0.12); --icon-glow: rgba(96,98,102,0.25);">
+            <div class="card-body">
+              <div>
+                <div class="stat-label">告警总量</div>
+                <div class="stat-value">1,248</div>
+              </div>
+              <div class="stat-icon">📊</div>
+            </div>
+          </div>
+          <div class="card stat-card" style="--card-accent: var(--danger); --icon-bg: var(--danger-light); --icon-glow: rgba(239,68,68,0.35);">
+            <div class="card-body">
+              <div>
+                <div class="stat-label">活动告警</div>
+                <div class="stat-value">42</div>
+              </div>
+              <div class="stat-icon">⚠️</div>
+            </div>
+          </div>
+          <div class="card stat-card" style="--card-accent: var(--success); --icon-bg: var(--success-light); --icon-glow: rgba(16,185,129,0.35);">
+            <div class="card-body">
+              <div>
+                <div class="stat-label">已恢复</div>
+                <div class="stat-value">1,106</div>
+              </div>
+              <div class="stat-icon">✅</div>
+            </div>
+          </div>
+          <div class="card stat-card" style="--card-accent: var(--info); --icon-bg: rgba(100,116,139,0.12); --icon-glow: rgba(100,116,139,0.25);">
+            <div class="card-body">
+              <div>
+                <div class="stat-label">已关闭</div>
+                <div class="stat-value">100</div>
+              </div>
+              <div class="stat-icon">🚫</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 仪表盘三栏 -->
+        <div class="dashboard-grid">
+          <section class="dashboard-section">
+            <div class="card-title">近七日趋势</div>
+            <div class="chart-area">
+              <div class="chart-bar" style="height: 35%;"></div>
+              <div class="chart-bar" style="height: 55%;"></div>
+              <div class="chart-bar" style="height: 42%;"></div>
+              <div class="chart-bar" style="height: 78%;"></div>
+              <div class="chart-bar" style="height: 60%;"></div>
+              <div class="chart-bar" style="height: 48%;"></div>
+              <div class="chart-bar" style="height: 66%;"></div>
+            </div>
+            <div class="chart-labels">
+              <span>07-13</span><span>07-14</span><span>07-15</span><span>07-16</span><span>07-17</span><span>07-18</span><span>07-19</span>
+            </div>
+          </section>
+
+          <section class="dashboard-section">
+            <div class="card-title">状态分布</div>
+            <div class="distribution-row">
+              <span>已触发</span>
+              <div class="progress"><div class="progress-fill" style="width: 12%; --row-color: var(--danger);"></div></div>
+              <strong style="color: var(--text); font-family: var(--data-font);">18</strong>
+            </div>
+            <div class="distribution-row">
+              <span>已确认</span>
+              <div class="progress"><div class="progress-fill" style="width: 8%; --row-color: var(--warning);"></div></div>
+              <strong style="color: var(--text); font-family: var(--data-font);">12</strong>
+            </div>
+            <div class="distribution-row">
+              <span>处理中</span>
+              <div class="progress"><div class="progress-fill" style="width: 6%; --row-color: var(--primary);"></div></div>
+              <strong style="color: var(--text); font-family: var(--data-font);">9</strong>
+            </div>
+            <div class="distribution-row">
+              <span>已恢复</span>
+              <div class="progress"><div class="progress-fill" style="width: 62%; --row-color: var(--success);"></div></div>
+              <strong style="color: var(--text); font-family: var(--data-font);">1,106</strong>
+            </div>
+            <div class="distribution-row">
+              <span>已关闭</span>
+              <div class="progress"><div class="progress-fill" style="width: 12%; --row-color: var(--info);"></div></div>
+              <strong style="color: var(--text); font-family: var(--data-font);">100</strong>
+            </div>
+          </section>
+
+          <section class="dashboard-section">
+            <div class="card-title">级别分布</div>
+            <div class="level-row">
+              <span class="tag" style="border-color: var(--danger); color: var(--danger); background: var(--danger-light);">紧急</span>
+              <strong style="font-family: var(--data-font);">3</strong>
+            </div>
+            <div class="level-row">
+              <span class="tag" style="border-color: var(--warning); color: var(--warning); background: var(--warning-light);">严重</span>
+              <strong style="font-family: var(--data-font);">8</strong>
+            </div>
+            <div class="level-row">
+              <span class="tag" style="border-color: var(--primary); color: var(--primary); background: var(--primary-light);">一般</span>
+              <strong style="font-family: var(--data-font);">15</strong>
+            </div>
+            <div class="level-row">
+              <span class="tag" style="border-color: var(--info); color: var(--info); background: rgba(100,116,139,0.12);">警告</span>
+              <strong style="font-family: var(--data-font);">22</strong>
+            </div>
+            <div class="level-row">
+              <span class="tag" style="border-color: var(--info); color: var(--info); background: rgba(100,116,139,0.12);">提示</span>
+              <strong style="font-family: var(--data-font);">7</strong>
+            </div>
+          </section>
+        </div>
+
+        <!-- 表格区 -->
+        <div class="table-section">
+          <section class="dashboard-section">
+            <div class="card-title">设备告警排名</div>
+            <table class="mock-table">
+              <thead><tr><th>排名</th><th>设备</th><th>占比</th><th style="text-align: right;">数量</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>1号楼UPS-01</td><td><div class="rank-bar"><div class="rank-bar-fill" style="width: 100%;"></div></div></td><td style="text-align: right; font-family: var(--data-font);">56</td></tr>
+                <tr><td>2</td><td>精密空调-A3</td><td><div class="rank-bar"><div class="rank-bar-fill" style="width: 72%;"></div></div></td><td style="text-align: right; font-family: var(--data-font);">41</td></tr>
+                <tr><td>3</td><td>温湿度-S2</td><td><div class="rank-bar"><div class="rank-bar-fill" style="width: 48%;"></div></div></td><td style="text-align: right; font-family: var(--data-font);">27</td></tr>
+                <tr><td>4</td><td>PDU- Rack-05</td><td><div class="rank-bar"><div class="rank-bar-fill" style="width: 30%;"></div></div></td><td style="text-align: right; font-family: var(--data-font);">17</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="dashboard-section">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>最近告警</span>
+              <a href="#" style="color: var(--primary); font-size: 12px; text-decoration: none;">查看全部 →</a>
+            </div>
+            <table class="mock-table">
+              <thead><tr><th>状态</th><th>设备</th><th>告警</th><th>触发时间</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="tag" style="border-color: var(--danger); color: var(--danger); background: var(--danger-light);">已触发</span></td>
+                  <td>1号楼UPS-01</td>
+                  <td>输出电压异常：242V</td>
+                  <td style="font-family: var(--data-font);">2026-07-19 02:08</td>
+                </tr>
+                <tr>
+                  <td><span class="tag" style="border-color: var(--warning); color: var(--warning); background: var(--warning-light);">已确认</span></td>
+                  <td>精密空调-A3</td>
+                  <td>回风温度偏高：28.5℃</td>
+                  <td style="font-family: var(--data-font);">2026-07-19 01:55</td>
+                </tr>
+                <tr>
+                  <td><span class="tag" style="border-color: var(--primary); color: var(--primary); background: var(--primary-light);">处理中</span></td>
+                  <td>PDU-Rack-05</td>
+                  <td>负载率超过 80%</td>
+                  <td style="font-family: var(--data-font);">2026-07-19 01:42</td>
+                </tr>
+                <tr>
+                  <td><span class="tag" style="border-color: var(--success); color: var(--success); background: var(--success-light);">已恢复</span></td>
+                  <td>温湿度-S2</td>
+                  <td>湿度恢复正常</td>
+                  <td style="font-family: var(--data-font);">2026-07-19 01:30</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <!-- 登录页预览 -->
+        <div class="page-header" style="margin-top: 32px;">
+          <div>
+            <h2>登录页预览</h2>
+            <small>同一登录卡片在不同主题下的表现</small>
+          </div>
+        </div>
+        <div class="login-preview">
+          <div class="login-card">
+            <h3>IoT-Platform</h3>
+            <input class="input" type="text" placeholder="邮箱或用户名" value="admin" />
+            <input class="input" type="password" placeholder="密码" value="••••••••" />
+            <button class="btn btn-primary">登 录</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll('.theme-tabs button')
+    const html = document.documentElement
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+        html.setAttribute('data-theme', btn.dataset.set)
+      })
+    })
+  </script>
+</body>
+</html>

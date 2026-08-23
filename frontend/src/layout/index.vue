@@ -10,6 +10,9 @@
 
       <div class="header-actions">
         <OrganizationSwitcher />
+        <el-tooltip :content="themeTooltip">
+          <el-button circle :icon="themeIcon" aria-label="切换主题" @click="themeStore.toggle" />
+        </el-tooltip>
         <el-tooltip :content="realtimeConnected ? '站内通知' : '站内通知（实时连接中断）'">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
             <el-button circle :icon="Bell" aria-label="站内通知" @click="router.push('/notifications')" />
@@ -35,9 +38,9 @@
         <el-menu
           :default-active="activeMenu"
           router
-          background-color="#304156"
-          text-color="#bfcbd9"
-          active-text-color="#409eff"
+          :background-color="menuBg"
+          :text-color="menuText"
+          :active-text-color="menuActive"
         >
           <el-menu-item
             v-for="item in navigationItems"
@@ -59,7 +62,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell } from '@element-plus/icons-vue'
+import { Bell, Sunny, Moon } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAlarmEvent } from '@/api/alarmEvent'
 import { getUnreadNotificationCount } from '@/api/notification'
@@ -73,6 +76,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import { useOrganizationStore } from '@/stores/organization'
+import { useThemeStore, THEME_LIGHT } from '@/stores/theme'
 import OrganizationSwitcher from '@/components/OrganizationSwitcher.vue'
 
 defineOptions({ name: 'AppLayout' })
@@ -89,6 +93,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const scopeStore = useScopeStore()
 const organizationStore = useOrganizationStore()
+const themeStore = useThemeStore()
 const unreadCount = ref(0)
 const realtimeConnected = ref(false)
 let removeSummaryListener = null
@@ -98,6 +103,11 @@ let removeUnreadCountListener = null
 const activeMenu = computed(() => route.path)
 const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
 const roleLabel = computed(() => ROLE_LABELS[effectiveRole.value] || effectiveRole.value)
+const themeIcon = computed(() => (themeStore.theme === THEME_LIGHT ? Moon : Sunny))
+const themeTooltip = computed(() => (themeStore.theme === THEME_LIGHT ? '切换夜间模式' : '切换日间模式'))
+const menuBg = computed(() => (themeStore.theme === THEME_LIGHT ? '#ffffff' : '#0f172a'))
+const menuText = computed(() => (themeStore.theme === THEME_LIGHT ? '#475569' : '#cbd5e1'))
+const menuActive = computed(() => (themeStore.theme === THEME_LIGHT ? '#2563eb' : '#00d4ff'))
 const navigationItems = computed(() =>
   router
     .getRoutes()
@@ -174,8 +184,9 @@ function handleCommand(command) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e6e6e6;
-  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-header);
 }
 
 .brand-area,
@@ -187,22 +198,22 @@ function handleCommand(command) {
 }
 
 .header-actions {
-  gap: 18px;
+  gap: 14px;
 }
 
 .system-title {
-  color: #303133;
+  color: var(--color-text);
   font-size: 20px;
   font-weight: 700;
 }
 
 .user-info {
   cursor: pointer;
-  color: #303133;
+  color: var(--color-text);
 }
 
 .role-label {
-  color: #909399;
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
@@ -211,16 +222,19 @@ function handleCommand(command) {
 }
 
 .el-aside {
-  background-color: #304156;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
 }
 
 .el-aside .el-menu {
   border-right: 0;
+  background-color: transparent;
 }
 
 .el-main {
   min-width: 0;
   overflow: auto;
+  background-color: var(--color-bg);
 }
 
 @media (max-width: 768px) {
