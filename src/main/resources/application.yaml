@@ -91,10 +91,11 @@ springdoc:
 # ==================== 设备监控定时任务配置 ====================
 task:
   check-device-cron: 0 0/5 * * * ?
+  # 离线判定兜底阈值（无 OFFLINE 规则的设备使用；规则阈值优先）
   offline-threshold-seconds: 300
-  # 设备数据 TTL 清理：每天凌晨 2 点执行，默认保留 90 天
-  cleanup-device-data-cron: 0 0 2 * * ?
-  device-data-ttl-days: 90
+  # 采样历史保留清理：每天凌晨 2 点，按保留策略分批删除
+  cleanup-metric-sample-cron: 0 0 2 * * ?
+  cleanup-batch-size: 5000
 
 # ==================== CORS 跨域配置 ====================
 cors:
