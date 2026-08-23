@@ -34,3 +34,9 @@ build/
 
 # 本地环境变量文件（包含敏感信息）
 .env
+
+# PDF 出版构建中间产物（由 docs/PDF出版源/build_technical_whitepaper.py 生成，可重建）
+docs/PDF出版源/项目架构设计与开发理解文档-技术白皮书.html
+docs/PDF出版源/技术白皮书-目录定位稿.pdf
+docs/PDF出版源/技术白皮书-排版稿.pdf
+docs/PDF出版源/edge-headless-profile/
