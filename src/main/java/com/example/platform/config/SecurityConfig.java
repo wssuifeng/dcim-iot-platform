@@ -152,22 +152,26 @@ public class SecurityConfig {
                         auth.requestMatchers("/audit-logs/**").hasAnyRole(AUDIT_READ_ROLES);
                         // 组织管理员：业务删除操作
                         auth.requestMatchers(HttpMethod.DELETE).hasAnyRole(BUSINESS_ADMIN_ROLES);
-                        // 组织管理员/运维：设备写入、数据上报、指标创建
-                        auth.requestMatchers(HttpMethod.POST, "/devices", "/device-data",
-                                "/device-data/batch", "/metric").hasAnyRole(BUSINESS_WRITE_ROLES);
-                        // 组织管理员/运维：设备更新、设备类型更新、指标更新
+                        // 组织管理员/运维：设备/类型/点位/采样写入（其余写接口由 @PreAuthorize 细化）
+                        auth.requestMatchers(HttpMethod.POST, "/devices", "/metric-samples",
+                                "/metric-samples/batch", "/point-definitions",
+                                "/point-alarm-rules").hasAnyRole(BUSINESS_WRITE_ROLES);
                         auth.requestMatchers(HttpMethod.PUT, "/devices/**",
-                                "/device-types/**", "/metric").hasAnyRole(BUSINESS_WRITE_ROLES);
+                                "/device-types/**", "/point-definitions/**",
+                                "/point-templates/**", "/point-alarm-rules/**",
+                                "/metric-samples/**").hasAnyRole(BUSINESS_WRITE_ROLES);
                         // 组织管理员/运维：告警处理（VIEWER不可处理告警）
-                        auth.requestMatchers(HttpMethod.PUT, "/alerts/**").hasAnyRole(BUSINESS_WRITE_ROLES);
+                        auth.requestMatchers(HttpMethod.PUT, "/alarm-events/**").hasAnyRole(BUSINESS_WRITE_ROLES);
                         // 平台管理员需要读取设备类型目录，才能维护类型级点位模板。
                         auth.requestMatchers(HttpMethod.GET, "/device-types/**")
                                 .hasAnyRole(DEVICE_TYPE_READ_ROLES);
                         // 组织业务只读接口：PLATFORM_ADMIN 不默认穿透组织业务数据
                         auth.requestMatchers(HttpMethod.GET,
-                                "/devices/**", "/device-data/**",
-                                "/alerts/**", "/dashboard/**", "/metric/**")
-                                .hasAnyRole(BUSINESS_READ_ROLES);
+                                "/devices/**", "/metric-samples/**", "/metric-latest/**",
+                                "/point-definitions/**", "/point-templates/**",
+                                "/point-alarm-rules/**", "/alarm-events/**",
+                                "/alarm-notification-logs/**",
+                                "/dashboard/**").hasAnyRole(BUSINESS_READ_ROLES);
                         // 其他GET仅要求认证，具体业务范围由后续服务层校验
                         auth.requestMatchers(HttpMethod.GET).authenticated();
                         // 兜底规则：其余请求需认证

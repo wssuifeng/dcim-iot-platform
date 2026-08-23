@@ -1,11 +1,14 @@
 package com.example.platform.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.alibaba.excel.EasyExcel;
 import com.example.platform.common.Result;
 import com.example.platform.common.annotation.AuditLog;
+import com.example.platform.common.util.ExcelExportUtil;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
+import com.example.platform.dto.MetricSampleExportRow;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.MetricSample;
 import com.example.platform.security.CurrentUser;
@@ -77,5 +80,24 @@ public class MetricSampleController {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(metricSampleService.pageSamples(
                 user.userId(), current, size, deviceId, pointId, startTime, endTime));
+    }
+
+    @Operation(summary = "导出指标采样 Excel", description = "上限 10000 行；必须指定 deviceId，时间跨度上限 90 天")
+    @GetMapping("/export")
+    public void export(
+            @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
+            @Parameter(description = "点位ID（可选）") @RequestParam(required = false) Long pointId,
+            @Parameter(description = "起始时间（可选）") @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+            @Parameter(description = "结束时间（可选）") @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        List<MetricSampleExportRow> rows = metricSampleService.exportRows(
+                user.userId(), deviceId, pointId, startTime, endTime);
+        ExcelExportUtil.setExcelResponse(response, "指标采样导出");
+        EasyExcel.write(response.getOutputStream(), MetricSampleExportRow.class)
+                .sheet("指标采样")
+                .doWrite(rows);
     }
 }

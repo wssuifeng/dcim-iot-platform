@@ -5,10 +5,12 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
+import com.example.platform.dto.MetricSampleExportRow;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.MetricSample;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /*
  * 类功能:指标采样历史服务接口（T1 采样事务唯一所有者）
@@ -52,4 +54,12 @@ public interface MetricSampleService extends IService<MetricSample> {
     Page<MetricSampleVO> pageSamples(Long currentUserId, Integer current, Integer size,
                                      Integer deviceId, Long pointId,
                                      LocalDateTime startTime, LocalDateTime endTime);
+
+    /*
+     * 方法功能:导出采样 Excel 行（上限10000行，须指定 deviceId，经设备范围校验）
+     * 参数:currentUserId-当前用户, deviceId-设备ID, pointId-点位ID, startTime/endTime-时间范围
+     * 返回数据:List<MetricSampleExportRow>-导出行
+     * */
+    List<MetricSampleExportRow> exportRows(Long currentUserId, Integer deviceId, Long pointId,
+                                           LocalDateTime startTime, LocalDateTime endTime);
 }

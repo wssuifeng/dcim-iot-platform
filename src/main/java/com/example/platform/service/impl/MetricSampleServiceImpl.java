@@ -10,6 +10,7 @@ import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
+import com.example.platform.dto.MetricSampleExportRow;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DevicePointBinding;
@@ -36,6 +37,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /*
  * 类功能:指标采样历史服务实现类（T1 采样事务唯一所有者）
@@ -165,6 +168,50 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
     }
 
     // ===================== 内部辅助 =====================
+
+    private static final int EXPORT_MAX_ROWS = 10000;
+
+    @Override
+    public List<MetricSampleExportRow> exportRows(Long currentUserId, Integer deviceId, Long pointId,
+                                                  LocalDateTime startTime, LocalDateTime endTime) {
+        deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
+        LambdaQueryWrapper<MetricSample> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(MetricSample::getDeviceId, deviceId);
+        if (pointId != null) {
+            wrapper.eq(MetricSample::getPointId, pointId);
+        }
+        if (startTime != null) {
+            wrapper.ge(MetricSample::getSampleTime, startTime);
+        }
+        if (endTime != null) {
+            wrapper.le(MetricSample::getSampleTime, endTime);
+        }
+        wrapper.orderByDesc(MetricSample::getSampleTime)
+                .last("LIMIT " + EXPORT_MAX_ROWS);
+        List<MetricSample> samples = list(wrapper);
+
+        Map<Long, PointDefinition> pointById = samples.isEmpty() ? Map.of()
+                : pointDefinitionService.listByIds(samples.stream()
+                        .map(MetricSample::getPointId).collect(Collectors.toSet()))
+                        .stream().collect(Collectors.toMap(
+                                PointDefinition::getId, p -> p));
+        List<MetricSampleExportRow> rows = new ArrayList<>(samples.size());
+        for (MetricSample sample : samples) {
+            MetricSampleExportRow row = new MetricSampleExportRow();
+            row.setId(sample.getId());
+            row.setDeviceId(sample.getDeviceId());
+            PointDefinition point = pointById.get(sample.getPointId());
+            if (point != null) {
+                row.setPointCode(point.getPointCode());
+                row.setPointName(point.getPointName());
+            }
+            row.setSampleValue(sample.getSampleValue());
+            row.setSampleTime(sample.getSampleTime());
+            row.setReceiveTime(sample.getReceiveTime());
+            rows.add(row);
+        }
+        return rows;
+    }
 
     private MetricSample doSaveSample(MetricSampleDTO dto, Long currentUserId, boolean triggerAlarm) {
         deviceScopeHelper.ensureDeviceAccess(dto.getDeviceId(), currentUserId);
