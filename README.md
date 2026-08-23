@@ -346,185 +346,78 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 |------|------|------|
 | JDK | 17+ | 项目基于 Java 17 编译 |
 | Maven | 3.8+ | 或使用项目自带的 Maven Wrapper |
-| MySQL | 9.6 | 数据库服务，驱动 mysql-connector-j 9.6.0 |
-| Redis | 7.0+ | 缓存数据库（指标字典、Token 黑名单、限流计数器等） |
+| MySQL | 9.6 | 数据库服务，驱动 mysql-connector-j 9.6.0；库名默认 `iot_device_db` |
+| Redis | 7.0+ | 缓存数据库（指标字典、Token 黑名单、限流计数器、通知去重等） |
 | Node.js | `^20.19.0` 或 `>=22.12.0` | 前端 Vite 8 开发与构建要求 |
 | npm | 随 Node.js 安装 | 安装前端依赖与运行脚本 |
+| Docker / Docker Compose | 可选 | 一键启动 app + MySQL + Redis（方式一） |
+| SMTP 邮箱 | 可选 | 验证码注册与告警邮件（如 QQ 邮箱授权码） |
 | 浏览器 | Chrome / Edge / Firefox 等现代浏览器 | 推荐安装 Vue.js devtools 进行前端调试 |
 
 ---
 
 ## 六、快速开始
 
-### 6.1 创建数据库
+> 表结构由 Flyway V1–V10 自动创建与迁移（`validate-on-migrate` 强制校验），**无需手动建表**；只需先创建空数据库。
+
+### 6.1 配置环境变量
+
+复制 `.env.example` 为 `.env`（已被 .gitignore 排除），按需修改：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `SPRING_PROFILES_ACTIVE` | `dev` | 激活的 profile（生产用 `prod`） |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | `localhost:3306/iot_device_db` / root / 空 | MySQL 连接 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | localhost / 6379 / 空 | Redis 连接 |
+| `JWT_SECRET` | 示例值 | **生产必须替换**为 ≥32 字符随机串（否则 ProductionSafetyGuard 阻断启动） |
+| `JWT_EXPIRATION` | `7200` | Token 有效期（秒） |
+| `MAIL_HOST` / `MAIL_USERNAME` / `MAIL_AUTH_CODE` | QQ SMTP 示例 | 验证码与告警邮件 |
+| `VERIFICATION_CODE_HMAC_SECRET` | 示例值 | 验证码 HMAC 签名密钥 |
+| `PLATFORM_BOOTSTRAP_TOKEN` | 示例值 | 平台初始化向导一次性令牌 |
+| `DRUID_USERNAME` / `DRUID_PASSWORD` | admin / admin | Druid 监控台账号（仅 dev） |
+| `CORS_ALLOWED_ORIGINS` | - | 生产环境强制要求的前端来源 |
+
+### 6.2 方式一：Docker 一键启动
+
+```bash
+docker compose up -d --build
+```
+
+编排内容：`app`（Spring Boot，8080，依赖 MySQL/Redis 健康检查）+ `mysql:9.6.0`（数据卷 `mysql_data`）+ `redis:7-alpine`，应用读取 `.env` 并以 `prod` profile 启动。
+
+### 6.3 方式二：本地启动
 
 ```sql
+-- 1. 创建空数据库（表由 Flyway 自动创建）
 CREATE DATABASE iot_device_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-### 6.2 建表
-
-```sql
-USE iot_device_db;
-
-CREATE TABLE device_types (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    type_name VARCHAR(50) NOT NULL COMMENT '类型名称',
-    type_code VARCHAR(50) NOT NULL COMMENT '类型编码',
-    description VARCHAR(200) COMMENT '类型描述',
-    alert_rule_config JSON COMMENT '告警规则配置（JSON）',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT '设备类型表';
-
-CREATE TABLE devices (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    device_name VARCHAR(100) NOT NULL COMMENT '设备名称',
-    device_code VARCHAR(50) NOT NULL UNIQUE COMMENT '设备编码',
-    type_id INT COMMENT '设备类型ID',
-    status INT DEFAULT 0 COMMENT '状态：0-离线 1-在线 2-故障',
-    location VARCHAR(200) COMMENT '设备位置',
-    ip_address VARCHAR(50) COMMENT 'IP地址',
-    last_online_time DATETIME COMMENT '最后在线时间',
-    alert_rule_config JSON COMMENT '设备级告警规则配置（JSON）',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
-) COMMENT '设备表';
-
-CREATE TABLE device_data (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    device_id INT NOT NULL COMMENT '设备ID',
-    metric VARCHAR(50) COMMENT '指标标识（如 temperature）',
-    data_value DECIMAL(10,2) COMMENT '数据值',
-    collect_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '采集时间'
-) COMMENT '设备数据表';
-
-CREATE TABLE alerts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    device_id INT NOT NULL COMMENT '设备ID',
-    alert_type VARCHAR(50) NOT NULL COMMENT '告警类型',
-    alert_level TINYINT DEFAULT 1 COMMENT '告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示',
-    alert_message VARCHAR(500) COMMENT '告警描述',
-    is_handled INT DEFAULT 0 COMMENT '是否处理：0-未处理 1-已处理',
-    handle_time DATETIME COMMENT '处理时间',
-    handle_user VARCHAR(50) COMMENT '处理人',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '告警产生时间'
-) COMMENT '告警表';
-
-CREATE TABLE dict_metric (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    metric_key VARCHAR(50) COMMENT '指标标识',
-    metric_name VARCHAR(50) COMMENT '指标中文名',
-    metric_unit VARCHAR(20) COMMENT '数据单位',
-    description VARCHAR(200) COMMENT '描述',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
-) COMMENT '指标字典表';
-
-CREATE TABLE sys_user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名（登录账号）',
-    password VARCHAR(100) NOT NULL COMMENT '密码（BCrypt 加密存储）',
-    nickname VARCHAR(50) COMMENT '昵称',
-    role VARCHAR(20) NOT NULL COMMENT '角色：ADMIN/OPERATOR/VIEWER',
-    status INT DEFAULT 0 COMMENT '状态：0-正常 1-停用',
-    login_fail_count INT DEFAULT 0 COMMENT '连续登录失败次数',
-    lock_time DATETIME COMMENT '账号锁定截止时间',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT '用户表';
-
-CREATE TABLE sys_audit_log (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT COMMENT '操作人ID',
-    username VARCHAR(50) COMMENT '操作人账号',
-    operation VARCHAR(50) COMMENT '操作类型（如 LOGIN_SUCCESS/LOGIN_FAIL/CREATE_USER）',
-    ip VARCHAR(50) COMMENT '操作IP地址',
-    detail VARCHAR(500) COMMENT '操作详情',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
-    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除'
-) COMMENT '审计日志表';
-```
-
-### 6.3 插入测试数据
-
-```sql
-INSERT INTO device_types (type_name, type_code, description) VALUES
-('温度传感器', 'TEMP_SENSOR', '环境温度监测'),
-('湿度传感器', 'HUMIDITY_SENSOR', '环境湿度监测'),
-('烟雾探测器', 'SMOKE_DETECTOR', '火灾烟雾检测');
-
-INSERT INTO devices (device_name, device_code, type_id, status, location, ip_address) VALUES
-('1号楼温度传感器', 'TEMP-001', 1, 1, '1号楼3层东侧', '192.168.1.101'),
-('2号楼湿度传感器', 'HUM-001', 2, 1, '2号楼1层大厅', '192.168.1.102'),
-('3号楼烟雾探测器', 'SMOKE-001', 3, 0, '3号楼2层西侧', '192.168.1.103');
-
-INSERT INTO dict_metric (metric_key, metric_name, metric_unit, description) VALUES
-('temperature', '温度', '℃', '环境温度'),
-('humidity', '湿度', '%', '环境湿度'),
-('smoke', '烟雾浓度', 'ppm', '烟雾检测');
-
-INSERT INTO sys_user (username, password, nickname, role, status) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '系统管理员', 'ADMIN', 0);
-```
-
-> **注意**：上述 `admin` 用户的密码为 BCrypt 加密后的 `Admin123`，登录时使用 `admin` / `Admin123`。
-
-### 6.4 修改配置
-
-编辑 `src/main/resources/application.yaml`，修改数据库连接信息和安全配置：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/iot_device_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root           # 修改为你的 MySQL 用户名
-    password: your_password  # 修改为你的 MySQL 密码
-
-# JWT 配置
-jwt:
-  secret: your-jwt-secret-key-at-least-256-bits-long  # 修改为你的 JWT 密钥
-  expiration: 86400000                                  # Token 有效期（毫秒），默认24小时
-
-# CORS 配置
-cors:
-  allowed-origins: http://localhost:*,http://127.0.0.1:*  # 生产环境请修改为实际域名
-```
-
-### 6.5 构建与运行
-
 ```bash
-# 编译（跳过测试）
-./mvnw clean compile -DskipTests
+# 2. 启动后端（需 MySQL + Redis 运行中）
+./mvnw spring-boot:run          # Windows 使用 mvnw.cmd
 
-# 启动
-./mvnw spring-boot:run
-
-# Windows 用户使用 mvnw.cmd
+# 3. 启动前端
+cd frontend && npm install && npm run dev
 ```
 
-### 6.6 验证启动
+### 6.4 平台初始化与首次登录
 
-启动成功后控制台输出：
+1. 访问 `http://localhost:5173/setup`，使用 `.env` 中的 `PLATFORM_BOOTSTRAP_TOKEN`（及邮箱验证码）创建平台管理员；
+2. 平台管理员登录后创建组织与机房，或在"注册审核"中处理用户申请；
+3. 普通用户经 `/register` 邮箱验证码注册后，通过"创建组织申请/加入组织申请"进入组织；
+4. 未加入任何组织的用户登录后被引导至"我的组织"页面。
 
-```
-========================================
-物联网平台启动成功！
-访问地址：http://localhost:8080/api
-Druid监控：http://localhost:8080/api/druid
-========================================
-```
+### 6.5 验证启动
 
 | 验证地址 | 说明 |
 |---------|------|
-| `POST http://localhost:8080/api/auth/login` | 用户登录获取 JWT Token |
-| `http://localhost:8080/api/devices` | 设备列表（需携带 Token） |
-| `http://localhost:8080/api/devices/online` | 在线设备（需携带 Token） |
-| `http://localhost:8080/api/druid/index.html` | Druid 监控（ADMIN 角色） |
+| `http://localhost:8080/api/actuator/health` | 健康检查（公开） |
+| `http://localhost:8080/api/swagger-ui.html` | Swagger 交互式 API 文档 |
+| `POST http://localhost:8080/api/auth/login` | 登录获取 JWT Token |
+| `http://localhost:8080/api/druid/index.html` | Druid 监控（dev） |
+| `http://localhost:5173/dashboard` | 前端仪表盘 |
 
-> **认证方式**：登录后获取 JWT Token，后续请求在 Header 中添加 `Authorization: Bearer <token>`。
+> **认证方式**：登录后获取 JWT Token，后续请求在 Header 中添加 `Authorization: Bearer <token>`；跨组织操作还需携带 `X-Organization-Id: <组织ID>`。
 
 ---
 
