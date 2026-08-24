@@ -13,7 +13,7 @@
 
 -- ==================== 1. 用户（ID=1 平台管理员为测试前置依赖） ====================
 INSERT INTO sys_user (id, username, password, nickname, role, platform_role, email, email_verified, status) VALUES
-    (1, 'admin',     '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '平台管理员', 'ORG_ADMIN',   'PLATFORM_ADMIN', 'admin@demo.local',     1, 0),
+    (1, 'admin',     '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '平台管理员', 'VIEWER',      'PLATFORM_ADMIN', 'admin@demo.local',     1, 0),
     (2, 'orgadmin',  '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '演示组织管理员', 'ORG_ADMIN',   NULL, 'orgadmin@demo.local',  1, 0),
     (3, 'operator',  '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '演示运维员',   'OPERATOR',    NULL, 'operator@demo.local',  1, 0),
     (4, 'viewer',    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '演示只读用户', 'VIEWER',      NULL, 'viewer@demo.local',    1, 0);
@@ -28,14 +28,12 @@ INSERT INTO sys_cloud_room (id, organization_id, room_name, room_code, location)
 
 -- ==================== 3. 组织成员关系 ====================
 INSERT INTO organization_membership (user_id, organization_id, membership_role, status, approved_by, approved_time) VALUES
-    (1, 1, 'ORG_ADMIN', 'ACTIVE', 1, NOW()),
     (2, 1, 'ORG_ADMIN', 'ACTIVE', 1, NOW()),
     (3, 1, 'OPERATOR',  'ACTIVE', 1, NOW()),
     (4, 1, 'VIEWER',    'ACTIVE', 1, NOW());
 
 -- ==================== 4. 数据范围（四级各一，验证范围行为） ====================
 INSERT INTO sys_data_scope_assignment (user_id, organization_id, cloud_room_id, scope_type) VALUES
-    (1, NULL, NULL, 'PLATFORM'),
     (2, 1,    NULL, 'ORG_ALL'),
     (3, 1,    1,    'ROOMS'),
     (4, 1,    NULL, 'READ_ONLY');
