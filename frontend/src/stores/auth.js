@@ -3,8 +3,8 @@
  *
  * 【状态字段】
  * - token:   JWT Token 字符串（同时存储在 localStorage）
- * - role:    JWT 中的原始角色，兼容 ADMIN 和第四阶段四类角色
- * - normalizedRole: 将旧 ADMIN 映射为 ORG_ADMIN 后的导航角色
+ * - role:    JWT 中的平台角色，仅保留 PLATFORM_ADMIN
+ * - normalizedRole: 归一化后的平台角色；组织角色由 scope store 提供
  * - username: 用户名，从 Token Payload 的 username 字段解析
  * - userId: 用户 ID，从 Token Payload 的 sub 字段解析
  *
@@ -12,7 +12,7 @@
  *   login() 成功 → localStorage.setItem('token')
  *                → authStore.parseToken()
  *                → jwtDecode(token)
- *                → payload.role → role
+ *                → payload.platformRole → role
  *                → payload.username → username
  *                → payload.sub → userId
  */
@@ -27,14 +27,10 @@ export const PLATFORM_ROLES = Object.freeze({
   VIEWER: 'VIEWER',
 })
 
-const LEGACY_ROLE_ALIASES = Object.freeze({
-  ADMIN: PLATFORM_ROLES.ORG_ADMIN,
-})
-
 function normalizeRole(role) {
   if (typeof role !== 'string') return ''
   const normalized = role.trim().toUpperCase()
-  return LEGACY_ROLE_ALIASES[normalized] || normalized
+  return normalized === PLATFORM_ROLES.PLATFORM_ADMIN ? normalized : ''
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -43,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
   const username = ref('')
   const userId = ref(null)
   const normalizedRole = computed(() => normalizeRole(role.value))
+  const platformRole = computed(() => normalizedRole.value)
 
   /*
    * 方法功能:解析 JWT Token，提取角色和用户名
@@ -60,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     try {
       const payload = jwtDecode(token.value)
-      role.value = payload.platformRole || 'AUTHENTICATED_USER'
+      role.value = normalizeRole(payload.platformRole)
       username.value = payload.username || ''
       userId.value = payload.sub || null
     } catch {
@@ -98,6 +95,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('currentOrganizationId')
   }
 
+  window.addEventListener('auth:unauthorized', logout)
+
   /*
    * 方法功能:判断当前是否已登录
    * 参数:无
@@ -116,6 +115,8 @@ export const useAuthStore = defineStore('auth', () => {
     username,
     userId,
     normalizedRole,
+    platformRole,
+    isPlatformAdmin: computed(() => normalizedRole.value === PLATFORM_ROLES.PLATFORM_ADMIN),
     parseToken,
     syncFromStorage,
     hasAnyRole,

@@ -128,7 +128,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Edit, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import { getOrganizationPage } from '@/api/organization'
 import {
@@ -140,13 +139,10 @@ import {
 
 defineOptions({ name: 'CloudRoomManagement' })
 
-const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
+const effectiveRole = computed(() => scopeStore.role)
 const canManage = computed(
-  () =>
-    effectiveRole.value === 'ORG_ADMIN' &&
-    (!scopeStore.isReady || scopeStore.hasWritePermission),
+  () => effectiveRole.value === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
 )
 const loading = ref(false)
 const submitting = ref(false)

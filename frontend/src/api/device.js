@@ -1,5 +1,4 @@
-import request from '@/utils/request'
-import axios from 'axios'
+import request, { requestBlob } from '@/utils/request'
 
 export function getDevicePage(params) {
   return request.get('/devices/page', { params })
@@ -25,9 +24,6 @@ export function updateDeviceStatus(id, status) {
   return request.put(`/devices/${id}/status`, null, { params: { status } })
 }
 
-export function updateDeviceAlertConfig(id, data) {
-  return request.put(`/devices/${id}/alert-config`, data)
-}
 
 export function getAllDevices() {
   return request.get('/devices')
@@ -49,10 +45,7 @@ export function importDevices(file) {
  * 下载设备导入模板
  */
 export function downloadDeviceImportTemplate() {
-  return axios.get('/api/devices/import-template', {
-    responseType: 'blob',
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-  })
+  return requestBlob({ method: 'get', url: '/devices/import-template' })
 }
 
 /**
@@ -60,9 +53,5 @@ export function downloadDeviceImportTemplate() {
  * @param {object} params 筛选参数 { status, name }
  */
 export function exportDevices(params) {
-  return axios.get('/api/devices/export', {
-    params,
-    responseType: 'blob',
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-  })
+  return requestBlob({ method: 'get', url: '/devices/export', params })
 }

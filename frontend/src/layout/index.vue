@@ -101,8 +101,11 @@ let removeConnectionListener = null
 let removeUnreadCountListener = null
 
 const activeMenu = computed(() => route.path)
-const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
-const roleLabel = computed(() => ROLE_LABELS[effectiveRole.value] || effectiveRole.value)
+const effectiveRole = computed(() => scopeStore.role)
+const roleLabel = computed(() => {
+  if (authStore.isPlatformAdmin) return ROLE_LABELS.PLATFORM_ADMIN
+  return ROLE_LABELS[effectiveRole.value] || effectiveRole.value
+})
 const themeIcon = computed(() => (themeStore.theme === THEME_LIGHT ? Moon : Sunny))
 const themeTooltip = computed(() => (themeStore.theme === THEME_LIGHT ? '切换夜间模式' : '切换日间模式'))
 const menuBg = computed(() => (themeStore.theme === THEME_LIGHT ? '#ffffff' : '#0f172a'))
@@ -113,8 +116,13 @@ const navigationItems = computed(() =>
     .getRoutes()
     .filter((item) => item.meta.navigation)
     .filter((item) => {
-      const roles = item.meta.roles || []
-      return roles.length === 0 || roles.includes(effectiveRole.value)
+      const platformRoles = item.meta.platformRoles || []
+      const scopeRoles = item.meta.scopeRoles || []
+      if (platformRoles.length === 0 && scopeRoles.length === 0) return true
+      return (
+        platformRoles.includes(authStore.platformRole) ||
+        (scopeStore.isReady && scopeRoles.includes(effectiveRole.value))
+      )
     })
     .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder),
 )
@@ -158,7 +166,7 @@ async function refreshUnreadCount() {
 }
 
 async function handleSummary(summary) {
-  if (summary.resourceType === 'AlarmEvent') {
+  if (summary.resourceType === 'ALARM_EVENT') {
     await getAlarmEvent(summary.resourceId).catch(() => null)
   }
   await refreshUnreadCount()

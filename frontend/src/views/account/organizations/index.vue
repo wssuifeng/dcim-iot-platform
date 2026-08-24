@@ -39,12 +39,27 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getPublicOrganizations, submitJoinApplication, submitOrganizationApplication } from '@/api/accountOrganization'
 import { useOrganizationStore } from '@/stores/organization'
+import { useScopeStore } from '@/stores/scope'
 
-const router = useRouter(); const store = useOrganizationStore(); const activeTab = ref('create')
+const router = useRouter(); const store = useOrganizationStore(); const scopeStore = useScopeStore(); const activeTab = ref('create')
 const keyword = ref(''); const organizations = ref([])
 const createForm = reactive({ orgName: '', orgCode: '', description: '' })
 const load = () => store.loadMemberships()
-async function enter(id) { store.selectOrganization(id); await router.push('/dashboard') }
+async function enter(id) {
+  const previousId = store.currentOrganizationId
+  try {
+    store.selectOrganization(id)
+    scopeStore.resetCurrentScope()
+    const scope = await scopeStore.loadCurrentScope({ force: true })
+    if (!scope || !scopeStore.isReady) throw new Error(scopeStore.errorMessage || '组织范围加载失败')
+    await router.push('/dashboard')
+  } catch (error) {
+    store.restoreSelection(previousId)
+    scopeStore.resetCurrentScope()
+    await scopeStore.loadCurrentScope({ force: true, silent: true }).catch(() => null)
+    ElMessage.error(error?.message || '组织切换失败，已恢复原组织')
+  }
+}
 async function applyCreate() { await submitOrganizationApplication(createForm); ElMessage.success('申请已提交') }
 async function search() { organizations.value = (await getPublicOrganizations(keyword.value)).data || [] }
 async function join(id) { await submitJoinApplication(id, '申请加入组织'); ElMessage.success('加入申请已提交') }

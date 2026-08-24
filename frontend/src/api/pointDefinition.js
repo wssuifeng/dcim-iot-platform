@@ -15,3 +15,7 @@ export function createPointDefinition(data) {
 export function updatePointDefinition(id, data) {
   return request.put(`/point-definitions/${id}`, data)
 }
+
+export function deletePointDefinition(id) {
+  return request.delete(`/point-definitions/${id}`)
+}

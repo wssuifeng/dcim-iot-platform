@@ -171,7 +171,6 @@ import {
   View,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import { getOrganizationPage } from '@/api/organization'
 import { getCloudRoomPage } from '@/api/cloudRoom'
@@ -194,11 +193,17 @@ import SceneStepsDrawer from './SceneStepsDrawer.vue'
 
 defineOptions({ name: 'SimulationWorkspace' })
 
-const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role || authStore.normalizedRole)
-const canManageScenes = computed(() => role.value === 'ORG_ADMIN' && scopeStore.hasWritePermission)
-const canRun = computed(() => ['ORG_ADMIN', 'OPERATOR'].includes(role.value) && scopeStore.hasWritePermission)
+const role = computed(() => scopeStore.role)
+const canManageScenes = computed(
+  () => role.value === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
+)
+const canRun = computed(
+  () =>
+    ['ORG_ADMIN', 'OPERATOR'].includes(role.value) &&
+    scopeStore.isReady &&
+    scopeStore.hasWritePermission,
+)
 const activeTab = ref('scenes')
 const sceneLoading = ref(false)
 const runLoading = ref(false)

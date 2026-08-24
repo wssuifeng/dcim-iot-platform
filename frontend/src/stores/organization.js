@@ -32,16 +32,29 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   function selectOrganization(id) {
-    if (!memberships.value.some((item) => String(item.organizationId) === String(id))) {
+    const membership = memberships.value.find(
+      (item) => String(item.organizationId) === String(id),
+    )
+    if (!membership) {
       throw new Error('无权切换到该组织')
     }
-    currentOrganizationId.value = String(id)
-    localStorage.setItem('currentOrganizationId', String(id))
+    const previousId = currentOrganizationId.value
+    currentOrganizationId.value = String(membership.organizationId)
+    localStorage.setItem('currentOrganizationId', currentOrganizationId.value)
+    return previousId
+  }
+
+  function restoreSelection(id) {
+    currentOrganizationId.value = id ? String(id) : ''
+    if (currentOrganizationId.value) {
+      localStorage.setItem('currentOrganizationId', currentOrganizationId.value)
+    } else {
+      localStorage.removeItem('currentOrganizationId')
+    }
   }
 
   function clearSelection() {
-    currentOrganizationId.value = ''
-    localStorage.removeItem('currentOrganizationId')
+    restoreSelection('')
   }
 
   function reset() {
@@ -49,6 +62,8 @@ export const useOrganizationStore = defineStore('organization', () => {
     loaded.value = false
     clearSelection()
   }
+
+  window.addEventListener('auth:unauthorized', reset)
 
   return {
     memberships,
@@ -58,6 +73,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     loaded,
     loadMemberships,
     selectOrganization,
+    restoreSelection,
     reset,
   }
 })

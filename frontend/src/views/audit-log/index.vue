@@ -104,8 +104,13 @@ defineOptions({ name: 'StructuredAuditLog' })
 
 const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role || authStore.normalizedRole)
-const canCleanup = computed(() => ['PLATFORM_ADMIN', 'ORG_ADMIN'].includes(role.value))
+const role = computed(() => scopeStore.role)
+const canCleanup = computed(
+  () =>
+    scopeStore.isReady &&
+    scopeStore.hasWritePermission &&
+    (authStore.isPlatformAdmin || role.value === 'ORG_ADMIN'),
+)
 const loading = ref(false)
 const logs = ref([])
 const total = ref(0)

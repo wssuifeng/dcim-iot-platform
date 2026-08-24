@@ -19,7 +19,3 @@ export function updateDeviceType(id, data) {
 export function deleteDeviceType(id) {
   return request.delete(`/device-types/${id}`)
 }
-
-export function updateDeviceTypeAlertConfig(id, data) {
-  return request.put(`/device-types/${id}/alert-config`, data)
-}

@@ -192,7 +192,7 @@ function stateType(state) {
 onMounted(() => {
   void fetchDashboard()
   removeSummaryListener = onSummary((summary) => {
-    if (summary.resourceType === 'AlarmEvent') void fetchDashboard()
+    if (summary.resourceType === 'ALARM_EVENT') void fetchDashboard()
   })
 })
 

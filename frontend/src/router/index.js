@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { PLATFORM_ROLES, useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
+import { useScopeStore } from '@/stores/scope'
 
 const { PLATFORM_ADMIN, ORG_ADMIN, OPERATOR, VIEWER } = PLATFORM_ROLES
 const BUSINESS_ROLES = [ORG_ADMIN, OPERATOR, VIEWER]
-const AUDIT_ROLES = [PLATFORM_ADMIN, ORG_ADMIN, OPERATOR]
-const ALL_ROLES = [PLATFORM_ADMIN, ...BUSINESS_ROLES]
+const AUDIT_ROLES = [ORG_ADMIN, OPERATOR]
 
 const routes = [
   {
@@ -14,8 +14,18 @@ const routes = [
     component: () => import('@/views/login/index.vue'),
     meta: { public: true },
   },
-  { path: '/register', name: 'register', component: () => import('@/views/register/index.vue'), meta: { public: true } },
-  { path: '/setup', name: 'setup', component: () => import('@/views/setup/index.vue'), meta: { public: true } },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/register/index.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/setup',
+    name: 'setup',
+    component: () => import('@/views/setup/index.vue'),
+    meta: { public: true },
+  },
   {
     path: '/',
     component: () => import('@/layout/index.vue'),
@@ -23,7 +33,8 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
-        path: 'account/organizations', name: 'account-organizations',
+        path: 'account/organizations',
+        name: 'account-organizations',
         component: () => import('@/views/account/organizations/index.vue'),
         meta: { title: '我的组织', icon: 'OfficeBuilding', navigation: true, navigationOrder: 5 },
       },
@@ -36,7 +47,7 @@ const routes = [
           icon: 'Odometer',
           navigation: true,
           navigationOrder: 10,
-          roles: BUSINESS_ROLES,
+          scopeRoles: BUSINESS_ROLES,
         },
       },
       {
@@ -48,68 +59,39 @@ const routes = [
           icon: 'OfficeBuilding',
           navigation: true,
           navigationOrder: 12,
-          roles: [PLATFORM_ADMIN, ORG_ADMIN],
+          platformRoles: [PLATFORM_ADMIN],
+          scopeRoles: [ORG_ADMIN],
         },
       },
       {
         path: 'cloud-rooms',
         name: 'cloud-rooms',
         component: () => import('@/views/cloud-room/index.vue'),
-        meta: {
-          title: '机房管理',
-          icon: 'House',
-          navigation: true,
-          navigationOrder: 15,
-          roles: BUSINESS_ROLES,
-        },
+        meta: { title: '机房管理', icon: 'House', navigation: true, navigationOrder: 15, scopeRoles: BUSINESS_ROLES },
       },
       {
         path: 'devices',
         name: 'devices',
         component: () => import('@/views/device/index.vue'),
-        meta: {
-          title: '设备管理',
-          icon: 'Monitor',
-          navigation: true,
-          navigationOrder: 20,
-          roles: BUSINESS_ROLES,
-        },
+        meta: { title: '设备管理', icon: 'Monitor', navigation: true, navigationOrder: 20, scopeRoles: BUSINESS_ROLES },
       },
       {
         path: 'data-monitor',
         name: 'data-monitor',
         component: () => import('@/views/data-monitor/index.vue'),
-        meta: {
-          title: '数据监控',
-          icon: 'TrendCharts',
-          navigation: true,
-          navigationOrder: 30,
-          roles: BUSINESS_ROLES,
-        },
+        meta: { title: '数据监控', icon: 'TrendCharts', navigation: true, navigationOrder: 30, scopeRoles: BUSINESS_ROLES },
       },
       {
         path: 'simulation',
         name: 'simulation',
         component: () => import('@/views/simulation/index.vue'),
-        meta: {
-          title: '模拟运行',
-          icon: 'SetUp',
-          navigation: true,
-          navigationOrder: 35,
-          roles: BUSINESS_ROLES,
-        },
+        meta: { title: '模拟运行', icon: 'SetUp', navigation: true, navigationOrder: 35, scopeRoles: BUSINESS_ROLES },
       },
       {
         path: 'alerts',
         name: 'alerts',
         component: () => import('@/views/alert/index.vue'),
-        meta: {
-          title: '告警管理',
-          icon: 'Bell',
-          navigation: true,
-          navigationOrder: 40,
-          roles: BUSINESS_ROLES,
-        },
+        meta: { title: '告警管理', icon: 'Bell', navigation: true, navigationOrder: 40, scopeRoles: BUSINESS_ROLES },
       },
       {
         path: 'notifications',
@@ -120,7 +102,8 @@ const routes = [
           icon: 'Message',
           navigation: true,
           navigationOrder: 45,
-          roles: ALL_ROLES,
+          platformRoles: [PLATFORM_ADMIN],
+          scopeRoles: BUSINESS_ROLES,
         },
       },
       {
@@ -132,7 +115,8 @@ const routes = [
           icon: 'DataLine',
           navigation: true,
           navigationOrder: 50,
-          roles: [PLATFORM_ADMIN, ...BUSINESS_ROLES],
+          platformRoles: [PLATFORM_ADMIN],
+          scopeRoles: BUSINESS_ROLES,
         },
       },
       {
@@ -144,30 +128,27 @@ const routes = [
           icon: 'Grid',
           navigation: true,
           navigationOrder: 60,
-          roles: [PLATFORM_ADMIN, ...BUSINESS_ROLES],
+          platformRoles: [PLATFORM_ADMIN],
+          scopeRoles: BUSINESS_ROLES,
         },
       },
       {
         path: 'users',
         name: 'users',
         component: () => import('@/views/user/index.vue'),
-        meta: {
-          title: '用户管理',
-          icon: 'User',
-          navigation: true,
-          navigationOrder: 70,
-          roles: [PLATFORM_ADMIN],
-        },
+        meta: { title: '用户管理', icon: 'User', navigation: true, navigationOrder: 70, platformRoles: [PLATFORM_ADMIN] },
       },
       {
-        path: 'platform/registration', name: 'platform-registration',
+        path: 'platform/registration',
+        name: 'platform-registration',
         component: () => import('@/views/platform/registration.vue'),
-        meta: { title: '注册审核', icon: 'Setting', navigation: true, navigationOrder: 72, roles: [PLATFORM_ADMIN] },
+        meta: { title: '注册审核', icon: 'Setting', navigation: true, navigationOrder: 72, platformRoles: [PLATFORM_ADMIN] },
       },
       {
-        path: 'organization/members', name: 'organization-members',
+        path: 'organization/members',
+        name: 'organization-members',
         component: () => import('@/views/organization/members.vue'),
-        meta: { title: '组织成员', icon: 'UserFilled', navigation: true, navigationOrder: 74, roles: [ORG_ADMIN] },
+        meta: { title: '组织成员', icon: 'UserFilled', navigation: true, navigationOrder: 74, scopeRoles: [ORG_ADMIN] },
       },
       {
         path: 'audit-logs',
@@ -178,15 +159,13 @@ const routes = [
           icon: 'Document',
           navigation: true,
           navigationOrder: 80,
-          roles: AUDIT_ROLES,
+          platformRoles: [PLATFORM_ADMIN],
+          scopeRoles: AUDIT_ROLES,
         },
       },
     ],
   },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/dashboard',
-  },
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ]
 
 const router = createRouter({
@@ -194,28 +173,40 @@ const router = createRouter({
   routes,
 })
 
-function hasRouteRole(route, authStore, organizationStore) {
-  const roles = route.meta.roles || []
-  if (roles.length === 0) return true
-  return roles.includes(organizationStore.currentRole) || authStore.hasAnyRole(roles)
+function hasRouteRole(route, authStore, scopeStore) {
+  const platformRoles = route.meta.platformRoles || []
+  const scopeRoles = route.meta.scopeRoles || []
+  if (platformRoles.length === 0 && scopeRoles.length === 0) return true
+  if (platformRoles.includes(authStore.platformRole)) return true
+  return scopeStore.isReady && scopeRoles.includes(scopeStore.role)
 }
 
-function getFirstAccessibleRouteName(authStore, organizationStore) {
-  const navigationRoutes = routes.find((route) => route.path === '/')?.children
-    ?.filter((route) => route.meta.navigation) || []
+function needsScope(route) {
+  return (route.meta.scopeRoles || []).length > 0
+}
 
-  if (authStore.normalizedRole === PLATFORM_ADMIN) {
-    return navigationRoutes
-      .filter((route) => route.meta.roles?.includes(PLATFORM_ADMIN))
-      .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
-      ?.name || 'platform-registration'
+function getFirstAccessibleRouteName(authStore, scopeStore) {
+  const navigationRoutes =
+    routes
+      .find((route) => route.path === '/')
+      ?.children?.filter((route) => route.meta.navigation) || []
+
+  if (authStore.isPlatformAdmin) {
+    return (
+      navigationRoutes
+        .filter((route) => route.meta.platformRoles?.includes(PLATFORM_ADMIN))
+        .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]?.name ||
+      'platform-registration'
+    )
   }
 
-  if (organizationStore.currentRole) {
-    return navigationRoutes
-      .filter((route) => route.meta.roles?.includes(organizationStore.currentRole))
-      .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]
-      ?.name || 'dashboard'
+  if (scopeStore.isReady && scopeStore.role) {
+    return (
+      navigationRoutes
+        .filter((route) => route.meta.scopeRoles?.includes(scopeStore.role))
+        .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder)[0]?.name ||
+      'dashboard'
+    )
   }
 
   return 'account-organizations'
@@ -224,12 +215,16 @@ function getFirstAccessibleRouteName(authStore, organizationStore) {
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const organizationStore = useOrganizationStore()
+  const scopeStore = useScopeStore()
   authStore.syncFromStorage()
   const loggedIn = authStore.isLoggedIn()
 
   if (to.meta.public && loggedIn) {
     if (!organizationStore.loaded) await organizationStore.loadMemberships().catch(() => [])
-    return { name: getFirstAccessibleRouteName(authStore, organizationStore) }
+    if (organizationStore.currentOrganizationId) {
+      await scopeStore.ensureCurrentScope({ silent: true })
+    }
+    return { name: getFirstAccessibleRouteName(authStore, scopeStore) }
   }
 
   if (to.meta.requiresAuth && !loggedIn) {
@@ -239,21 +234,29 @@ router.beforeEach(async (to) => {
     }
   }
 
-  if (loggedIn && !organizationStore.loaded) {
+  if (!loggedIn) return true
+
+  if (!organizationStore.loaded) {
     await organizationStore.loadMemberships().catch(() => [])
   }
 
   if (
-    loggedIn &&
-    authStore.normalizedRole !== PLATFORM_ADMIN &&
+    !authStore.isPlatformAdmin &&
     organizationStore.memberships.length === 0 &&
     to.name !== 'account-organizations'
   ) {
     return { name: 'account-organizations' }
   }
 
-  if (loggedIn && Array.isArray(to.meta.roles) && !hasRouteRole(to, authStore, organizationStore)) {
-    return { name: getFirstAccessibleRouteName(authStore, organizationStore) }
+  if (needsScope(to) && !hasRouteRole(to, authStore, scopeStore)) {
+    if (!authStore.isPlatformAdmin && !organizationStore.currentOrganizationId) {
+      return { name: 'account-organizations' }
+    }
+    await scopeStore.ensureCurrentScope({ silent: true })
+  }
+
+  if (!hasRouteRole(to, authStore, scopeStore)) {
+    return { name: getFirstAccessibleRouteName(authStore, scopeStore) }
   }
 
   return true

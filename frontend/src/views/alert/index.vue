@@ -107,7 +107,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import { getOrganizationPage } from '@/api/organization'
 import { getCloudRoomPage } from '@/api/cloudRoom'
@@ -127,10 +126,14 @@ defineOptions({ name: 'AlarmEventManagement' })
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role || authStore.normalizedRole)
-const canHandle = computed(() => ['ORG_ADMIN', 'OPERATOR'].includes(role.value) && scopeStore.hasWritePermission)
+const role = computed(() => scopeStore.role)
+const canHandle = computed(
+  () =>
+    ['ORG_ADMIN', 'OPERATOR'].includes(role.value) &&
+    scopeStore.isReady &&
+    scopeStore.hasWritePermission,
+)
 const loading = ref(false)
 const submitting = ref(false)
 const alarms = ref([])
@@ -254,7 +257,7 @@ async function submitAction({ action, note }) {
 }
 
 async function handleSummary(summary) {
-  if (summary.resourceType !== 'AlarmEvent') return
+  if (summary.resourceType !== 'ALARM_EVENT') return
   await fetchAlarms()
   if (detailVisible.value && String(currentAlarm.value?.id) === String(summary.resourceId)) {
     await detailDrawerRef.value?.loadDetail()

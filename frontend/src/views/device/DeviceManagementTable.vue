@@ -43,15 +43,6 @@
           编辑
         </el-button>
         <el-button
-          v-if="canWrite"
-          link
-          type="warning"
-          :icon="Bell"
-          @click="emit('alert-config', row)"
-        >
-          告警
-        </el-button>
-        <el-button
           v-if="canDelete"
           link
           type="danger"
@@ -66,7 +57,7 @@
 </template>
 
 <script setup>
-import { Bell, Connection, Delete, Edit } from '@element-plus/icons-vue'
+import { Connection, Delete, Edit } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'DeviceManagementTable' })
 
@@ -79,7 +70,7 @@ defineProps({
   organizationNames: { type: Object, default: () => ({}) },
   roomNames: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['edit', 'delete', 'status-change', 'alert-config', 'points'])
+const emit = defineEmits(['edit', 'delete', 'status-change', 'points'])
 
 function statusLabel(status) {
   return { 0: '离线', 1: '在线', 2: '故障' }[status] || status

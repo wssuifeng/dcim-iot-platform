@@ -28,6 +28,10 @@ const request = axios.create({
   withCredentials: true, // 跨域请求携带 Cookie（配合后端 CORS allowCredentials=true）
 })
 
+export function requestBlob(config) {
+  return request({ ...config, responseType: 'blob' })
+}
+
 // 请求拦截器：自动附加 Token
 request.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -49,10 +53,14 @@ function getErrorMessage(error, fallback) {
 
 // 响应拦截器：统一错误处理 + 业务数据解包
 request.interceptors.response.use(
-  (response) => response.data, // 保留后端 Result<T> 结构，由 API 调用方读取 result.data
+  (response) =>
+    response.config?.responseType === 'blob' ? response : response.data,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
+      localStorage.removeItem('rememberMe')
+      localStorage.removeItem('currentOrganizationId')
+      window.dispatchEvent(new Event('auth:unauthorized'))
       if (router.currentRoute.value.path !== '/login') {
         router.replace({
           path: '/login',
