@@ -45,9 +45,10 @@
           <el-table-column prop="unit" label="单位" width="100" />
           <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
           <el-table-column prop="updateTime" label="更新时间" min-width="170" />
-          <el-table-column v-if="canManagePoints" label="操作" width="100" fixed="right">
+          <el-table-column v-if="canManagePoints" label="操作" width="150" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" :icon="Edit" @click="editPoint(row)">编辑</el-button>
+              <el-button link type="danger" :icon="Delete" @click="deletePoint(row)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -68,7 +69,7 @@
         <div class="tab-toolbar compact">
           <span class="section-note">点位策略优先于全局默认，最大保留 90 天</span>
           <el-button
-            v-if="canManagePoints"
+            v-if="canManageRetention"
             type="primary"
             :icon="Setting"
             @click="createPolicy"
@@ -84,7 +85,7 @@
           </el-table-column>
           <el-table-column prop="retentionDays" label="保留天数" width="140" />
           <el-table-column prop="updateTime" label="更新时间" min-width="180" />
-          <el-table-column v-if="canManagePoints" label="操作" width="100" fixed="right">
+          <el-table-column v-if="canManageRetention" label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" :icon="Edit" @click="editPolicy(row)">编辑</el-button>
             </template>
@@ -92,40 +93,6 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canReadLegacy" label="兼容指标字典" name="legacy">
-        <metric-filter :filter="legacyFilters" @search="searchLegacy" @reset="resetLegacy" />
-        <div class="legacy-toolbar">
-          <el-button v-if="legacyCanWrite" type="primary" :icon="Plus" @click="createLegacyMetric">
-            新增指标
-          </el-button>
-          <el-button
-            v-if="legacyCanWrite"
-            :icon="Refresh"
-            :loading="cacheLoading"
-            @click="refreshLegacyCache"
-          >
-            刷新缓存
-          </el-button>
-        </div>
-        <metric-table
-          :list="legacyMetrics"
-          :loading="legacyLoading"
-          :can-operate="legacyCanWrite"
-          :is-admin="isOrgAdmin"
-          @edit="editLegacyMetric"
-          @delete="removeLegacyMetric"
-        />
-        <el-pagination
-          v-if="legacyTotal > 0"
-          v-model:current-page="legacyPagination.current"
-          v-model:page-size="legacyPagination.size"
-          :total="legacyTotal"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          class="pagination"
-          @change="fetchLegacyMetrics"
-        />
-      </el-tab-pane>
     </el-tabs>
 
     <point-definition-dialog
@@ -140,37 +107,22 @@
       :points="allPoints"
       @confirm="savePolicy"
     />
-    <metric-form-dialog
-      v-model:visible="legacyDialogVisible"
-      :mode="legacyDialogMode"
-      :current="currentLegacyMetric"
-      @confirm="saveLegacyMetric"
-    />
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit, Plus, Refresh, Search, Setting } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import {
-  createMetric,
-  deleteMetric,
-  getMetricPage,
-  refreshMetricCache,
-  updateMetric,
-} from '@/api/metric'
-import {
   createPointDefinition,
+  deletePointDefinition,
   getPointDefinitionPage,
   updatePointDefinition,
 } from '@/api/pointDefinition'
 import { getMetricRetentionList, upsertMetricRetention } from '@/api/metricRetention'
-import MetricFilter from '@/components/metric/MetricFilter.vue'
-import MetricFormDialog from '@/components/metric/MetricFormDialog.vue'
-import MetricTable from '@/components/metric/MetricTable.vue'
 import PointDefinitionDialog from './PointDefinitionDialog.vue'
 import RetentionPolicyDialog from './RetentionPolicyDialog.vue'
 
@@ -178,18 +130,16 @@ defineOptions({ name: 'MetricPointManagement' })
 
 const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
-const hasWriteScope = computed(() => !scopeStore.isReady || scopeStore.hasWritePermission)
-const canManagePoints = computed(() => effectiveRole.value === 'PLATFORM_ADMIN')
-const canReadLegacy = computed(() =>
-  ['ORG_ADMIN', 'OPERATOR', 'VIEWER'].includes(effectiveRole.value),
+// 组织级点位为组织共享资源，新增/编辑仅 ORG_ADMIN（OPERATOR 不可修改共享配置）
+const canManagePoints = computed(
+  () => scopeStore.role === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
 )
-const legacyCanWrite = computed(
-  () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
+// 删除点位仅 ORG_ADMIN
+const canDeletePoint = computed(
+  () => scopeStore.role === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
 )
-const isOrgAdmin = computed(
-  () => effectiveRole.value === 'ORG_ADMIN' && hasWriteScope.value,
-)
+// 保留策略为平台级全局配置，仅 PLATFORM_ADMIN 可管理
+const canManageRetention = computed(() => authStore.isPlatformAdmin)
 const activeTab = ref('points')
 const pointLoading = ref(false)
 const points = ref([])
@@ -204,15 +154,6 @@ const retentionLoading = ref(false)
 const retentionPolicies = ref([])
 const policyDialogVisible = ref(false)
 const currentPolicy = ref(null)
-const legacyLoading = ref(false)
-const cacheLoading = ref(false)
-const legacyMetrics = ref([])
-const legacyTotal = ref(0)
-const legacyFilters = reactive({ metricKey: '', metricName: '' })
-const legacyPagination = reactive({ current: 1, size: 10 })
-const legacyDialogVisible = ref(false)
-const legacyDialogMode = ref('create')
-const currentLegacyMetric = ref(null)
 
 async function fetchPoints() {
   pointLoading.value = true
@@ -271,6 +212,18 @@ async function savePoint(payload) {
   await Promise.all([fetchPoints(), fetchAllPoints(), fetchRetentionPolicies()])
 }
 
+async function deletePoint(row) {
+  const confirmed = await ElMessageBox.confirm(
+    `确认删除点位“${row.pointName}”？`,
+    '删除确认',
+    { type: 'warning' },
+  ).catch(() => false)
+  if (!confirmed) return
+  await deletePointDefinition(row.id)
+  ElMessage.success('点位定义已删除')
+  await Promise.all([fetchPoints(), fetchAllPoints(), fetchRetentionPolicies()])
+}
+
 async function fetchRetentionPolicies() {
   retentionLoading.value = true
   try {
@@ -303,86 +256,12 @@ async function savePolicy(payload) {
   await fetchRetentionPolicies()
 }
 
-async function fetchLegacyMetrics() {
-  legacyLoading.value = true
-  try {
-    const params = { current: legacyPagination.current, size: legacyPagination.size }
-    if (legacyFilters.metricKey.trim()) params.metricKey = legacyFilters.metricKey.trim()
-    if (legacyFilters.metricName.trim()) params.metricName = legacyFilters.metricName.trim()
-    const result = await getMetricPage(params)
-    legacyMetrics.value = result.data?.records || []
-    legacyTotal.value = result.data?.total || 0
-  } finally {
-    legacyLoading.value = false
-  }
-}
-
-function searchLegacy() {
-  legacyPagination.current = 1
-  void fetchLegacyMetrics()
-}
-
-function resetLegacy() {
-  legacyFilters.metricKey = ''
-  legacyFilters.metricName = ''
-  legacyPagination.current = 1
-  void fetchLegacyMetrics()
-}
-
-function createLegacyMetric() {
-  legacyDialogMode.value = 'create'
-  currentLegacyMetric.value = null
-  legacyDialogVisible.value = true
-}
-
-function editLegacyMetric(row) {
-  legacyDialogMode.value = 'edit'
-  currentLegacyMetric.value = row
-  legacyDialogVisible.value = true
-}
-
-async function saveLegacyMetric(payload) {
-  if (legacyDialogMode.value === 'create') {
-    await createMetric(payload)
-    ElMessage.success('兼容指标已创建')
-  } else {
-    await updateMetric(payload)
-    ElMessage.success('兼容指标已更新')
-  }
-  legacyDialogVisible.value = false
-  await fetchLegacyMetrics()
-}
-
-async function removeLegacyMetric(row) {
-  const confirmed = await ElMessageBox.confirm(
-    `确认删除指标“${row.metricName}”？`,
-    '删除确认',
-    { type: 'warning' },
-  ).catch(() => false)
-  if (!confirmed) return
-  await deleteMetric(row.id)
-  ElMessage.success('兼容指标已删除')
-  await fetchLegacyMetrics()
-}
-
-async function refreshLegacyCache() {
-  cacheLoading.value = true
-  try {
-    await refreshMetricCache()
-    ElMessage.success('指标缓存已刷新')
-  } finally {
-    cacheLoading.value = false
-  }
-}
-
 onMounted(async () => {
-  const tasks = [
+  await Promise.all([
     fetchPoints(),
     fetchAllPoints(),
     fetchRetentionPolicies(),
-  ]
-  if (canReadLegacy.value) tasks.push(fetchLegacyMetrics())
-  await Promise.all(tasks)
+  ])
 })
 </script>
 

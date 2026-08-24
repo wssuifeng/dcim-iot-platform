@@ -12,11 +12,11 @@
       <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleCreate">
         新增设备
       </el-button>
-      <el-button v-if="canWrite" type="success" :icon="Upload" @click="handleImport">
+      <el-button v-if="canImport" type="success" :icon="Upload" @click="handleImport">
         批量导入
       </el-button>
       <el-button :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
-      <el-button type="warning" :icon="Download" @click="handleExport">导出设备</el-button>
+      <el-button v-if="canExport" type="warning" :icon="Download" @click="handleExport">导出设备</el-button>
       <input ref="fileInput" type="file" accept=".xlsx" hidden @change="handleFileChange" />
     </div>
 
@@ -31,7 +31,6 @@
       @edit="handleEdit"
       @delete="handleDelete"
       @status-change="handleStatusChange"
-      @alert-config="handleAlertConfig"
       @points="handlePoints"
     />
 
@@ -60,12 +59,6 @@
       :device="currentDevice"
       :can-manage="isOrgAdmin"
     />
-    <alert-config-dialog
-      v-model:visible="alertConfigVisible"
-      :device-id="currentDeviceId"
-      :metrics="metrics"
-      @confirm="handleAlertConfigConfirm"
-    />
   </section>
 </template>
 
@@ -73,7 +66,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Download, Plus, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
 import { useScopeStore } from '@/stores/scope'
 import {
   createDevice,
@@ -86,11 +78,10 @@ import {
   updateDeviceStatus,
 } from '@/api/device'
 import { getDeviceTypes } from '@/api/deviceType'
-import { getMetricPage } from '@/api/metric'
+import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getOrganizationPage } from '@/api/organization'
 import { getCloudRoomPage } from '@/api/cloudRoom'
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
-import AlertConfigDialog from '@/components/device/AlertConfigDialog.vue'
 import DeviceEditorDialog from './DeviceEditorDialog.vue'
 import DeviceManagementTable from './DeviceManagementTable.vue'
 import DevicePointDrawer from './DevicePointDrawer.vue'
@@ -104,11 +95,14 @@ const SUPPORTED_TYPE_CODES = new Set([
   'TEMP_HUMIDITY',
   'LEAK_DETECTOR',
 ])
-const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role || authStore.normalizedRole)
-const hasWriteScope = computed(() => !scopeStore.isReady || scopeStore.hasWritePermission)
+const effectiveRole = computed(() => scopeStore.role)
+const hasWriteScope = computed(() => scopeStore.isReady && scopeStore.hasWritePermission)
 const canWrite = computed(
+  () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
+)
+const canImport = computed(() => effectiveRole.value === 'ORG_ADMIN' && hasWriteScope.value)
+const canExport = computed(
   () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
 )
 const isOrgAdmin = computed(
@@ -126,9 +120,7 @@ const filter = reactive({ status: null, name: '' })
 const formVisible = ref(false)
 const formMode = ref('create')
 const currentDevice = ref(null)
-const alertConfigVisible = ref(false)
 const pointDrawerVisible = ref(false)
-const currentDeviceId = ref(null)
 const fileInput = ref(null)
 const supportedDeviceTypes = computed(() =>
   deviceTypes.value.filter((item) => SUPPORTED_TYPE_CODES.has(item.typeCode?.toUpperCase())),
@@ -148,7 +140,7 @@ async function fetchReferences() {
     getDeviceTypes(),
     getOrganizationPage({ current: 1, size: 100, status: 0 }),
     getCloudRoomPage({ current: 1, size: 100, status: 0 }),
-    getMetricPage({ current: 1, size: 100 }),
+    getPointDefinitionPage({ current: 1, size: 100 }),
   ])
   deviceTypes.value = typeResult.data || []
   organizations.value = organizationResult.data?.records || []
@@ -217,11 +209,6 @@ async function handleStatusChange(device, status) {
   await fetchDeviceList()
 }
 
-function handleAlertConfig(device) {
-  currentDeviceId.value = device.id
-  alertConfigVisible.value = true
-}
-
 async function handleFormConfirm(data) {
   try {
     if (formMode.value === 'create') {
@@ -236,11 +223,6 @@ async function handleFormConfirm(data) {
   } catch {
     return
   }
-}
-
-function handleAlertConfigConfirm() {
-  alertConfigVisible.value = false
-  ElMessage.success('告警规则已更新')
 }
 
 function handleImport() {

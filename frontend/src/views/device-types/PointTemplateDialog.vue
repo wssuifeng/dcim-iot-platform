@@ -80,7 +80,9 @@ import { ElMessage } from 'element-plus'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import {
   getDeviceTypePointTemplates,
+  getPlatformDeviceTypePointTemplates,
   saveDeviceTypePointTemplates,
+  savePlatformDeviceTypePointTemplates,
 } from '@/api/pointTemplate'
 
 defineOptions({ name: 'PointTemplateDialog' })
@@ -89,6 +91,7 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   deviceType: { type: Object, default: null },
   canManage: { type: Boolean, default: false },
+  mode: { type: String, default: 'org' }, // 'platform' 平台级模板 / 'org' 组织级模板
 })
 const emit = defineEmits(['update:visible'])
 const loading = ref(false)
@@ -96,6 +99,7 @@ const saving = ref(false)
 const drafts = ref([])
 const points = ref([])
 const selectedPointId = ref(null)
+const isPlatformMode = computed(() => props.mode === 'platform')
 const pointMap = computed(() => Object.fromEntries(points.value.map((item) => [item.id, item])))
 const availablePoints = computed(() => {
   const selectedIds = new Set(drafts.value.map((item) => item.pointId))
@@ -115,8 +119,11 @@ async function loadData() {
   if (!props.deviceType?.id) return
   loading.value = true
   try {
+    const templateApi = isPlatformMode.value
+      ? getPlatformDeviceTypePointTemplates
+      : getDeviceTypePointTemplates
     const [templateResult, pointResult] = await Promise.all([
-      getDeviceTypePointTemplates(props.deviceType.id),
+      templateApi(props.deviceType.id),
       getPointDefinitionPage({ current: 1, size: 100 }),
     ])
     drafts.value = (templateResult.data || []).map((item) => ({
@@ -124,7 +131,11 @@ async function loadData() {
       isRequired: item.isRequired ?? 0,
       sortOrder: item.sortOrder ?? 0,
     }))
-    points.value = pointResult.data?.records || []
+    // 平台级模板只允许引用平台级点位（organization_id=0）
+    const allPoints = pointResult.data?.records || []
+    points.value = isPlatformMode.value
+      ? allPoints.filter((item) => Number(item.organizationId) === 0)
+      : allPoints
     selectedPointId.value = null
   } finally {
     loading.value = false
@@ -147,7 +158,11 @@ function removePoint(pointId) {
 async function saveTemplates() {
   saving.value = true
   try {
-    await saveDeviceTypePointTemplates(props.deviceType.id, drafts.value)
+    if (isPlatformMode.value) {
+      await savePlatformDeviceTypePointTemplates(props.deviceType.id, drafts.value)
+    } else {
+      await saveDeviceTypePointTemplates(props.deviceType.id, drafts.value)
+    }
     ElMessage.success('点位模板已保存')
     emit('update:visible', false)
   } finally {

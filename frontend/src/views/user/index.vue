@@ -5,7 +5,14 @@
         <h1>用户与数据范围</h1>
         <p>用户角色、账号状态及后端授权范围</p>
       </div>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
+      <el-button
+        v-if="authStore.isPlatformAdmin && scopeStore.isReady && scopeStore.hasWritePermission"
+        type="primary"
+        :icon="Plus"
+        @click="openCreate"
+      >
+        新增用户
+      </el-button>
     </header>
 
     <el-form :inline="true" :model="filters" class="filter-bar">
@@ -126,14 +133,14 @@ const ROLE_META = Object.freeze({
 })
 const authStore = useAuthStore()
 const scopeStore = useScopeStore()
-const callerRole = computed(() => scopeStore.role || authStore.normalizedRole)
-const roleOptions = computed(() => {
-  const roles =
-    callerRole.value === 'PLATFORM_ADMIN'
-      ? ['PLATFORM_ADMIN', 'ORG_ADMIN', 'OPERATOR', 'VIEWER']
-      : ['ORG_ADMIN', 'OPERATOR', 'VIEWER']
-  return roles.map((value) => ({ value, label: ROLE_META[value].label }))
-})
+const callerRole = computed(() => authStore.platformRole)
+// 平台管理员只能通过初始化流程创建，通用用户创建/编辑接口仅提供组织角色
+const roleOptions = computed(() =>
+  ['ORG_ADMIN', 'OPERATOR', 'VIEWER'].map((value) => ({
+    value,
+    label: ROLE_META[value].label,
+  })),
+)
 const loading = ref(false)
 const users = ref([])
 const total = ref(0)
@@ -158,8 +165,12 @@ function roleType(role) {
 }
 
 function canManageTarget(user) {
-  if (callerRole.value === 'PLATFORM_ADMIN') return true
-  return callerRole.value === 'ORG_ADMIN' && normalizeRole(user.role) !== 'PLATFORM_ADMIN'
+  return (
+    callerRole.value === 'PLATFORM_ADMIN' &&
+    scopeStore.isReady &&
+    scopeStore.hasWritePermission &&
+    normalizeRole(user.role) !== ''
+  )
 }
 
 async function fetchUsers() {
