@@ -5,6 +5,8 @@ import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.entity.Organization;
 import com.example.platform.entity.OrganizationJoinApplication;
+import com.example.platform.entity.SysUser;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.mapper.OrganizationJoinApplicationMapper;
 import com.example.platform.mapper.OrganizationMapper;
 import com.example.platform.mapper.OrganizationMembershipMapper;
@@ -30,7 +32,14 @@ public class OrganizationJoinApplicationServiceImpl implements OrganizationJoinA
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void submit(Long userId, Long organizationId, String note) {
-        userMapper.selectByIdForUpdate(userId);
+        SysUser user = userMapper.selectByIdForUpdate(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND, "用户不存在");
+        }
+        if (PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())) {
+            throw new BusinessException(ResultCode.MEMBERSHIP_CONFLICT,
+                    "平台管理员不能提交加入组织申请");
+        }
         Organization organization = organizationMapper.selectById(organizationId);
         if (organization == null || !Boolean.TRUE.equals(organization.getJoinApplicationEnabled())) {
             throw new BusinessException(ResultCode.FEATURE_DISABLED, "该组织未开放加入申请");

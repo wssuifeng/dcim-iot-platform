@@ -106,6 +106,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public void createUser(SysUser user) {
         checkUsernameUnique(user.getUsername());
+        validateOrganizationRole(user.getRole());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         if (user.getStatus() == null) {
             user.setStatus(0);
@@ -113,6 +114,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getRole() == null) {
             user.setRole("VIEWER");
         }
+        // 通用创建接口不允许通过请求体设置平台角色，平台管理员只走初始化/专用流程
+        user.setPlatformRole(null);
         if (!super.save(user)) {
             throw new BusinessException("创建用户失败，请稍后重试");
         }
@@ -135,10 +138,27 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             wrapper.set(SysUser::getNickname, user.getNickname());
         }
         if (user.getRole() != null) {
+            validateOrganizationRole(user.getRole());
             wrapper.set(SysUser::getRole, user.getRole());
         }
         if (!update(wrapper)) {
             throw new BusinessException("更新用户失败，数据可能已被他人修改");
+        }
+    }
+
+    /*
+     * 方法功能:校验组织角色合法性，禁止通过请求体构造平台管理员身份
+     * 参数:role-请求携带的角色值
+     * 返回数据:无
+     * */
+    private void validateOrganizationRole(String role) {
+        if (role == null) {
+            return;
+        }
+        String normalized = com.example.platform.security.PlatformRole.normalize(role);
+        if (com.example.platform.security.PlatformRole.PLATFORM_ADMIN.equals(normalized)) {
+            throw new BusinessException(com.example.platform.common.ResultCode.FORBIDDEN,
+                    "平台管理员只能通过初始化流程创建，不能在此创建");
         }
     }
 

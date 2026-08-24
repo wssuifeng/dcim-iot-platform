@@ -8,8 +8,10 @@ import com.example.platform.dto.DataScopeAssignmentDTO;
 import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.DataScopeAssignment;
+import com.example.platform.entity.OrganizationMembership;
 import com.example.platform.mapper.CloudRoomMapper;
 import com.example.platform.mapper.DataScopeAssignmentMapper;
+import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.security.PlatformRole;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.SysUserService;
@@ -46,6 +48,7 @@ public class UserDataScopeServiceImpl implements UserDataScopeService {
     private final SysUserService sysUserService;
     private final DataScopeAssignmentMapper dataScopeAssignmentMapper;
     private final CloudRoomMapper cloudRoomMapper;
+    private final OrganizationMembershipMapper membershipMapper;
 
     @Override
     public List<DataScopeAssignment> listAssignments(Long targetUserId, Long currentUserId) {
@@ -75,6 +78,8 @@ public class UserDataScopeServiceImpl implements UserDataScopeService {
 
         // 2. scopeType 合法性校验
         String scopeType = validateScopeType(dto.getScopeType());
+        Long organizationId = dto.getOrganizationId();
+        Long cloudRoomId = dto.getCloudRoomId();
 
         DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
         boolean callerIsPlatformAdmin = context.isPlatformAdmin();
@@ -86,15 +91,36 @@ public class UserDataScopeServiceImpl implements UserDataScopeService {
         }
 
         // 4. 校验目标用户的角色与待分配范围不冲突（PLATFORM 范围只能分配给 PLATFORM_ADMIN 用户）
-        String targetRole = targetUser.getNormalizedRole();
-        if ("PLATFORM".equals(scopeType) && !PlatformRole.PLATFORM_ADMIN.equals(targetRole)) {
+        boolean targetIsPlatformAdmin = PlatformRole.PLATFORM_ADMIN.equals(targetUser.getPlatformRole());
+        if ("PLATFORM".equals(scopeType) && !targetIsPlatformAdmin) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
                     "PLATFORM 范围只能分配给平台管理员用户");
         }
 
+        // 4b. 非 PLATFORM 范围要求目标用户是目标组织的活动成员
+        if (!"PLATFORM".equals(scopeType)) {
+            if (organizationId == null) {
+                throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                        "非 PLATFORM 范围必须指定组织");
+            }
+            OrganizationMembership membership = membershipMapper
+                    .selectActiveByUserAndOrganization(targetUserId, organizationId);
+            if (membership == null) {
+                throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                        "目标用户不是该组织的活动成员");
+            }
+        }
+
+        // 4c. ORG_ALL 只允许分配给组织管理员角色
+        if ("ORG_ALL".equals(scopeType) && !targetIsPlatformAdmin) {
+            String targetRole = targetUser.getNormalizedRole();
+            if (!PlatformRole.ORG_ADMIN.equals(targetRole)) {
+                throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                        "ORG_ALL 范围只能分配给组织管理员");
+            }
+        }
+
         // 5. 校验 org/room 结构对齐（不含 mapper 调用，避免越权时泄露未授权数据）
-        Long organizationId = dto.getOrganizationId();
-        Long cloudRoomId = dto.getCloudRoomId();
         validateScopeStructure(scopeType, organizationId, cloudRoomId);
 
         // 6. 范围管辖校验：非 PLATFORM_ADMIN 必须对该 organizationId 有访问权限（先校验再读机房）

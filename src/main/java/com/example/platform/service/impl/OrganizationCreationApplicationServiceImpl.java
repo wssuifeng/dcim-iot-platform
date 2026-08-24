@@ -6,6 +6,8 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.dto.OrganizationCreationApplicationDTO;
 import com.example.platform.entity.OrganizationCreationApplication;
 import com.example.platform.entity.PlatformRegistrationSettings;
+import com.example.platform.entity.SysUser;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.mapper.OrganizationCreationApplicationMapper;
 import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.mapper.SysUserMapper;
@@ -31,7 +33,14 @@ public class OrganizationCreationApplicationServiceImpl implements OrganizationC
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrganizationCreationApplication submit(Long userId, OrganizationCreationApplicationDTO dto) {
-        userMapper.selectByIdForUpdate(userId);
+        SysUser user = userMapper.selectByIdForUpdate(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND, "用户不存在");
+        }
+        if (PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())) {
+            throw new BusinessException(ResultCode.MEMBERSHIP_CONFLICT,
+                    "平台管理员不能提交组织创建申请");
+        }
         if (!membershipMapper.selectActiveByUser(userId).isEmpty()) {
             throw new BusinessException(ResultCode.MEMBERSHIP_CONFLICT,
                     "创建组织前必须退出其他组织");

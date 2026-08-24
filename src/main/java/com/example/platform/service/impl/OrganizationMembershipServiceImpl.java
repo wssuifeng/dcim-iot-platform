@@ -3,8 +3,10 @@ package com.example.platform.service.impl;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.exception.MembershipConflictException;
 import com.example.platform.entity.OrganizationMembership;
+import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.mapper.SysUserMapper;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.service.OrganizationMembershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,7 +43,8 @@ public class OrganizationMembershipServiceImpl implements OrganizationMembership
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void activateMembership(Long userId, Long organizationId, String role, Long approverId) {
-        lockUser(userId);
+        SysUser user = lockUser(userId);
+        rejectPlatformAdministrator(user);
         String normalizedRole = normalizeRole(role);
         validateRoleCompatibility(userId, organizationId, normalizedRole);
 
@@ -68,7 +71,8 @@ public class OrganizationMembershipServiceImpl implements OrganizationMembership
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void changeRole(Long userId, Long organizationId, String role, Long operatorId) {
-        lockUser(userId);
+        SysUser user = lockUser(userId);
+        rejectPlatformAdministrator(user);
         String normalizedRole = normalizeRole(role);
         OrganizationMembership membership = requireMembershipForUpdate(userId, organizationId);
         validateRoleCompatibility(userId, organizationId, normalizedRole);
@@ -79,7 +83,8 @@ public class OrganizationMembershipServiceImpl implements OrganizationMembership
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeMembership(Long userId, Long organizationId, Long operatorId) {
-        lockUser(userId);
+        SysUser user = lockUser(userId);
+        rejectPlatformAdministrator(user);
         OrganizationMembership membership = requireMembershipForUpdate(userId, organizationId);
         protectLastAdministrator(membership, null);
         membership.setStatus("REMOVED");
@@ -120,9 +125,17 @@ public class OrganizationMembershipServiceImpl implements OrganizationMembership
         return membership;
     }
 
-    private void lockUser(Long userId) {
-        if (sysUserMapper.selectByIdForUpdate(userId) == null) {
+    private SysUser lockUser(Long userId) {
+        SysUser user = sysUserMapper.selectByIdForUpdate(userId);
+        if (user == null) {
             throw new MembershipConflictException("用户不存在");
+        }
+        return user;
+    }
+
+    private void rejectPlatformAdministrator(SysUser user) {
+        if (PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())) {
+            throw new MembershipConflictException("平台管理员不能成为组织成员");
         }
     }
 

@@ -30,8 +30,7 @@ public class DataScopeServiceImpl implements DataScopeService {
     @Override
     public DataScopeContext resolveDataScope(Long userId) {
         SysUser user = sysUserService.getUserOrThrow(userId);
-        if (PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())
-                && organizationContext.currentOrganizationId().isEmpty()) {
+        if (user != null && PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())) {
             return resolvePlatformScope(userId);
         }
         return resolveDataScope(userId, organizationContext.requireOrganizationId());
@@ -39,6 +38,10 @@ public class DataScopeServiceImpl implements DataScopeService {
 
     @Override
     public DataScopeContext resolveDataScope(Long userId, Long organizationId) {
+        SysUser user = sysUserService.getUserOrThrow(userId);
+        if (user != null && PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())) {
+            throw new DataScopeViolationException("平台管理员不能使用组织数据范围");
+        }
         OrganizationMembership membership = membershipMapper
                 .selectActiveByUserAndOrganization(userId, organizationId);
         if (membership == null) {
@@ -50,13 +53,15 @@ public class DataScopeServiceImpl implements DataScopeService {
                 new LambdaQueryWrapper<DataScopeAssignment>()
                         .eq(DataScopeAssignment::getUserId, userId)
                         .eq(DataScopeAssignment::getOrganizationId, organizationId));
+
+        // 范围类型以实际分配为准，不再按角色猜测；空分配按角色取安全默认（fail-closed）。
+        String scopeType = resolveScopeType(role, assignments);
         Set<Long> cloudRoomIds = new HashSet<>();
         for (DataScopeAssignment assignment : assignments) {
-            if (assignment.getCloudRoomId() != null) {
+            if ("ROOMS".equals(scopeType) && assignment.getCloudRoomId() != null) {
                 cloudRoomIds.add(assignment.getCloudRoomId());
             }
         }
-        String scopeType = inferScopeType(role, cloudRoomIds);
         return DataScopeContext.builder()
                 .userId(userId)
                 .role(role)
@@ -101,13 +106,35 @@ public class DataScopeServiceImpl implements DataScopeService {
         return resolveDataScope(userId).hasWritePermission();
     }
 
-    private String inferScopeType(String role, Set<Long> cloudRoomIds) {
-        if (PlatformRole.ORG_ADMIN.equals(role)) {
-            return "ORG_ALL";
+    private String resolveScopeType(String role, List<DataScopeAssignment> assignments) {
+        if (assignments == null || assignments.isEmpty()) {
+            // 无明确分配时按角色取安全默认（fail-closed）
+            if (PlatformRole.ORG_ADMIN.equals(role)) {
+                return "ORG_ALL";
+            }
+            return "READ_ONLY";
         }
-        if (PlatformRole.OPERATOR.equals(role)) {
-            return cloudRoomIds.isEmpty() ? "READ_ONLY" : "ROOMS";
+        // 取第一条非空 scopeType（同组织内分配应一致；不一致时取最宽松）
+        boolean hasWritable = false;
+        boolean hasReadOnly = false;
+        boolean hasOrgAll = false;
+        for (DataScopeAssignment a : assignments) {
+            if (a.getScopeType() == null) continue;
+            String st = a.getScopeType().trim().toUpperCase();
+            if ("ORG_ALL".equals(st)) {
+                hasOrgAll = true;
+            } else if ("ROOMS".equals(st)) {
+                hasWritable = true;
+            } else if ("READ_ONLY".equals(st)) {
+                hasReadOnly = true;
+            }
         }
-        return "READ_ONLY";
+        // 优先使用 ORG_ALL（组织管理员范围）；ROOMS 次之（运维机房范围）；READ_ONLY 兜底
+        if (hasOrgAll) return "ORG_ALL";
+        if (hasWritable) return "ROOMS";
+        if (hasReadOnly) return "READ_ONLY";
+        // 兼容：只有 cloudRoomId 但无 scopeType 的旧分配 → 按角色推导
+        if (PlatformRole.ORG_ADMIN.equals(role)) return "ORG_ALL";
+        return "ROOMS";
     }
 }

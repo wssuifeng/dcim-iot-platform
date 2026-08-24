@@ -5,8 +5,11 @@ import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.entity.Organization;
 import com.example.platform.entity.OrganizationCreationApplication;
+import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.OrganizationCreationApplicationMapper;
 import com.example.platform.mapper.OrganizationMapper;
+import com.example.platform.mapper.SysUserMapper;
+import com.example.platform.security.PlatformRole;
 import com.example.platform.service.OrganizationMembershipService;
 import com.example.platform.service.OrganizationProvisioningService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ public class OrganizationProvisioningServiceImpl implements OrganizationProvisio
     private final OrganizationCreationApplicationMapper applicationMapper;
     private final OrganizationMapper organizationMapper;
     private final OrganizationMembershipService membershipService;
+    private final SysUserMapper userMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -28,6 +32,14 @@ public class OrganizationProvisioningServiceImpl implements OrganizationProvisio
         OrganizationCreationApplication application = applicationMapper.selectByIdForUpdate(applicationId);
         if (application == null || !"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "组织申请状态不可审批");
+        }
+        SysUser applicant = userMapper.selectByIdForUpdate(application.getApplicantUserId());
+        if (applicant == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND, "申请用户不存在");
+        }
+        if (PlatformRole.PLATFORM_ADMIN.equals(applicant.getPlatformRole())) {
+            throw new BusinessException(ResultCode.MEMBERSHIP_CONFLICT,
+                    "平台管理员不能获得组织管理员成员关系");
         }
         requireOrganizationIdentityAvailable(application.getProposedOrgName(), application.getProposedOrgCode());
         Organization organization = new Organization();
