@@ -2,8 +2,10 @@ package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.platform.entity.DataScopeAssignment;
+import com.example.platform.entity.OrganizationMembership;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.DataScopeAssignmentMapper;
+import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.security.PlatformRole;
 import com.example.platform.service.AlarmRecipientResolver;
 import com.example.platform.service.SysUserService;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /*
  * 类功能:告警接收人解析服务实现，根据组织ID和机房ID从数据范围分配表中匹配有权限的启用用户作为告警接收人
@@ -29,6 +32,7 @@ public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
             PlatformRole.VIEWER);
 
     private final DataScopeAssignmentMapper dataScopeAssignmentMapper;
+    private final OrganizationMembershipMapper membershipMapper;
     private final SysUserService sysUserService;
 
     /*
@@ -44,8 +48,11 @@ public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
 
         LambdaQueryWrapper<DataScopeAssignment> assignmentQuery = new LambdaQueryWrapper<>();
         assignmentQuery.eq(DataScopeAssignment::getOrganizationId, organizationId)
-                .eq(DataScopeAssignment::getCloudRoomId, cloudRoomId)
-                .in(DataScopeAssignment::getScopeType, EXPLICIT_ROOM_SCOPE_TYPES);
+                .and(scope -> scope
+                        .and(orgAll -> orgAll.eq(DataScopeAssignment::getScopeType, "ORG_ALL")
+                                .isNull(DataScopeAssignment::getCloudRoomId))
+                        .or(explicit -> explicit.eq(DataScopeAssignment::getCloudRoomId, cloudRoomId)
+                                .in(DataScopeAssignment::getScopeType, EXPLICIT_ROOM_SCOPE_TYPES)));
         List<DataScopeAssignment> assignments = dataScopeAssignmentMapper.selectList(assignmentQuery);
 
         Set<Long> candidateUserIds = new LinkedHashSet<>();
@@ -74,6 +81,13 @@ public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
                 recipientUserIds.add(user.getId());
             }
         }
+
+        // 筛选：接收人必须在目标组织有活动成员关系（成员移除后立即失效）
+        Set<Long> activeMemberIds = membershipMapper.selectActiveByOrganization(organizationId)
+                .stream().map(OrganizationMembership::getUserId)
+                .collect(Collectors.toSet());
+        recipientUserIds.retainAll(activeMemberIds);
+
         return recipientUserIds;
     }
 
@@ -83,7 +97,9 @@ public class AlarmRecipientResolverImpl implements AlarmRecipientResolver {
         return assignment != null
                 && assignment.getUserId() != null
                 && organizationId.equals(assignment.getOrganizationId())
-                && cloudRoomId.equals(assignment.getCloudRoomId())
-                && EXPLICIT_ROOM_SCOPE_TYPES.contains(assignment.getScopeType());
+                && (("ORG_ALL".equals(assignment.getScopeType())
+                        && assignment.getCloudRoomId() == null)
+                    || (cloudRoomId.equals(assignment.getCloudRoomId())
+                        && EXPLICIT_ROOM_SCOPE_TYPES.contains(assignment.getScopeType())));
     }
 }

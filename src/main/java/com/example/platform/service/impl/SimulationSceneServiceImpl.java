@@ -13,6 +13,7 @@ import com.example.platform.dto.SimulationSceneStepDTO;
 import com.example.platform.dto.SimulationSceneUpdateDTO;
 import com.example.platform.dto.SimulationSceneVO;
 import com.example.platform.entity.CloudRoom;
+import com.example.platform.entity.Device;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationScene;
 import com.example.platform.entity.SimulationSceneStep;
@@ -20,6 +21,7 @@ import com.example.platform.mapper.SimulationSceneMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
 import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DataScopeService;
+import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationSceneService;
@@ -52,6 +54,7 @@ public class SimulationSceneServiceImpl
     private final SimulationSceneStepMapper simulationSceneStepMapper;
     private final DataScopeService dataScopeService;
     private final CloudRoomService cloudRoomService;
+    private final DeviceScopeHelper deviceScopeHelper;
     private final PointDefinitionService pointDefinitionService;
 
     private static final int STATUS_ENABLED = 0;
@@ -100,7 +103,7 @@ public class SimulationSceneServiceImpl
             int order = 0;
             for (SimulationSceneStepDTO stepDto : dto.getSteps()) {
                 order++;
-                addStepInternal(scene.getId(), stepDto, order);
+                addStepInternal(scene, stepDto, order, currentUserId);
             }
         }
 
@@ -169,11 +172,19 @@ public class SimulationSceneServiceImpl
         Page<SimulationScene> page = new Page<>(params[0], params[1]);
         LambdaQueryWrapper<SimulationScene> wrapper = new LambdaQueryWrapper<>();
 
-        if (!context.isPlatformAdmin()) {
-            if (context.getOrganizationIds().isEmpty()) {
+        if (context.isPlatformAdmin()) {
+            // 平台管理员不穿透组织业务数据（组织模拟场景属业务资源）
+            return emptyVOPage(params[0], params[1]);
+        }
+        if (context.getOrganizationIds().isEmpty()) {
+            return emptyVOPage(params[0], params[1]);
+        }
+        wrapper.in(SimulationScene::getOrganizationId, context.getOrganizationIds());
+        if ("ROOMS".equals(context.getScopeType())) {
+            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
                 return emptyVOPage(params[0], params[1]);
             }
-            wrapper.in(SimulationScene::getOrganizationId, context.getOrganizationIds());
+            wrapper.in(SimulationScene::getCloudRoomId, context.getCloudRoomIds());
         }
         if (organizationId != null) {
             ensureOrganizationAccess(context, organizationId);
@@ -222,7 +233,7 @@ public class SimulationSceneServiceImpl
         if (dto.getStepOrder() == null) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "步骤顺序不能为空");
         }
-        return addStepInternal(scene.getId(), dto, dto.getStepOrder());
+        return addStepInternal(scene, dto, dto.getStepOrder(), currentUserId);
     }
 
     @Override
@@ -262,9 +273,22 @@ public class SimulationSceneServiceImpl
 
     // ===================== 内部工具 =====================
 
-    private SimulationSceneStep addStepInternal(Long sceneId, SimulationSceneStepDTO dto, Integer stepOrder) {
-        PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(dto.getPointId());
+    private SimulationSceneStep addStepInternal(SimulationScene scene, SimulationSceneStepDTO dto,
+                                                 Integer stepOrder, Long currentUserId) {
+        PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(dto.getPointId(), currentUserId);
         validateSampleValue(point, dto.getSampleValue());
+        if (dto.getTargetDeviceId() != null) {
+            Device device = deviceScopeHelper.ensureDeviceAccess(dto.getTargetDeviceId(), currentUserId);
+            if (!Objects.equals(device.getOrganizationId(), scene.getOrganizationId())) {
+                throw new DataScopeViolationException("Device", String.valueOf(device.getId()));
+            }
+            if (scene.getCloudRoomId() != null
+                    && !Objects.equals(scene.getCloudRoomId(), device.getCloudRoomId())) {
+                throw new DataScopeViolationException("Device", String.valueOf(device.getId()));
+            }
+        }
+
+        Long sceneId = scene.getId();
 
         String action = StringUtils.hasText(dto.getAction()) ? dto.getAction().trim().toUpperCase() : "WRITE_SAMPLE";
         if (!"WRITE_SAMPLE".equals(action) && !"SLEEP".equals(action)) {
@@ -297,7 +321,7 @@ public class SimulationSceneServiceImpl
 
     private void ensureSceneScope(SimulationScene scene, DataScopeContext context) {
         if (context.isPlatformAdmin()) {
-            return;
+            throw new DataScopeViolationException("SimulationScene", "platform-no-business-penetration");
         }
         Long orgId = scene.getOrganizationId();
         if (!context.getOrganizationIds().contains(orgId)) {

@@ -12,6 +12,7 @@ import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.SimulationGeneratedDataRefVO;
 import com.example.platform.dto.SimulationRunStartDTO;
 import com.example.platform.dto.SimulationRunVO;
+import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationGeneratedDataRef;
@@ -21,6 +22,7 @@ import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationGeneratedDataRefMapper;
 import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
+import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.PointDefinitionService;
@@ -69,6 +71,7 @@ public class SimulationRunServiceImpl
     private final DeviceScopeHelper deviceScopeHelper;
     private final PointDefinitionService pointDefinitionService;
     private final SimulationRunExecutionService runExecutionService;
+    private final CloudRoomService cloudRoomService;
     private final ObjectMapper objectMapper;
 
     @Value("${simulation.write-enabled:false}")
@@ -99,6 +102,23 @@ public class SimulationRunServiceImpl
         DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
         Long organizationId = scene.getOrganizationId();
         Long cloudRoomId = dto.getCloudRoomId() != null ? dto.getCloudRoomId() : scene.getCloudRoomId();
+
+        // 目标机房校验：请求覆盖的机房必须属于场景组织，且当前用户有权访问
+        if (cloudRoomId != null) {
+            CloudRoom targetRoom = cloudRoomService.getCloudRoomOrThrow(cloudRoomId, currentUserId);
+            if (!targetRoom.getOrganizationId().equals(organizationId)) {
+                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
+            }
+            if (scene.getCloudRoomId() != null && !scene.getCloudRoomId().equals(cloudRoomId)) {
+                throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                        "运行目标机房与场景机房不一致: sceneRoom=" + scene.getCloudRoomId()
+                                + " targetRoom=" + cloudRoomId);
+            }
+            if ("ROOMS".equals(context.getScopeType())
+                    && !context.getCloudRoomIds().contains(cloudRoomId)) {
+                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
+            }
+        }
 
         // 加载场景步骤
         LambdaQueryWrapper<SimulationSceneStep> stepWrapper = new LambdaQueryWrapper<>();
@@ -181,14 +201,28 @@ public class SimulationRunServiceImpl
 
         Page<SimulationRunRecord> page = new Page<>(params[0], params[1]);
         LambdaQueryWrapper<SimulationRunRecord> wrapper = new LambdaQueryWrapper<>();
-        if (!context.isPlatformAdmin()) {
-            if (context.getOrganizationIds().isEmpty()) {
+        if (context.isPlatformAdmin()) {
+            // 平台管理员不穿透组织业务数据
+            Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
+            empty.setRecords(new ArrayList<>());
+            empty.setTotal(0);
+            return empty;
+        }
+        if (context.getOrganizationIds().isEmpty()) {
+            Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
+            empty.setRecords(new ArrayList<>());
+            empty.setTotal(0);
+            return empty;
+        }
+        wrapper.in(SimulationRunRecord::getOrganizationId, context.getOrganizationIds());
+        if ("ROOMS".equals(context.getScopeType())) {
+            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
                 Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
                 empty.setRecords(new ArrayList<>());
                 empty.setTotal(0);
                 return empty;
             }
-            wrapper.in(SimulationRunRecord::getOrganizationId, context.getOrganizationIds());
+            wrapper.in(SimulationRunRecord::getCloudRoomId, context.getCloudRoomIds());
         }
         if (sceneId != null) {
             wrapper.eq(SimulationRunRecord::getSceneId, sceneId);
@@ -244,7 +278,7 @@ public class SimulationRunServiceImpl
 
     private void ensureRunScope(SimulationRunRecord run, DataScopeContext context) {
         if (context.isPlatformAdmin()) {
-            return;
+            throw new DataScopeViolationException("SimulationRunRecord", "platform-no-business-penetration");
         }
         if (!context.getOrganizationIds().contains(run.getOrganizationId())) {
             throw new DataScopeViolationException("SimulationRunRecord", String.valueOf(run.getId()));

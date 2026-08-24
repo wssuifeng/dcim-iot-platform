@@ -10,6 +10,7 @@ import com.example.platform.dto.AlarmNotificationLogVO;
 import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.AlarmNotificationLog;
 import com.example.platform.mapper.AlarmNotificationLogMapper;
+import com.example.platform.service.AlarmEventService;
 import com.example.platform.service.AlarmNotificationLogService;
 import com.example.platform.service.DataScopeService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class AlarmNotificationLogServiceImpl
         implements AlarmNotificationLogService {
 
     private final DataScopeService dataScopeService;
+    private final AlarmEventService alarmEventService;
 
     @Override
     public Page<AlarmNotificationLogVO> pageLogs(Long currentUserId, Integer current, Integer size,
@@ -47,7 +49,22 @@ public class AlarmNotificationLogServiceImpl
             wrapper.in(AlarmNotificationLog::getOrganizationId, context.getOrganizationIds());
         }
         if (alarmEventId != null) {
+            alarmEventService.getEventOrThrow(alarmEventId, currentUserId);
             wrapper.eq(AlarmNotificationLog::getAlarmEventId, alarmEventId);
+        }
+        if ("ROOMS".equals(context.getScopeType())) {
+            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
+                return emptyLogPage(params[0], params[1]);
+            }
+            List<Long> scopedEventIds = alarmEventService.list(
+                    new LambdaQueryWrapper<com.example.platform.entity.AlarmEvent>()
+                            .in(com.example.platform.entity.AlarmEvent::getCloudRoomId,
+                                    context.getCloudRoomIds()))
+                    .stream().map(com.example.platform.entity.AlarmEvent::getId).toList();
+            if (scopedEventIds.isEmpty()) {
+                return emptyLogPage(params[0], params[1]);
+            }
+            wrapper.in(AlarmNotificationLog::getAlarmEventId, scopedEventIds);
         }
         if (StringUtils.hasText(channel)) {
             wrapper.eq(AlarmNotificationLog::getChannel, channel.trim().toUpperCase());
@@ -66,5 +83,12 @@ public class AlarmNotificationLogServiceImpl
         }
         result.setRecords(records);
         return result;
+    }
+
+    private Page<AlarmNotificationLogVO> emptyLogPage(int current, int size) {
+        Page<AlarmNotificationLogVO> empty = new Page<>(current, size);
+        empty.setRecords(new ArrayList<>());
+        empty.setTotal(0);
+        return empty;
     }
 }

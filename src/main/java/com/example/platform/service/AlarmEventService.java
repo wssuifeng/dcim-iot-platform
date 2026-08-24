@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.platform.dto.AlarmEventVO;
 import com.example.platform.dto.AlarmHandlingRecordVO;
+import com.example.platform.dto.AlarmStatsVO;
 import com.example.platform.dto.AlarmStateTransitionVO;
 import com.example.platform.dto.AlarmTriggerContext;
 import com.example.platform.dto.AlarmTriggerResult;
 import com.example.platform.entity.AlarmEvent;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /*
  * 类功能:告警事件权威状态机服务接口（产生入口+人工流转+查询）
@@ -51,6 +55,20 @@ public interface AlarmEventService extends IService<AlarmEvent> {
      * 返回数据:List<AlarmEvent>-活动态告警列表（state NOT IN RECOVERED/CLOSED）
      * */
     List<AlarmEvent> listActiveByAlarmType(String alarmType);
+
+    /*
+     * 方法功能:按用户数据范围聚合告警统计
+     * 参数:currentUserId-当前用户ID, start-开始时间, end-结束时间
+     * 返回数据:AlarmStatsVO-状态、级别和设备排名统计
+     * */
+    AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end);
+
+    /*
+     * 方法功能:按用户数据范围聚合告警趋势
+     * 参数:currentUserId-当前用户ID, start-开始日期, end-结束日期
+     * 返回数据:Map<String, Long>-日期到触发数量的映射
+     * */
+    Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end);
 
     AlarmEvent acknowledge(Long alarmEventId, Long currentUserId, String note);
 

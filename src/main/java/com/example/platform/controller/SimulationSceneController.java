@@ -79,7 +79,7 @@ public class SimulationSceneController {
 
     @Operation(summary = "查询场景详情（含步骤列表）", description = "BUSINESS_READ；按授权组织范围过滤")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<SimulationSceneVO> detail(@Parameter(description = "场景ID", required = true)
                                              @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -88,7 +88,7 @@ public class SimulationSceneController {
 
     @Operation(summary = "分页查询模拟场景", description = "BUSINESS_READ；按授权组织范围过滤")
     @GetMapping("/page")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<Page<SimulationSceneVO>> page(
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
@@ -126,7 +126,7 @@ public class SimulationSceneController {
 
     @Operation(summary = "查询场景步骤列表", description = "BUSINESS_READ；按场景范围过滤")
     @GetMapping("/{id}/steps")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<List<SimulationSceneStep>> listSteps(@Parameter(description = "场景ID", required = true)
                                                        @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();

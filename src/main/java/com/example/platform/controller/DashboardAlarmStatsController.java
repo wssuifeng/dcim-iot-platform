@@ -35,7 +35,7 @@ public class DashboardAlarmStatsController {
 
     @Operation(summary = "获取告警看板聚合统计", description = "BUSINESS_READ；按当前用户授权范围聚合")
     @GetMapping
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<DashboardAlarmStatsVO> getAlarmStats() {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(dashboardAlarmStatsService.getAlarmDashboardStats(user.userId()));

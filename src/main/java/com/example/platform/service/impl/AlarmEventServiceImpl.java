@@ -9,6 +9,7 @@ import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlarmEventVO;
 import com.example.platform.dto.AlarmHandlingRecordVO;
+import com.example.platform.dto.AlarmStatsVO;
 import com.example.platform.dto.AlarmStateTransitionVO;
 import com.example.platform.dto.AlarmTriggerContext;
 import com.example.platform.dto.AlarmTriggerResult;
@@ -36,11 +37,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -183,6 +187,55 @@ public class AlarmEventServiceImpl
     }
 
     @Override
+    public AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end) {
+        List<AlarmEvent> events = listScopedEvents(currentUserId, start, end);
+        AlarmStatsVO stats = new AlarmStatsVO();
+        stats.setStateDistribution(events.stream()
+                .filter(event -> event.getState() != null)
+                .collect(Collectors.groupingBy(AlarmEvent::getState, Collectors.counting())));
+        stats.setLevelDistribution(events.stream()
+                .filter(event -> event.getAlarmLevel() != null)
+                .collect(Collectors.groupingBy(
+                        event -> "L" + event.getAlarmLevel(),
+                        TreeMap::new,
+                        Collectors.counting())));
+        Map<Integer, Long> deviceCounts = events.stream()
+                .filter(event -> event.getDeviceId() != null)
+                .collect(Collectors.groupingBy(AlarmEvent::getDeviceId, Collectors.counting()));
+        stats.setDeviceRanking(deviceCounts.entrySet().stream()
+                .sorted(Map.Entry.<Integer, Long>comparingByValue().reversed())
+                .limit(10)
+                .map(entry -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("deviceId", entry.getKey());
+                    item.put("alarmCount", entry.getValue());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        return stats;
+    }
+
+    @Override
+    public Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end) {
+        Map<String, Long> trend = new LinkedHashMap<>();
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            trend.put(day.toString(), 0L);
+        }
+        LocalDateTime from = start.atStartOfDay();
+        LocalDateTime to = end.plusDays(1).atStartOfDay();
+        for (AlarmEvent event : listScopedEvents(currentUserId, from, to)) {
+            if (event.getTriggeredTime() == null) {
+                continue;
+            }
+            String key = event.getTriggeredTime().toLocalDate().toString();
+            if (trend.containsKey(key)) {
+                trend.put(key, trend.get(key) + 1L);
+            }
+        }
+        return trend;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public AlarmEvent acknowledge(Long alarmEventId, Long currentUserId, String note) {
         return transition(alarmEventId, STATE_ACKED, ACTION_ACK, currentUserId, note);
@@ -243,9 +296,19 @@ public class AlarmEventServiceImpl
             }
             wrapper.eq(AlarmEvent::getOrganizationId, organizationId);
         }
+        if ("ROOMS".equals(context.getScopeType())) {
+            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
+                return emptyAlarmPage(params[0], params[1]);
+            }
+            wrapper.in(AlarmEvent::getCloudRoomId, context.getCloudRoomIds());
+        }
         if (cloudRoomId != null) {
-            if (!context.isPlatformAdmin()
-                    && !context.hasCloudRoomAccess(cloudRoomId)) {
+            if (!context.isPlatformAdmin() && "ROOMS".equals(context.getScopeType())
+                    && !context.getCloudRoomIds().contains(cloudRoomId)) {
+                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
+            }
+            if (!context.isPlatformAdmin() && "ORG_ALL".equals(context.getScopeType())
+                    && organizationId != null && !context.getOrganizationIds().contains(organizationId)) {
                 throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
             }
             wrapper.eq(AlarmEvent::getCloudRoomId, cloudRoomId);
@@ -315,6 +378,35 @@ public class AlarmEventServiceImpl
     }
 
     // ===================== 内部辅助 =====================
+
+    private Page<AlarmEventVO> emptyAlarmPage(int current, int size) {
+        Page<AlarmEventVO> empty = new Page<>(current, size);
+        empty.setRecords(new ArrayList<>());
+        empty.setTotal(0);
+        return empty;
+    }
+
+    private List<AlarmEvent> listScopedEvents(Long currentUserId, LocalDateTime start, LocalDateTime end) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (context.isPlatformAdmin() || context.getOrganizationIds().isEmpty()) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(AlarmEvent::getOrganizationId, context.getOrganizationIds());
+        if ("ROOMS".equals(context.getScopeType())) {
+            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
+                return Collections.emptyList();
+            }
+            wrapper.in(AlarmEvent::getCloudRoomId, context.getCloudRoomIds());
+        }
+        if (start != null) {
+            wrapper.ge(AlarmEvent::getTriggeredTime, start);
+        }
+        if (end != null) {
+            wrapper.lt(AlarmEvent::getTriggeredTime, end);
+        }
+        return list(wrapper);
+    }
 
     private AlarmEvent findActiveEvent(Integer deviceId, Long pointId, String alarmType) {
         LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();

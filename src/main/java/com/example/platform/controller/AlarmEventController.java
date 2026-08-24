@@ -96,7 +96,7 @@ public class AlarmEventController {
 
     @Operation(summary = "查询告警事件详情", description = "BUSINESS_READ；按授权范围过滤")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<AlarmEventVO> detail(@Parameter(description = "告警事件ID", required = true)
                                        @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -105,7 +105,7 @@ public class AlarmEventController {
 
     @Operation(summary = "分页查询告警事件", description = "BUSINESS_READ；按授权范围过滤")
     @GetMapping("/page")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<Page<AlarmEventVO>> page(
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
@@ -122,7 +122,7 @@ public class AlarmEventController {
 
     @Operation(summary = "查询告警状态流转记录", description = "BUSINESS_READ；返回流转历史")
     @GetMapping("/{id}/transitions")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<List<AlarmStateTransitionVO>> transitions(@Parameter(description = "告警事件ID", required = true)
                                                             @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -131,7 +131,7 @@ public class AlarmEventController {
 
     @Operation(summary = "查询告警处理记录", description = "BUSINESS_READ；返回处理动作历史")
     @GetMapping("/{id}/handling-records")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<List<AlarmHandlingRecordVO>> handlingRecords(@Parameter(description = "告警事件ID", required = true)
                                                                 @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();

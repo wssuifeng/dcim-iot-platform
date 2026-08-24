@@ -67,7 +67,7 @@ public class SimulationRunController {
 
     @Operation(summary = "查询运行记录详情", description = "BUSINESS_READ；按授权范围过滤")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<SimulationRunVO> detail(@Parameter(description = "运行ID", required = true)
                                           @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -76,7 +76,7 @@ public class SimulationRunController {
 
     @Operation(summary = "分页查询运行记录", description = "BUSINESS_READ；按授权范围过滤")
     @GetMapping("/page")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<Page<SimulationRunVO>> page(
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
@@ -89,7 +89,7 @@ public class SimulationRunController {
 
     @Operation(summary = "查询运行生成数据引用事件", description = "BUSINESS_READ；生成数据可追溯到运行记录与 metric_sample")
     @GetMapping("/{id}/events")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
     public Result<List<SimulationGeneratedDataRefVO>> events(@Parameter(description = "运行ID", required = true)
                                                              @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
