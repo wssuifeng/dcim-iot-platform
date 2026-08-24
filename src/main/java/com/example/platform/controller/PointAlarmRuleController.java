@@ -102,6 +102,7 @@ public class PointAlarmRuleController {
     public Result<List<PointAlarmRuleVO>> effective(
             @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
             @Parameter(description = "点位ID（可选，不传返回全部点位规则）") @RequestParam(required = false) Long pointId) {
-        return Result.success(ruleService.findEffectiveRules(deviceId, pointId));
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(ruleService.findEffectiveRules(deviceId, pointId, user.userId()));
     }
 }

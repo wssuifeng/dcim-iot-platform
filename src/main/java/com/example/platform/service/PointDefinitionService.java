@@ -28,6 +28,13 @@ public interface PointDefinitionService extends IService<PointDefinition> {
     PointDefinition createPointDefinition(PointDefinitionCreateDTO createDTO, Long currentUserId);
 
     /*
+     * 方法功能:创建平台级点位定义（仅平台管理员）
+     * 参数:createDTO-创建请求, currentUserId-当前用户
+     * 返回数据:PointDefinition-创建后的平台级点位
+     * */
+    PointDefinition createPlatformPointDefinition(PointDefinitionCreateDTO createDTO, Long currentUserId);
+
+    /*
      * 方法功能:更新点位定义（校验归属写权限：平台级仅平台管理员，组织级本组织）
      * 参数:id-点位ID, updateDTO-更新请求, currentUserId-当前用户
      * 返回数据:PointDefinition-更新后的点位
@@ -49,6 +56,13 @@ public interface PointDefinitionService extends IService<PointDefinition> {
     PointDefinition getPointDefinitionOrThrow(Long id);
 
     /*
+     * 方法功能:查询当前用户可见的点位详情（平台级或当前组织级）
+     * 参数:id-点位ID, currentUserId-当前用户
+     * 返回数据:PointDefinition-可见点位实体
+     * */
+    PointDefinition getPointDefinitionOrThrow(Long id, Long currentUserId);
+
+    /*
      * 方法功能:分页查询点位（组织用户=平台级+本组织；平台管理员=全部）
      * 参数:currentUserId-当前用户, current/size-分页, keyword-编码/名称关键字, dataType-数据类型
      * 返回数据:Page<PointDefinition>-点位分页
@@ -62,6 +76,13 @@ public interface PointDefinitionService extends IService<PointDefinition> {
      * 返回数据:List<PointDefinition>-可选点位列表
      * */
     List<PointDefinition> listAvailablePoints(Long organizationId);
+
+    /*
+     * 方法功能:查询当前用户可见的可绑点位（平台级或当前组织级）
+     * 参数:organizationId-组织ID, currentUserId-当前用户
+     * 返回数据:List<PointDefinition>-可选点位列表
+     * */
+    List<PointDefinition> listAvailablePoints(Long organizationId, Long currentUserId);
 
     /*
      * 方法功能:导出组织的私有点位+模板为传输包（JSON结构，按编码关联）

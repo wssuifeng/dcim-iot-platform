@@ -66,4 +66,11 @@ public interface DevicePointAlarmRuleService extends IService<DevicePointAlarmRu
      * 返回数据:List<PointAlarmRuleVO>-生效规则（仅enabled=1，含source层级标记）
      * */
     List<PointAlarmRuleVO> findEffectiveRules(Integer deviceId, Long pointId);
+
+    /*
+     * 方法功能:按当前用户范围解析设备最终生效规则集
+     * 参数:deviceId-设备ID, pointId-点位ID（可空）, currentUserId-当前用户
+     * 返回数据:List<PointAlarmRuleVO>-当前用户可见的生效规则
+     * */
+    List<PointAlarmRuleVO> findEffectiveRules(Integer deviceId, Long pointId, Long currentUserId);
 }

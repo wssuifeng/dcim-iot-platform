@@ -8,11 +8,13 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.DevicePointBindingDTO;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DevicePointBinding;
 import com.example.platform.entity.DeviceTypePointTemplate;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.mapper.DevicePointBindingMapper;
+import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DevicePointBindingService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DeviceTypePointTemplateService;
@@ -44,12 +46,15 @@ public class DevicePointBindingServiceImpl
     private final DeviceScopeHelper deviceScopeHelper;
     private final PointDefinitionService pointDefinitionService;
     private final DeviceTypePointTemplateService deviceTypePointTemplateService;
+    private final DataScopeService dataScopeService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DevicePointBinding bindPoint(DevicePointBindingDTO dto, Long currentUserId) {
+        ensureWritePermission(currentUserId);
         Device device = deviceScopeHelper.ensureDeviceAccess(dto.getDeviceId(), currentUserId);
-        pointDefinitionService.getPointDefinitionOrThrow(dto.getPointId());
+        PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(dto.getPointId());
+        ensurePointVisibleToDevice(point, device);
 
         LambdaQueryWrapper<DevicePointBinding> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DevicePointBinding::getDeviceId, dto.getDeviceId())
@@ -76,6 +81,7 @@ public class DevicePointBindingServiceImpl
         if (status == null || status < 0 || status > 1) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "状态值无效，允许 0-启用 1-停用");
         }
+        ensureWritePermission(currentUserId);
         DevicePointBinding binding = getBindingOrThrow(bindingId);
         deviceScopeHelper.ensureDeviceAccess(binding.getDeviceId(), currentUserId);
         binding.setStatus(status);
@@ -88,6 +94,7 @@ public class DevicePointBindingServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unbindPoint(Long bindingId, Long currentUserId) {
+        ensureWritePermission(currentUserId);
         DevicePointBinding binding = getBindingOrThrow(bindingId);
         deviceScopeHelper.ensureDeviceAccess(binding.getDeviceId(), currentUserId);
         if (!removeById(bindingId)) {
@@ -146,13 +153,15 @@ public class DevicePointBindingServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<DevicePointBinding> initBindingsFromTemplate(Integer deviceId, Integer typeId, Long currentUserId) {
+        ensureWritePermission(currentUserId);
         Device device = deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
         if (device.getTypeId() == null || !device.getTypeId().equals(typeId)) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
                     "设备 " + deviceId + " 的类型与传入 typeId 不匹配");
         }
 
-        List<DeviceTypePointTemplate> templates = deviceTypePointTemplateService.listTemplates(typeId);
+        List<DeviceTypePointTemplate> templates = deviceTypePointTemplateService.listEffectiveTemplates(
+                typeId, device.getOrganizationId(), currentUserId);
         if (templates.isEmpty()) {
             log.info("设备类型 {} 未配置点位模板，跳过模板拷贝", typeId);
             return new ArrayList<>();
@@ -171,6 +180,7 @@ public class DevicePointBindingServiceImpl
                 continue; // 已绑定，跳过
             }
             PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(template.getPointId());
+            ensurePointVisibleToDevice(point, device);
             DevicePointBinding binding = new DevicePointBinding();
             binding.setDeviceId(deviceId);
             binding.setPointId(point.getId());
@@ -181,6 +191,21 @@ public class DevicePointBindingServiceImpl
         log.info("设备点位模板拷贝完成 deviceId={} typeId={} 新增绑定数={}",
                 deviceId, typeId, result.size());
         return result;
+    }
+
+    private void ensurePointVisibleToDevice(PointDefinition point, Device device) {
+        long pointOrg = point.getOrganizationId() == null ? 0L : point.getOrganizationId();
+        long deviceOrg = device.getOrganizationId() == null ? 0L : device.getOrganizationId();
+        if (pointOrg != 0L && pointOrg != deviceOrg) {
+            throw new DataScopeViolationException("PointDefinition", String.valueOf(point.getId()));
+        }
+    }
+
+    private void ensureWritePermission(Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (!context.hasWritePermission()) {
+            throw new DataScopeViolationException("DevicePointBinding", "read-only-scope");
+        }
     }
 
     private DevicePointBinding getBindingOrThrow(Long id) {

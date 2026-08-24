@@ -95,6 +95,33 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public PointDefinition createPlatformPointDefinition(PointDefinitionCreateDTO createDTO, Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (!context.isPlatformAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "仅平台管理员可创建平台级点位");
+        }
+        checkPointCodeUnique(createDTO.getPointCode(), PLATFORM_ORG);
+        PointDefinition point = new PointDefinition();
+        point.setPointCode(createDTO.getPointCode());
+        point.setPointName(createDTO.getPointName());
+        point.setUnit(createDTO.getUnit());
+        String dataType = StringUtils.hasText(createDTO.getDataType())
+                ? createDTO.getDataType().trim().toUpperCase() : "NUMBER";
+        if (!DevicePointMetricContract.POINT_DATA_TYPES.contains(dataType)) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "数据类型仅允许 NUMBER/BOOLEAN/STRING");
+        }
+        point.setDataType(dataType);
+        point.setDescription(createDTO.getDescription());
+        point.setOrganizationId(PLATFORM_ORG);
+        if (!save(point)) {
+            throw new BusinessException("创建平台级点位定义失败，请稍后重试");
+        }
+        return point;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public PointDefinition updatePointDefinition(Long id, PointDefinitionUpdateDTO updateDTO, Long currentUserId) {
         PointDefinition point = getPointDefinitionOrThrow(id);
         ensureWriteAccess(point, currentUserId);
@@ -141,6 +168,14 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
     }
 
     @Override
+    public PointDefinition getPointDefinitionOrThrow(Long id, Long currentUserId) {
+        PointDefinition point = getPointDefinitionOrThrow(id);
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        ensurePointVisible(point, context);
+        return point;
+    }
+
+    @Override
     public Page<PointDefinition> pagePointDefinitions(Long currentUserId, Integer current, Integer size,
                                                       String keyword, String dataType) {
         int[] params = PaginationUtils.validate(current, size);
@@ -181,6 +216,22 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         }
         wrapper.orderByAsc(PointDefinition::getPointCode);
         return list(wrapper);
+    }
+
+    @Override
+    public List<PointDefinition> listAvailablePoints(Long organizationId, Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        Long targetOrganizationId = organizationId != null
+                ? organizationId : currentOrganizationContext.currentOrganizationId().orElse(null);
+        if (targetOrganizationId != null && targetOrganizationId != PLATFORM_ORG
+                && !context.isPlatformAdmin()
+                && !context.getOrganizationIds().contains(targetOrganizationId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权查询其他组织的点位");
+        }
+        if (targetOrganizationId == null || targetOrganizationId == PLATFORM_ORG) {
+            return listAvailablePoints(null);
+        }
+        return listAvailablePoints(targetOrganizationId);
     }
 
     @Override
@@ -316,15 +367,29 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
 
     private long resolveCreateOrganization(Long currentUserId) {
         DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (!context.hasWritePermission()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "只读范围用户禁止创建点位定义");
+        }
         Long orgId = currentOrganizationContext.currentOrganizationId().orElse(null);
         if (context.isPlatformAdmin()) {
-            // 平台管理员：带组织头→为该组织导入私有资源；无组织头→平台级
-            return orgId != null ? orgId : PLATFORM_ORG;
+            if (orgId != null) {
+                throw new BusinessException(ResultCode.FORBIDDEN,
+                        "平台管理员不可创建组织级点位（D26）");
+            }
+            return PLATFORM_ORG;
         }
-        // 组织角色：必须携带组织上下文，禁止误建平台级资源
+        // 组织级点位：仅当前组织 ORG_ADMIN 可创建（OPERATOR/VIEWER 一律拒绝）
         if (orgId == null) {
             throw new BusinessException(ResultCode.FORBIDDEN,
                     "组织用户创建点位必须携带组织上下文（X-Organization-Id）");
+        }
+        if (!context.isOrgAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN,
+                    "仅当前组织管理员可创建组织级点位");
+        }
+        if (!context.getOrganizationIds().contains(orgId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN,
+                    "无权在其他组织创建点位");
         }
         return orgId;
     }
@@ -342,8 +407,21 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
             throw new BusinessException(ResultCode.FORBIDDEN,
                     "平台管理员不可修改组织级资源（D26）");
         }
+        if (!context.hasWritePermission()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "只读范围用户禁止修改点位定义");
+        }
+        if (!context.isOrgAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "仅当前组织管理员可修改组织级点位");
+        }
         if (!context.getOrganizationIds().contains(orgId)) {
             throw new BusinessException(ResultCode.FORBIDDEN, "无权修改其他组织的私有点位");
+        }
+    }
+
+    private void ensurePointVisible(PointDefinition point, DataScopeContext context) {
+        long pointOrg = point.getOrganizationId() != null ? point.getOrganizationId() : PLATFORM_ORG;
+        if (pointOrg != PLATFORM_ORG && !context.getOrganizationIds().contains(pointOrg)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权访问其他组织的私有点位");
         }
     }
 

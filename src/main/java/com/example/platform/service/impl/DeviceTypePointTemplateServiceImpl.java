@@ -4,13 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.DeviceTypePointTemplateBatchDTO;
 import com.example.platform.dto.DeviceTypePointTemplateDTO;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.DeviceTypePointTemplate;
+import com.example.platform.entity.PointDefinition;
 import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.mapper.DeviceTypePointTemplateMapper;
 import com.example.platform.security.CurrentOrganizationContext;
+import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.DeviceTypePointTemplateService;
 import com.example.platform.service.PointDefinitionService;
@@ -45,11 +48,29 @@ public class DeviceTypePointTemplateServiceImpl
     private final DeviceTypeMapper deviceTypeMapper;
     private final PointDefinitionService pointDefinitionService;
     private final CurrentOrganizationContext currentOrganizationContext;
+    private final DataScopeService dataScopeService;
 
     @Override
     public List<DeviceTypePointTemplate> listTemplates(Integer typeId) {
         Long orgId = currentOrganizationContext.currentOrganizationId().orElse(null);
         return listEffectiveTemplates(typeId, orgId);
+    }
+
+    @Override
+    public List<DeviceTypePointTemplate> listTemplates(Integer typeId, Long currentUserId) {
+        Long orgId = currentOrganizationContext.currentOrganizationId().orElse(null);
+        return listEffectiveTemplates(typeId, orgId, currentUserId);
+    }
+
+    @Override
+    public List<DeviceTypePointTemplate> listEffectiveTemplates(Integer typeId, Long organizationId,
+                                                                 Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (organizationId != null && organizationId != PLATFORM_ORG && !context.isPlatformAdmin()
+                && !context.getOrganizationIds().contains(organizationId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权查询其他组织的点位模板");
+        }
+        return listEffectiveTemplates(typeId, organizationId);
     }
 
     @Override
@@ -73,12 +94,52 @@ public class DeviceTypePointTemplateServiceImpl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public List<DeviceTypePointTemplate> saveTemplates(Integer typeId,
+                                                        DeviceTypePointTemplateBatchDTO batchDTO,
+                                                        Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (!context.hasWritePermission() || !context.isOrgAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "仅组织管理员可修改组织级模板");
+        }
+        Long orgId = currentOrganizationContext.currentOrganizationId().orElse(null);
+        if (orgId == null || orgId == PLATFORM_ORG) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "组织模板保存必须携带组织上下文");
+        }
+        if (!context.getOrganizationIds().contains(orgId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "当前用户不可修改该组织模板");
+        }
+        return saveTemplatesForOrganization(typeId, batchDTO, orgId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<DeviceTypePointTemplate> saveTemplatesForOrganization(Integer typeId,
+                                                                      DeviceTypePointTemplateBatchDTO batchDTO,
+                                                                      Long organizationId,
+                                                                      Long currentUserId) {
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (organizationId == null) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "目标组织不能为空");
+        }
+        if (organizationId == PLATFORM_ORG) {
+            if (!context.isPlatformAdmin()) {
+                throw new BusinessException(ResultCode.FORBIDDEN, "仅平台管理员可修改平台级模板");
+            }
+        } else if (!context.hasWritePermission() || !context.isOrgAdmin()
+                || !context.getOrganizationIds().contains(organizationId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "仅目标组织管理员可修改组织级模板");
+        }
+        return saveTemplatesForOrganization(typeId, batchDTO, organizationId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<DeviceTypePointTemplate> saveTemplatesForOrganization(Integer typeId,
                                                                       DeviceTypePointTemplateBatchDTO batchDTO,
                                                                       Long organizationId) {
         ensureTypeExists(typeId);
         List<DeviceTypePointTemplateDTO> items = batchDTO.getItems();
-        validateTemplateItems(items);
+        validateTemplateItems(items, organizationId);
 
         // 1. 清空同组织层旧模板（逻辑删除，不影响另一层）
         LambdaQueryWrapper<DeviceTypePointTemplate> removeWrapper = new LambdaQueryWrapper<>();
@@ -135,16 +196,28 @@ public class DeviceTypePointTemplateServiceImpl
         }
     }
 
-    private void validateTemplateItems(List<DeviceTypePointTemplateDTO> items) {
+    private void validateTemplateItems(List<DeviceTypePointTemplateDTO> items, Long organizationId) {
         List<Long> seenPointIds = new ArrayList<>();
         for (DeviceTypePointTemplateDTO item : items) {
-            // 校验点位存在，否则拒绝整批写入
-            pointDefinitionService.getPointDefinitionOrThrow(item.getPointId());
+            PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(item.getPointId());
+            long pointOrg = point.getOrganizationId() == null ? PLATFORM_ORG : point.getOrganizationId();
+            if (pointOrg != PLATFORM_ORG && !pointOrgEquals(pointOrg, organizationId)) {
+                throw new BusinessException(ResultCode.FORBIDDEN,
+                        "模板只能引用平台级或当前组织私有点位: " + item.getPointId());
+            }
+            if (organizationId == PLATFORM_ORG && pointOrg != PLATFORM_ORG) {
+                throw new BusinessException(ResultCode.FORBIDDEN,
+                        "平台级模板不能引用组织私有点位: " + item.getPointId());
+            }
             if (seenPointIds.contains(item.getPointId())) {
                 throw new BusinessException(ResultCode.INVALID_PARAMETER,
                         "模板项中点位定义ID重复: " + item.getPointId());
             }
             seenPointIds.add(item.getPointId());
         }
+    }
+
+    private boolean pointOrgEquals(long pointOrganizationId, Long templateOrganizationId) {
+        return templateOrganizationId != null && pointOrganizationId == templateOrganizationId;
     }
 }

@@ -96,8 +96,20 @@ public class DevicePointAlarmRuleServiceImpl
             wrapper.in(DevicePointAlarmRule::getTemplateItemId, itemIds);
         }
         if (deviceId != null) {
+            deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
             wrapper.and(w -> w.eq(DevicePointAlarmRule::getDeviceId, deviceId)
                     .or().isNull(DevicePointAlarmRule::getDeviceId));
+        } else if ("ROOMS".equals(context.getScopeType())) {
+            Set<Integer> deviceIds = deviceService.listScoped(currentUserId).stream()
+                    .map(Device::getId).collect(Collectors.toSet());
+            if (deviceIds.isEmpty()) {
+                Page<PointAlarmRuleVO> empty = new Page<>(params[0], params[1]);
+                empty.setRecords(new ArrayList<>());
+                empty.setTotal(0);
+                return empty;
+            }
+            wrapper.and(w -> w.isNull(DevicePointAlarmRule::getDeviceId)
+                    .or().in(DevicePointAlarmRule::getDeviceId, deviceIds));
         }
         if (pointId != null) {
             wrapper.eq(DevicePointAlarmRule::getPointId, pointId);
@@ -189,6 +201,15 @@ public class DevicePointAlarmRuleServiceImpl
         if (!updateById(rule)) {
             throw new BusinessException("更新告警规则状态失败");
         }
+    }
+
+    @Override
+    public List<PointAlarmRuleVO> findEffectiveRules(Integer deviceId, Long pointId, Long currentUserId) {
+        if (currentUserId == null) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "查询生效规则必须提供当前用户");
+        }
+        deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
+        return findEffectiveRules(deviceId, pointId);
     }
 
     @Override
@@ -307,9 +328,16 @@ public class DevicePointAlarmRuleServiceImpl
             }
             return;
         }
+        if (!context.hasWritePermission()) {
+            throw new DataScopeViolationException("DevicePointAlarmRule", "read-only-scope");
+        }
         if (rule.getOrganizationId() == null
                 || !context.getOrganizationIds().contains(rule.getOrganizationId())) {
             throw new DataScopeViolationException("DevicePointAlarmRule", String.valueOf(rule.getId()));
+        }
+        // ROOMS 范围必须校验关联设备是否在授权机房内
+        if ("ROOMS".equals(context.getScopeType()) && rule.getDeviceId() != null) {
+            deviceScopeHelper.ensureDeviceAccess(rule.getDeviceId(), currentUserId);
         }
     }
 
@@ -336,6 +364,10 @@ public class DevicePointAlarmRuleServiceImpl
         if (context.isPlatformAdmin()) {
             throw new BusinessException(ResultCode.FORBIDDEN,
                     "平台管理员不可创建组织级资源（D26）: 模板组织=" + itemOrg);
+        }
+        // 组织级模板上的设备覆盖规则必须通过设备范围校验
+        if (deviceId != null) {
+            deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
         }
     }
 

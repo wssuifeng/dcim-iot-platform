@@ -6,7 +6,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
+import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
@@ -18,6 +20,7 @@ import com.example.platform.entity.MetricSample;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.event.MetricSampleSavedEvent;
 import com.example.platform.mapper.MetricSampleMapper;
+import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DevicePointBindingService;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.DeviceScopeHelper;
@@ -69,6 +72,7 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
     private final PointDefinitionService pointDefinitionService;
     private final MetricLatestService metricLatestService;
     private final DeviceService deviceService;
+    private final DataScopeService dataScopeService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
@@ -215,6 +219,10 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
 
     private MetricSample doSaveSample(MetricSampleDTO dto, Long currentUserId, boolean triggerAlarm) {
         deviceScopeHelper.ensureDeviceAccess(dto.getDeviceId(), currentUserId);
+        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
+        if (!context.hasWritePermission()) {
+            throw new DataScopeViolationException("MetricSample", "read-only-scope");
+        }
         PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(dto.getPointId());
         devicePointBindingService.getActiveBindingOrThrow(
                 dto.getDeviceId(), dto.getPointId(), currentUserId);

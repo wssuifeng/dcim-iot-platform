@@ -62,19 +62,21 @@ public class PointDefinitionController {
     @GetMapping("/{id}")
     public Result<PointDefinition> getById(
             @Parameter(description = "点位ID", required = true) @PathVariable Long id) {
-        return Result.success(pointDefinitionService.getPointDefinitionOrThrow(id));
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(pointDefinitionService.getPointDefinitionOrThrow(id, user.userId()));
     }
 
     @Operation(summary = "查询可绑点位下拉", description = "平台级+当前组织的私有点位，供绑定/模板/规则选择")
     @GetMapping("/available")
     public Result<List<PointDefinition>> available() {
+        CurrentUser user = currentUserContext.requireCurrentUser();
         Long orgId = currentOrganizationContext.currentOrganizationId().orElse(null);
-        return Result.success(pointDefinitionService.listAvailablePoints(orgId));
+        return Result.success(pointDefinitionService.listAvailablePoints(orgId, user.userId()));
     }
 
     @Operation(summary = "新增点位定义（组织私有）", description = "归属当前组织上下文，组织用户必须携带 X-Organization-Id；编码组织内唯一")
     @PostMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasRole('ORG_ADMIN')")
     @AuditLog(operation = "CREATE_POINT_DEFINITION", detail = "编码:#createDTO.pointCode")
     public Result<PointDefinition> create(@Valid @RequestBody PointDefinitionCreateDTO createDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -83,7 +85,7 @@ public class PointDefinitionController {
 
     @Operation(summary = "更新点位定义", description = "平台级仅平台管理员；组织级本组织可改")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasRole('ORG_ADMIN')")
     @AuditLog(operation = "UPDATE_POINT_DEFINITION", detail = "点位ID:#id")
     public Result<PointDefinition> update(
             @Parameter(description = "点位ID", required = true) @PathVariable Long id,

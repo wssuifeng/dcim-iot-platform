@@ -55,8 +55,7 @@ public class PlatformPointController {
     @AuditLog(operation = "CREATE_PLATFORM_POINT", detail = "编码:#createDTO.pointCode")
     public Result<PointDefinition> createPoint(@Valid @RequestBody PointDefinitionCreateDTO createDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
-        // 平台管理员无组织头 → 平台级（服务层按 D26 解析归属）
-        return Result.success(pointDefinitionService.createPointDefinition(createDTO, user.userId()));
+        return Result.success(pointDefinitionService.createPlatformPointDefinition(createDTO, user.userId()));
     }
 
     @Operation(summary = "更新平台级点位定义", description = "仅平台管理员（组织级资源拒绝，D26）")
@@ -95,7 +94,9 @@ public class PlatformPointController {
     public Result<List<DeviceTypePointTemplate>> savePlatformTemplates(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer typeId,
             @Valid @RequestBody DeviceTypePointTemplateBatchDTO batchDTO) {
-        return Result.success(templateService.saveTemplatesForOrganization(typeId, batchDTO, PLATFORM_ORG));
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(templateService.saveTemplatesForOrganization(typeId, batchDTO, PLATFORM_ORG,
+                user.userId()));
     }
 
     @Operation(summary = "导入资源包并提升为平台级", description = "将组织导出包（或自建包）导入为平台级资源，对所有组织可见")
