@@ -1,6 +1,6 @@
 # dcim-iot-platform 数据中心动环监控平台
 
-> **产品化仓库**: 基于 `wssuifeng/iot-platform` v1.0 演进 | **当前基线**: `5d26eeb`（认证与产品化基础集成） | **第四阶段**: 分阶段实现与测试
+> **产品化仓库**: 基于 `wssuifeng/iot-platform` v1.0 演进 | **当前基线**: `a840acd`（平台管理员边界与数据范围收口） | **第四阶段**: 分阶段实现与测试
 
 本仓库是数据中心动环监控平台（DCIM）产品化版本。v1.0 单租户物联网平台已演进为多组织多租户架构，本文档按模块拆分描述当前后端 30 个控制器 / 29 个实体 / 44 个服务与前端 15 个业务页面的真实状态。
 
@@ -187,10 +187,10 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 | 能力 | 说明 |
 |------|------|
 | 组织上下文 | 业务请求携带 `X-Organization-Id` 头，`OrganizationContextFilter` 校验成员资格后注入 `CurrentOrganizationContext`（ThreadLocal）；切换到非成员组织抛 `DataScopeViolationException`（4071/4072） |
-| 数据范围 | `sys_data_scope_assignment.scopeType` 四级：PLATFORM（全平台）/ ORG_ALL（组织全部）/ ROOMS（指定机房）/ READ_ONLY（只读），`DeviceScopeHelper` 据此做设备级过滤 |
-| 成员管理 | 成员列表、角色变更、移除成员、组织加入设置（开放加入/需审批） |
+| 数据范围 | `sys_data_scope_assignment.scopeType` 四级：PLATFORM（全平台，仅 PLATFORM_ADMIN）/ ORG_ALL（组织全部，仅 ORG_ADMIN）/ ROOMS（指定机房）/ READ_ONLY（只读）；`DeviceScopeHelper` 据此做设备级过滤；分配时校验目标用户须为活动组织成员；`READ_ONLY` 推导不会放大为可写 `ROOMS` |
+| 成员管理 | 成员列表、角色变更、移除成员、组织加入设置（开放加入/需审批）；平台管理员禁止成为组织成员 |
 | 审批流 | 创建组织申请（用户提交 → PLATFORM_ADMIN 审批 → `OrganizationProvisioningService` 开通）；加入组织申请（提交 → ORG_ADMIN 审批），冲突抛 `MembershipConflictException`（4511-4518） |
-| 当前上下文查询 | `GET /auth/memberships`（我的组织列表）、`GET /auth/current-scope`（当前数据范围） |
+| 当前上下文查询 | `GET /auth/memberships`（我的组织列表）、`GET /auth/current-scope`（当前数据范围）；`X-Organization-Id` 非法/空值/非成员直接返回 403 |
 
 **关键类**：`OrganizationController`、`CloudRoomController`、`OrganizationMemberController`、`OrganizationCreationApplicationController`、`OrganizationJoinApplicationController`、`AccountOrganizationController`、`CurrentScopeController`、`UserDataScopeController`；服务层 `OrganizationService`、`CloudRoomService`、`OrganizationMembershipService`、`OrganizationProvisioningService`、`DataScopeService`、`UserDataScopeService`、`DeviceScopeHelper`。
 
@@ -202,7 +202,7 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 
 | 能力 | 说明 |
 |------|------|
-| 用户管理 | `/users` 8 个接口：分页/搜索/详情/创建/更新/重置密码/启停/删除；BCrypt 加密、登录失败 SQL 原子递增、更新字段白名单防注入 |
+| 用户管理 | `/users` 8 个接口：分页/搜索/详情/创建/更新/重置密码/启停/删除；BCrypt 加密、登录失败 SQL 原子递增、更新字段白名单防注入；创建/更新接口禁止通过请求体注入 `PLATFORM_ADMIN` 角色，平台管理员仅通过初始化专用流程创建 |
 | 数据范围指派 | `/users/{id}/data-scopes`：列表/指派/移除，控制目标用户可见的组织与机房 |
 | 注册策略 | `/platform/registration-settings`：注册开关与默认策略（PLATFORM_ADMIN 专属 `/platform/**`） |
 | 组织申请审批 | `/platform/organization-applications`：申请列表/批准/拒绝，批准后自动开通组织并建立成员关系 |
@@ -222,9 +222,9 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 | 能力 | 说明 |
 |------|------|
 | 设备管理 | `/devices` 13 个接口：CRUD、分页/模糊搜索、在线设备、状态更新、设备级告警规则配置、Excel 导入（上限 500 条）/导出/模板下载 |
-| 设备类型 | `/device-types` 6 个接口：CRUD + 类型级告警规则（作为设备级缺失时的降级方案）；V3 迁移内置 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR 五类产品类型种子 |
-| 点位定义 | `/point-definitions` 4 个接口：点位（温度、湿度、电压等监测点）元数据 CRUD |
-| 类型点位模板 | `/point-templates/device-types/{typeId}`：查看/批量保存，新建该类型设备时按模板初始化点位 |
+| 设备类型 | `/device-types` 6 个接口：CRUD + 类型级告警规则（作为设备级缺失时的降级方案）；V3 迁移内置 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR 五类产品类型种子；写操作仅 PLATFORM_ADMIN |
+| 点位定义 | `/point-definitions` 4 个接口：点位（温度、湿度、电压等监测点）元数据 CRUD；组织级点位仅 ORG_ADMIN 可写 |
+| 类型点位模板 | `/point-templates/device-types/{typeId}`：查看/批量保存；组织级模板仅 ORG_ADMIN 可写；平台级模板走 `/platform/point-templates/device-types/{typeId}` |
 | 设备点位绑定 | `/device-points` 6 个接口：查询/绑定/启停/解绑/按设备类型模板初始化；`DevicePointMetricContract` 约束设备-点位-指标三者关系 |
 | 离线检测 | `DeviceMonitorTask` 每 5 分钟扫描（阈值 `task.offline-threshold-seconds`），自动生成去重离线告警 |
 
@@ -263,7 +263,7 @@ simulation_scene ──< simulation_scene_step / simulation_run_record ──< s
 | 处理留痕 | `alarm_handling_record`（处理记录）与 `alarm_state_transition`（流转记录）全程可审计回溯 |
 | v1.0 告警兼容 | `/alerts` 8 个接口：分页/详情/未处理/批量处理/导出/按设备与时间段统计/设备排名；`alerts` 表保留 |
 | 告警统计 | `/dashboard/alarm-stats` 告警看板统计；`/dashboard/stats` 聚合统计（Redis 缓存 30s + 互斥锁防击穿） |
-| 接收人解析 | `AlarmRecipientResolver` 按数据范围解析告警通知接收人 |
+| 接收人解析 | `AlarmRecipientResolver` 按数据范围解析告警通知接收人；接收人须为活动组织成员，成员移除后立即失去告警接收资格 |
 
 **关键类**：`AlarmEventController`、`AlertController`、`DashboardAlarmStatsController`、`AlertRuleEngine`、`AlarmEventServiceImpl`、`AlertServiceImpl`、`AlertConfigServiceImpl`（规则缓存走 Redis）。
 
@@ -441,9 +441,9 @@ cd frontend && npm install && npm run dev
 | `/data-monitor` | 数据监控 | 设备侧栏 + 实时/历史数据 + 趋势图 | ORG_ADMIN/OPERATOR/VIEWER |
 | `/simulation` | 模拟运行 | 场景/步骤编排、运行启动与事件查看 | ORG_ADMIN/OPERATOR/VIEWER |
 | `/alerts` | 告警管理 | 告警事件筛选、状态机操作、详情抽屉（流转/处理记录） | ORG_ADMIN/OPERATOR/VIEWER |
-| `/notifications` | 站内通知 | 未读标记、全部已读、实时摘要刷新 | 全部角色 |
-| `/metric` | 指标字典 | 指标 CRUD、点位定义、保留策略对话框 | 全部角色 |
-| `/device-types` | 设备类型 | 类型 CRUD、告警配置、点位模板编辑 | 全部角色 |
+| `/notifications` | 站内通知 | 未读标记、全部已读、实时摘要刷新 | ORG_ADMIN/OPERATOR/VIEWER |
+| `/metric` | 指标与点位 | 点位定义 CRUD、保留策略管理；组织级点位仅 ORG_ADMIN 可写，保留策略仅 PLATFORM_ADMIN | ORG_ADMIN/OPERATOR/VIEWER |
+| `/device-types` | 设备类型 | 类型 CRUD（仅 PLATFORM_ADMIN）、点位模板编辑（平台级 PLATFORM_ADMIN，组织级 ORG_ADMIN） | 全部角色 |
 | `/users` | 用户管理 | 用户 CRUD、数据范围分配对话框 | PLATFORM_ADMIN |
 | `/platform/registration` | 注册审核 | 注册策略、组织申请审批 | PLATFORM_ADMIN |
 | `/organization/members` | 组织成员 | 成员角色、加入申请审批、开放加入开关 | ORG_ADMIN |
@@ -605,9 +605,9 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 
 | 角色 | 权限范围 |
 |------|----------|
-| **PLATFORM_ADMIN** | 平台级管理：`/platform/**` 注册策略与组织申请审批、`/users/**` 用户管理、数据范围指派、Druid 监控、审计清理 |
-| **ORG_ADMIN** | 组织内管理：组织/机房/成员管理、业务 DELETE 操作、加入申请审批、业务写入 |
-| **OPERATOR** | 业务写入：设备/类型/点位/指标/告警处理/仿真运行等 POST/PUT 操作 + 审计查询 |
+| **PLATFORM_ADMIN** | 平台级管理：`/platform/**` 注册策略与组织申请审批、`/users/**` 用户管理、数据范围指派、Druid 监控、审计清理；不穿透组织业务数据（设备、机房、告警、模拟等），不可成为组织成员 |
+| **ORG_ADMIN** | 组织内管理：组织/机房/成员管理、业务 DELETE 操作、加入申请审批、组织级点位/模板/规则写入 |
+| **OPERATOR** | 业务写入：设备管理、指标采样、告警处理、仿真运行等 POST/PUT 操作 + 审计查询；不修改组织共享资源（点位定义、类型模板、保留策略） |
 | **VIEWER** | 只读查询（设备/数据/告警/指标/日志） |
 
 > 兼容性：旧 v1.0 角色 `ADMIN` 在认证时归一化为 `ORG_ADMIN`（同时授予双 Authority），存量 Token 不失效。
@@ -622,12 +622,12 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 | Druid 监控 / 审计清理 | `/druid/**`、DELETE `/audit-logs/**` | PLATFORM_ADMIN, ORG_ADMIN |
 | 业务删除 | 其余 DELETE 请求 | ORG_ADMIN |
 | 业务写入 | POST/PUT 相关端点 | ORG_ADMIN, OPERATOR |
-| 只读查询 | GET 请求 | 已认证用户（含 VIEWER） |
+| 只读查询 | GET 请求 | 已认证用户（含 VIEWER）；PLATFORM_ADMIN 不穿透组织业务 GET（设备/机房/告警/模拟等） |
 | WebSocket | `/ws` 握手放行 | STOMP CONNECT 阶段完成认证 |
 
 ### 数据范围（横向隔离）
 
-角色决定"能做什么"，数据范围决定"能看哪些"：请求携带 `X-Organization-Id` 头确定组织上下文（须为成员），`sys_data_scope_assignment` 按用户授予 PLATFORM / ORG_ALL / ROOMS / READ_ONLY 四级范围，`DeviceScopeHelper` 在查询链路过滤设备。PLATFORM_ADMIN 不默认穿透组织业务数据，需显式授权。
+角色决定"能做什么"，数据范围决定"能看哪些"：请求携带 `X-Organization-Id` 头确定组织上下文（须为活动成员），`sys_data_scope_assignment` 按用户授予 PLATFORM / ORG_ALL / ROOMS / READ_ONLY 四级范围（`scopeType` 以实际分配为准，不按角色推导；`READ_ONLY` 不会放大为 `ROOMS`），`DeviceScopeHelper` 在查询链路过滤设备。PLATFORM_ADMIN 不默认穿透组织业务数据，需显式平台运维授权。
 
 ---
 
@@ -651,6 +651,7 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 | v5.1 | 2026-07-10 ~ 07-11 | 多提交 | 告警接收人按机房过滤（`AlarmRecipientResolver`）；scope 感知业务操作与告警工作流前端补全；Spring Boot 4 启动修复 |
 | v5.2 | 2026-07-11 | `5d26eeb` | 认证与产品化基础：全局身份与组织成员资格 schema（V7/V8，创建/加入组织审批流）、角色作用域收敛到当前组织、邮箱验证码注册（HMAC 防篡改）、平台初始化向导 `/setup`（bootstrap token）、前端注册/组织控制与认证入口加固、仿真模型修复与异步可取消运行（V9）、设备测试夹具隔离（V10）、历史 Flyway 校验恢复 |
 | v5.3 | 2026-08-24 | `47d21da` | 前端日间/夜间双主题系统（主题 Token + Element Plus 变量覆盖 + 图表主题适配 + 色值批量迁移）；README 按模块全面重写 |
+| v5.4 | 2026-08-24 | `a840acd` | 平台管理员与数据范围收口：scope 解析保留 `assignment.scopeType`，`READ_ONLY` 不再推导为可写 `ROOMS`；组织级点位/模板仅 ORG_ADMIN 可写；平台管理员禁止成为组织成员、不穿透组织业务数据（模拟/告警/设备/机房）；告警收件人须为活动组织成员；用户创建/更新禁止注入 `PLATFORM_ADMIN` 角色；前端按钮权限对齐后端契约 |
 
 ---
 
@@ -670,4 +671,4 @@ Node 版本要求 `^20.19.0 || >=22.12.0`；浏览器兼容目标见 `package.js
 
 ---
 
-*本文档基于第四阶段产品化基线（`5d26eeb` 及之后）按模块拆分编写，最后更新于 2026-08-24。*
+*本文档基于第四阶段产品化基线（`a840acd` 及之后）按模块拆分编写，最后更新于 2026-08-24。*
