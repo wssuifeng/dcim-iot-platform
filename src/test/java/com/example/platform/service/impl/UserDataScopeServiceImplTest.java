@@ -6,9 +6,11 @@ import com.example.platform.dto.DataScopeAssignmentDTO;
 import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.DataScopeAssignment;
+import com.example.platform.entity.OrganizationMembership;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.CloudRoomMapper;
 import com.example.platform.mapper.DataScopeAssignmentMapper;
+import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.service.DataScopeService;
 import com.example.platform.service.SysUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +51,8 @@ class UserDataScopeServiceImplTest {
     private DataScopeAssignmentMapper dataScopeAssignmentMapper;
     @Mock
     private CloudRoomMapper cloudRoomMapper;
+    @Mock
+    private OrganizationMembershipMapper membershipMapper;
 
     @InjectMocks
     private UserDataScopeServiceImpl userDataScopeService;
@@ -96,6 +100,15 @@ class UserDataScopeServiceImplTest {
         return room;
     }
 
+    private OrganizationMembership activeMembership(Long userId, Long orgId) {
+        OrganizationMembership membership = new OrganizationMembership();
+        membership.setUserId(userId);
+        membership.setOrganizationId(orgId);
+        membership.setMembershipRole("OPERATOR");
+        membership.setStatus("ACTIVE");
+        return membership;
+    }
+
     @Nested
     @DisplayName("assignScope - 分配数据范围")
     class Assign {
@@ -104,6 +117,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("PLATFORM_ADMIN 给 ORG_ADMIN 分配 ORG_ALL 应成功")
         void should_assignOrgAll_when_platformAdminInitializesOrgAdmin() {
             when(sysUserService.getUserOrThrow(20L)).thenReturn(targetOrgAdmin);
+            when(membershipMapper.selectActiveByUserAndOrganization(20L, 1L))
+                    .thenReturn(activeMembership(20L, 1L));
             when(dataScopeService.resolveDataScope(1L)).thenReturn(platformAdminContext());
             when(dataScopeAssignmentMapper.selectCount(any())).thenReturn(0L);
             when(dataScopeAssignmentMapper.insert((DataScopeAssignment) any())).thenReturn(1);
@@ -148,6 +163,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("ORG_ADMIN 跨组织分配应抛 DataScopeViolationException")
         void should_throw_when_orgAdminCrossOrg() {
             when(sysUserService.getUserOrThrow(21L)).thenReturn(targetOperator);
+            when(membershipMapper.selectActiveByUserAndOrganization(21L, 2L))
+                    .thenReturn(activeMembership(21L, 2L));
             when(dataScopeService.resolveDataScope(10L))
                     .thenReturn(orgAdminContext(new HashSet<>(List.of(1L))));
 
@@ -161,6 +178,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("ROOMS 范围机房不属于指定组织时拒绝")
         void should_throw_when_roomNotInOrg() {
             when(sysUserService.getUserOrThrow(21L)).thenReturn(targetOperator);
+            when(membershipMapper.selectActiveByUserAndOrganization(21L, 1L))
+                    .thenReturn(activeMembership(21L, 1L));
             Set<Long> orgIds = new HashSet<>(List.of(1L));
             Set<Long> roomIds = new HashSet<>(List.of(5L));
             when(dataScopeService.resolveDataScope(10L)).thenReturn(orgAdminContext(orgIds));
@@ -177,6 +196,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("ORG_ALL 范围附带 cloudRoomId 应拒绝（对齐校验）")
         void should_throw_when_orgAllHasRoomId() {
             when(sysUserService.getUserOrThrow(21L)).thenReturn(targetOperator);
+            when(membershipMapper.selectActiveByUserAndOrganization(21L, 1L))
+                    .thenReturn(activeMembership(21L, 1L));
             when(dataScopeService.resolveDataScope(10L))
                     .thenReturn(orgAdminContext(new HashSet<>(List.of(1L))));
 
@@ -191,6 +212,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("重复分配相同范围应拒绝")
         void should_throw_when_duplicateAssignment() {
             when(sysUserService.getUserOrThrow(20L)).thenReturn(targetOrgAdmin);
+            when(membershipMapper.selectActiveByUserAndOrganization(20L, 1L))
+                    .thenReturn(activeMembership(20L, 1L));
             when(dataScopeService.resolveDataScope(1L)).thenReturn(platformAdminContext());
             when(dataScopeAssignmentMapper.selectCount(any())).thenReturn(1L);
 
@@ -217,6 +240,8 @@ class UserDataScopeServiceImplTest {
         @DisplayName("ORG_ADMIN 在本组织为 OPERATOR 分配 ROOMS 范围应成功")
         void should_assignRooms_when_orgAdminInScope() {
             when(sysUserService.getUserOrThrow(21L)).thenReturn(targetOperator);
+            when(membershipMapper.selectActiveByUserAndOrganization(21L, 1L))
+                    .thenReturn(activeMembership(21L, 1L));
             Set<Long> orgIds = new HashSet<>(List.of(1L));
             Set<Long> roomIds = new HashSet<>(List.of(5L));
             // ORG_ADMIN 范围上下文中 cloudRoomIds 为空，但 hasCloudRoomAccess 仍按 cloudRoomIds 比对
@@ -238,6 +263,21 @@ class UserDataScopeServiceImplTest {
             return DataScopeContext.builder()
                     .userId(10L).role("ORG_ADMIN").scopeType("ORG_ALL")
                     .organizationIds(orgIds).cloudRoomIds(roomIds).build();
+        }
+
+        @Test
+        @DisplayName("目标用户不是组织成员时分配应拒绝")
+        void should_reject_when_targetNotMember() {
+            when(sysUserService.getUserOrThrow(21L)).thenReturn(targetOperator);
+            when(membershipMapper.selectActiveByUserAndOrganization(21L, 1L))
+                    .thenReturn(null);
+            when(dataScopeService.resolveDataScope(1L)).thenReturn(platformAdminContext());
+
+            assertThatThrownBy(() ->
+                    userDataScopeService.assignScope(21L, dto("ROOMS", 1L, 5L), 1L))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("不是该组织的活动成员");
+            verify(dataScopeAssignmentMapper, never()).insert((DataScopeAssignment) any());
         }
     }
 

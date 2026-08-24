@@ -63,6 +63,20 @@ class OrganizationMembershipServiceImplTest {
                 .hasMessageContaining("不能加入其他组织");
     }
 
+    @Test
+    void platformAdministratorCannotBeActivatedAsOrganizationMember() {
+        SysUser platformAdmin = user(1L);
+        platformAdmin.setPlatformRole("PLATFORM_ADMIN");
+        when(userMapper.selectByIdForUpdate(1L)).thenReturn(platformAdmin);
+
+        assertThatThrownBy(() -> service.activateMembership(1L, 10L, "ORG_ADMIN", 2L))
+                .isInstanceOf(MembershipConflictException.class)
+                .hasMessageContaining("平台管理员不能成为组织成员");
+
+        verify(membershipMapper, never()).insert(org.mockito.ArgumentMatchers.any(OrganizationMembership.class));
+        verify(membershipMapper, never()).updateById(org.mockito.ArgumentMatchers.any(OrganizationMembership.class));
+    }
+
     private SysUser user(Long id) {
         SysUser user = new SysUser();
         user.setId(id);

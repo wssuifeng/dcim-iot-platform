@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +30,60 @@ class OrganizationContextFilterTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void invalidOrganizationHeaderIsRejectedInsteadOfBeingIgnored() throws Exception {
+        CurrentOrganizationContext context = new CurrentOrganizationContext();
+        OrganizationContextFilter filter = new OrganizationContextFilter(membershipService, context);
+        var authentication = new UsernamePasswordAuthenticationToken(7L, null,
+                List.of(new SimpleGrantedAuthority("ROLE_AUTHENTICATED_USER")));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Organization-Id", "invalid");
+        AtomicReference<Boolean> called = new AtomicReference<>(false);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> called.set(true));
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(called.get()).isFalse();
+        verifyNoMembershipLookup();
+    }
+
+    @Test
+    void platformAdminHeaderDoesNotCreateOrganizationRole() throws Exception {
+        CurrentOrganizationContext context = new CurrentOrganizationContext();
+        OrganizationContextFilter filter = new OrganizationContextFilter(membershipService, context);
+        var authentication = new UsernamePasswordAuthenticationToken(1L, null,
+                List.of(new SimpleGrantedAuthority("ROLE_AUTHENTICATED_USER"),
+                        new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"),
+                        new SimpleGrantedAuthority("ROLE_OPERATOR")));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Organization-Id", "10");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        OrganizationMembership membership = new OrganizationMembership();
+        membership.setUserId(1L);
+        membership.setOrganizationId(10L);
+        membership.setMembershipRole("OPERATOR");
+        membership.setStatus("ACTIVE");
+        when(membershipService.requireActiveMembership(1L, 10L)).thenReturn(membership);
+        AtomicReference<List<String>> authorities = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> authorities.set(
+                SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                        .map(authority -> authority.getAuthority()).toList()));
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(authorities.get()).contains("ROLE_PLATFORM_ADMIN")
+                .doesNotContain("ROLE_OPERATOR", "ROLE_ORG_ADMIN", "ROLE_VIEWER");
+        verify(membershipService).requireActiveMembership(1L, 10L);
+    }
+
+    private void verifyNoMembershipLookup() {
+        verify(membershipService, never()).requireActiveMembership(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test

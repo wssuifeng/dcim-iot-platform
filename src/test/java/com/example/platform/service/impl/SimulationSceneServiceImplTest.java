@@ -180,7 +180,7 @@ class SimulationSceneServiceImplTest {
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
             when(simulationSceneMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
-            when(pointDefinitionService.getPointDefinitionOrThrow(10L))
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "NUMBER"));
             when(simulationSceneMapper.insert((SimulationScene) any())).thenAnswer(inv -> {
                 SimulationScene s = inv.getArgument(0);
@@ -341,7 +341,7 @@ class SimulationSceneServiceImplTest {
                     .thenReturn(buildScene(1L, ORG_ID));
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
-            when(pointDefinitionService.getPointDefinitionOrThrow(10L))
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "STRING"));
 
             SimulationSceneStepDTO dto = new SimulationSceneStepDTO();
@@ -362,7 +362,7 @@ class SimulationSceneServiceImplTest {
                     .thenReturn(buildScene(1L, ORG_ID));
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
-            when(pointDefinitionService.getPointDefinitionOrThrow(10L))
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "BOOLEAN"));
 
             SimulationSceneStepDTO dto = new SimulationSceneStepDTO();
@@ -382,7 +382,7 @@ class SimulationSceneServiceImplTest {
                     .thenReturn(buildScene(1L, ORG_ID));
             when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
                     .thenReturn(orgAdminContext(ORG_ID));
-            when(pointDefinitionService.getPointDefinitionOrThrow(10L))
+            when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "NUMBER"));
 
             SimulationSceneStepDTO dto = new SimulationSceneStepDTO();

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
+import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
@@ -16,6 +17,7 @@ import com.example.platform.entity.MetricSample;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.event.MetricSampleSavedEvent;
 import com.example.platform.mapper.MetricSampleMapper;
+import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DevicePointBindingService;
 import com.example.platform.service.DeviceService;
@@ -43,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -70,6 +73,8 @@ class MetricSampleServiceImplTest {
     @Mock
     private DeviceService deviceService;
     @Mock
+    private DataScopeService dataScopeService;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -83,6 +88,18 @@ class MetricSampleServiceImplTest {
     void setUp() throws Exception {
         initBaseMapper();
         initLambdaCache();
+        lenient().when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
+                .thenReturn(writableContext());
+    }
+
+    private DataScopeContext writableContext() {
+        return DataScopeContext.builder()
+                .userId(CURRENT_USER_ID)
+                .role("ORG_ADMIN")
+                .scopeType("ORG_ALL")
+                .organizationIds(java.util.Set.of(1L))
+                .cloudRoomIds(java.util.Set.of())
+                .build();
     }
 
     private void initBaseMapper() throws Exception {

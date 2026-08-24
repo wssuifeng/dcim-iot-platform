@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.example.platform.entity.DataScopeAssignment;
+import com.example.platform.entity.OrganizationMembership;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.DataScopeAssignmentMapper;
+import com.example.platform.mapper.OrganizationMembershipMapper;
 import com.example.platform.service.SysUserService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,8 @@ class AlarmRecipientResolverImplTest {
 
     @Mock
     private DataScopeAssignmentMapper dataScopeAssignmentMapper;
+    @Mock
+    private OrganizationMembershipMapper membershipMapper;
     @Mock
     private SysUserService sysUserService;
 
@@ -68,6 +72,11 @@ class AlarmRecipientResolverImplTest {
                 assignment(7L, 999L, CLOUD_ROOM_ID, "ROOMS"),
                 assignment(8L, ORGANIZATION_ID, 999L, "ROOMS")
         ));
+        when(membershipMapper.selectActiveByOrganization(ORGANIZATION_ID))
+                .thenReturn(List.of(
+                        activeMembership(1L), activeMembership(2L), activeMembership(3L),
+                        activeMembership(4L), activeMembership(5L), activeMembership(6L),
+                        activeMembership(8L)));
         when(sysUserService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(
                 user(1L, "ORG_ADMIN", 0),
                 user(2L, "OPERATOR", 0),
@@ -101,6 +110,15 @@ class AlarmRecipientResolverImplTest {
         assignment.setCloudRoomId(cloudRoomId);
         assignment.setScopeType(scopeType);
         return assignment;
+    }
+
+    private OrganizationMembership activeMembership(Long userId) {
+        OrganizationMembership membership = new OrganizationMembership();
+        membership.setUserId(userId);
+        membership.setOrganizationId(ORGANIZATION_ID);
+        membership.setMembershipRole("VIEWER");
+        membership.setStatus("ACTIVE");
+        return membership;
     }
 
     private SysUser user(Long id, String role, Integer status) {

@@ -30,4 +30,10 @@ class SecurityConfigRoleContractTest {
                         PlatformRole.OPERATOR,
                         PlatformRole.VIEWER);
     }
+
+    @Test
+    void deviceTypeWriteRolesArePlatformAdminOnly() {
+        assertThat(SecurityConfig.DEVICE_TYPE_WRITE_ROLES)
+                .containsExactly(PlatformRole.PLATFORM_ADMIN);
+    }
 }
