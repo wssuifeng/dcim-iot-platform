@@ -14,11 +14,9 @@ import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
-import com.example.platform.entity.Organization;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.security.CurrentUser;
 import com.example.platform.security.CurrentUserContext;
-import com.example.platform.service.OrganizationService;
 import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
@@ -51,18 +49,15 @@ public class DeviceController {
     private final DeviceService deviceService;
     private final DeviceTypeService deviceTypeService;
     private final CurrentUserContext currentUserContext;
-    private final OrganizationService organizationService;
     private final CloudRoomService cloudRoomService;
 
     public DeviceController(DeviceService deviceService,
                             DeviceTypeService deviceTypeService,
                             CurrentUserContext currentUserContext,
-                            OrganizationService organizationService,
                             CloudRoomService cloudRoomService) {
         this.deviceService = deviceService;
         this.deviceTypeService = deviceTypeService;
         this.currentUserContext = currentUserContext;
-        this.organizationService = organizationService;
         this.cloudRoomService = cloudRoomService;
     }
 
@@ -156,7 +151,7 @@ public class DeviceController {
             @ApiResponse(responseCode = "400", description = "文件为空(4061)/格式错误(4062)/超过500条(4063)")
     })
     @PostMapping("/import")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "IMPORT_DEVICE", detail = "批量导入设备")
     public Result<DeviceImportResult> importDevices(
             @Parameter(description = "Excel 文件", required = true) @RequestParam("file") MultipartFile file) {
@@ -180,7 +175,7 @@ public class DeviceController {
             @ApiResponse(responseCode = "403", description = "VIEWER 角色无权导出")
     })
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
     @AuditLog(operation = "EXPORT_DEVICE", detail = "导出设备列表")
     public void exportDevices(
             @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
@@ -200,9 +195,7 @@ public class DeviceController {
             row.setDeviceName(d.getDeviceName());
             row.setDeviceCode(d.getDeviceCode());
             row.setTypeName(typeNameMap.getOrDefault(d.getTypeId(), ""));
-            Organization organization = organizationService.getById(d.getOrganizationId());
             CloudRoom room = cloudRoomService.getById(d.getCloudRoomId());
-            row.setOrganizationCode(organization != null ? organization.getOrgCode() : "");
             row.setCloudRoomCode(room != null ? room.getRoomCode() : "");
             row.setStatusText(statusText(d.getStatus()));
             row.setLocation(d.getLocation());

@@ -23,12 +23,12 @@ import java.util.List;
  *
  * <p>权限边界：
  * <ul>
- *   <li>ORG_ADMIN 可写（按 Service 层 ensureDeviceAccess 校验范围）</li>
+ *   <li>ADMIN 可写（按 Service 层 ensureDeviceAccess 校验范围）</li>
  *   <li>已认证用户可读（按授权设备范围过滤）</li>
  *   <li>模板初始化端点用于设备创建后批量拷贝默认点位</li>
  * </ul>
  */
-@Tag(name = "设备点位绑定", description = "设备实际点位启用集合管理（ORG_ADMIN 写，已认证按范围读）")
+@Tag(name = "设备点位绑定", description = "设备实际点位启用集合管理（ADMIN 写，已认证按范围读）")
 @RestController
 @RequestMapping("/device-points")
 @Validated
@@ -64,18 +64,18 @@ public class DevicePointBindingController {
                 user.userId(), current, size, deviceId, pointId, status));
     }
 
-    @Operation(summary = "为设备绑定点位", description = "ORG_ADMIN 专用；服务层校验设备归属")
+    @Operation(summary = "为设备绑定点位", description = "ADMIN 专用；服务层校验设备归属")
     @PostMapping
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "BIND_DEVICE_POINT", detail = "设备ID:#dto.deviceId, 点位ID:#dto.pointId")
     public Result<DevicePointBinding> bind(@Valid @RequestBody DevicePointBindingDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(devicePointBindingService.bindPoint(dto, user.userId()));
     }
 
-    @Operation(summary = "更新绑定状态", description = "ORG_ADMIN 专用；status：0-启用 1-停用")
+    @Operation(summary = "更新绑定状态", description = "ADMIN 专用；status：0-启用 1-停用")
     @PutMapping("/{bindingId}/status")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "UPDATE_BINDING_STATUS", detail = "绑定ID:#bindingId, 状态:#status")
     public Result<DevicePointBinding> updateStatus(
             @Parameter(description = "绑定ID", required = true) @PathVariable Long bindingId,
@@ -84,9 +84,9 @@ public class DevicePointBindingController {
         return Result.success(devicePointBindingService.updateStatus(bindingId, status, user.userId()));
     }
 
-    @Operation(summary = "移除设备点位绑定", description = "ORG_ADMIN 专用")
+    @Operation(summary = "移除设备点位绑定", description = "ADMIN 专用")
     @DeleteMapping("/{bindingId}")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "UNBIND_DEVICE_POINT", detail = "绑定ID:#bindingId")
     public Result<Void> unbind(
             @Parameter(description = "绑定ID", required = true) @PathVariable Long bindingId) {
@@ -95,9 +95,9 @@ public class DevicePointBindingController {
         return Result.success();
     }
 
-    @Operation(summary = "按类型模板初始化设备点位", description = "ORG_ADMIN 专用；又如默认点位尚未绑定，则按 type_id 模板批量插入新绑定")
+    @Operation(summary = "按类型模板初始化设备点位", description = "ADMIN 专用；又如默认点位尚未绑定，则按 type_id 模板批量插入新绑定")
     @PostMapping("/device/{deviceId}/init-from-template/{typeId}")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "INIT_DEVICE_POINTS_FROM_TEMPLATE", detail = "设备ID:#deviceId, 类型ID:#typeId")
     public Result<List<DevicePointBinding>> initFromTemplate(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId,

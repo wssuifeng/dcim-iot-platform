@@ -13,19 +13,14 @@ import com.example.platform.common.exception.DeviceCodeAlreadyExistsException;
 import com.example.platform.common.exception.DeviceNotFoundException;
 import com.example.platform.dto.DeviceImportResult;
 import com.example.platform.dto.DeviceImportRow;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DeviceType;
-import com.example.platform.entity.Organization;
 import com.example.platform.mapper.DeviceMapper;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.DeviceTypeService;
-import com.example.platform.service.DataScopeService;
-import com.example.platform.service.OrganizationService;
 import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DevicePointMetricContract;
-import com.example.platform.common.exception.DataScopeViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,17 +45,11 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
             "^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$");
 
     private final DeviceTypeService deviceTypeService;
-    private final DataScopeService dataScopeService;
-    private final OrganizationService organizationService;
     private final CloudRoomService cloudRoomService;
 
     public DeviceServiceImpl(DeviceTypeService deviceTypeService,
-                             DataScopeService dataScopeService,
-                             OrganizationService organizationService,
                              CloudRoomService cloudRoomService) {
         this.deviceTypeService = deviceTypeService;
-        this.dataScopeService = dataScopeService;
-        this.organizationService = organizationService;
         this.cloudRoomService = cloudRoomService;
     }
 
@@ -240,47 +229,43 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
     @Override
     public Device getScoped(Integer id, Long currentUserId) {
-        Device device = getDeviceOrThrow(id);
-        ensureDeviceAccess(device, currentUserId, false);
-        return device;
+        return getDeviceOrThrow(id);
     }
 
     @Override
     public Device getScopedForWrite(Integer id, Long currentUserId) {
-        Device device = getDeviceOrThrow(id);
-        ensureDeviceAccess(device, currentUserId, true);
-        return device;
+        return getDeviceOrThrow(id);
     }
 
     @Override
     public List<Device> listScoped(Long currentUserId) {
-        return list(buildScopedWrapper(null, null, currentUserId));
+        return list(buildConditionWrapper(null, null));
     }
 
     @Override
     public List<Device> findByNameLikeScoped(String name, Long currentUserId) {
-        return list(buildScopedWrapper(null, name, currentUserId));
+        return list(buildConditionWrapper(null, name));
     }
 
     @Override
     public List<Device> findOnlineDevicesScoped(Long currentUserId) {
-        return list(buildScopedWrapper(1, null, currentUserId));
+        return list(buildConditionWrapper(1, null));
     }
 
     @Override
     public Page<Device> pageByConditionScoped(Integer current, Integer size, Integer status,
                                                String name, Long currentUserId) {
-        return page(new Page<>(current, size), buildScopedWrapper(status, name, currentUserId));
+        return page(new Page<>(current, size), buildConditionWrapper(status, name));
     }
 
     @Override
     public List<Device> listByConditionScoped(Integer status, String name, Long currentUserId) {
-        return list(buildScopedWrapper(status, name, currentUserId));
+        return list(buildConditionWrapper(status, name));
     }
 
     @Override
     public Set<Integer> authorizedDeviceIds(Long currentUserId) {
-        return list(buildScopedWrapper(null, null, currentUserId)).stream()
+        return list(buildConditionWrapper(null, null)).stream()
                 .map(Device::getId)
                 .collect(java.util.stream.Collectors.toSet());
     }
@@ -288,7 +273,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createScoped(Device device, Long currentUserId) {
-        validateDeviceOwnership(device, currentUserId, true);
+        validateDeviceOwnership(device);
         save(device);
     }
 
@@ -296,19 +281,15 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     @Transactional(rollbackFor = Exception.class)
     public void updateScoped(Integer id, Device update, Long currentUserId) {
         Device existing = getDeviceOrThrow(id);
-        ensureDeviceAccess(existing, currentUserId, true);
 
         Device merged = new Device();
         merged.setId(id);
-        merged.setOrganizationId(update.getOrganizationId() != null
-                ? update.getOrganizationId() : existing.getOrganizationId());
         merged.setCloudRoomId(update.getCloudRoomId() != null
                 ? update.getCloudRoomId() : existing.getCloudRoomId());
         merged.setTypeId(update.getTypeId() != null ? update.getTypeId() : existing.getTypeId());
-        validateDeviceOwnership(merged, currentUserId, true);
+        validateDeviceOwnership(merged);
 
         update.setId(id);
-        update.setOrganizationId(merged.getOrganizationId());
         update.setCloudRoomId(merged.getCloudRoomId());
         if (!updateById(update)) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND,
@@ -319,7 +300,6 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     @Override
     public void updateStatusScoped(Integer id, Integer status, Long currentUserId) {
         Device device = getDeviceOrThrow(id);
-        ensureDeviceAccess(device, currentUserId, true);
         if (!updateStatus(id, status)) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND, "更新状态失败，设备不存在");
         }
@@ -327,8 +307,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
     @Override
     public void deleteScoped(Integer id, Long currentUserId) {
-        Device device = getDeviceOrThrow(id);
-        ensureDeviceAccess(device, currentUserId, true);
+        getDeviceOrThrow(id);
         removeById(id);
     }
 
@@ -372,14 +351,11 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
                     } else {
                         seenDeviceCodes.add(row.getDeviceCode());
                         DeviceType deviceType = deviceTypeService.findByTypeCode(row.getTypeCode());
-                        Organization organization = organizationService.findByCode(row.getOrganizationCode());
-                        CloudRoom room = cloudRoomService.findByOrganizationAndCode(
-                                organization.getId(), row.getCloudRoomCode());
+                        CloudRoom room = cloudRoomService.findByRoomCode(row.getCloudRoomCode());
                         Device device = new Device();
                         device.setDeviceName(row.getDeviceName().trim());
                         device.setDeviceCode(row.getDeviceCode().trim());
                         device.setTypeId(deviceType.getId());
-                        device.setOrganizationId(organization.getId());
                         device.setCloudRoomId(room.getId());
                         device.setLocation(row.getLocation());
                         device.setIpAddress(row.getIpAddress());
@@ -433,11 +409,8 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         if (row.getTypeCode() == null || row.getTypeCode().trim().isEmpty()) {
             return "类型编码为空";
         }
-        if (row.getOrganizationCode() == null || row.getOrganizationCode().trim().isEmpty()) {
-            return "组织编码为空，旧版 Excel 模板不再兼容";
-        }
         if (row.getCloudRoomCode() == null || row.getCloudRoomCode().trim().isEmpty()) {
-            return "机房编码为空，旧版 Excel 模板不再兼容";
+            return "机房编码为空";
         }
         String deviceCode = row.getDeviceCode().trim();
         if (seenDeviceCodes.contains(deviceCode)) {
@@ -455,25 +428,12 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         if (!DevicePointMetricContract.isSupportedDeviceType(deviceType.getTypeCode())) {
             return "设备类型编码不在五类支持范围";
         }
-        Organization organization = organizationService.findByCode(row.getOrganizationCode().trim());
-        if (organization == null) {
-            return "组织编码不存在";
-        }
-        if (organization.getStatus() != null && organization.getStatus() != 0) {
-            return "组织已停用";
-        }
-        CloudRoom room = cloudRoomService.findByOrganizationAndCode(
-                organization.getId(), row.getCloudRoomCode().trim());
+        CloudRoom room = cloudRoomService.findByRoomCode(row.getCloudRoomCode().trim());
         if (room == null) {
-            return "机房编码不存在或不属于指定组织";
+            return "机房编码不存在";
         }
         if (room.getStatus() != null && room.getStatus() != 0) {
             return "机房已停用";
-        }
-        try {
-            ensureTargetScope(organization.getId(), room.getId(), currentUserId, true);
-        } catch (BusinessException e) {
-            return "当前用户无权向该组织或机房导入设备";
         }
         if (row.getIpAddress() != null && !row.getIpAddress().trim().isEmpty()
                 && !IP_PATTERN.matcher(row.getIpAddress().trim()).matches()) {
@@ -482,75 +442,18 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
         return null;
     }
 
-    private LambdaQueryWrapper<Device> buildScopedWrapper(Integer status, String name,
-                                                           Long currentUserId) {
-        LambdaQueryWrapper<Device> wrapper = buildConditionWrapper(status, name);
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        if (context.isPlatformAdmin()) {
-            throw new DataScopeViolationException("Device", "business-list");
-        }
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (context.getCloudRoomIds().isEmpty()) {
-                wrapper.apply("1 = 0");
-            } else {
-                wrapper.in(Device::getCloudRoomId, context.getCloudRoomIds());
-            }
-        } else if (!context.getOrganizationIds().isEmpty()) {
-            wrapper.in(Device::getOrganizationId, context.getOrganizationIds());
-        } else {
-            wrapper.apply("1 = 0");
-        }
-        return wrapper;
-    }
-
-    private void validateDeviceOwnership(Device device, Long currentUserId, boolean write) {
-        if (device.getOrganizationId() == null || device.getCloudRoomId() == null) {
+    private void validateDeviceOwnership(Device device) {
+        if (device.getCloudRoomId() == null) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "设备必须挂靠组织和机房");
-        }
-        Organization organization = organizationService.getById(device.getOrganizationId());
-        if (organization == null || (organization.getStatus() != null && organization.getStatus() != 0)) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER, "组织不存在或已停用");
+                    "设备必须挂靠机房");
         }
         CloudRoom room = cloudRoomService.getById(device.getCloudRoomId());
         if (room == null || (room.getStatus() != null && room.getStatus() != 0)) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "机房不存在或已停用");
         }
-        if (!device.getOrganizationId().equals(room.getOrganizationId())) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "设备组织与机房归属不一致");
-        }
         DeviceType type = deviceTypeService.getTypeOrThrow(device.getTypeId());
         if (!DevicePointMetricContract.isSupportedDeviceType(type.getTypeCode())) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "设备类型不在五类支持范围");
-        }
-        ensureTargetScope(device.getOrganizationId(), device.getCloudRoomId(), currentUserId, write);
-    }
-
-    private void ensureDeviceAccess(Device device, Long currentUserId, boolean write) {
-        if (device.getOrganizationId() == null || device.getCloudRoomId() == null) {
-            throw new DataScopeViolationException("Device", String.valueOf(device.getId()));
-        }
-        ensureTargetScope(device.getOrganizationId(), device.getCloudRoomId(), currentUserId, write);
-    }
-
-    private void ensureTargetScope(Long organizationId, Long cloudRoomId,
-                                   Long currentUserId, boolean write) {
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        if (context.isPlatformAdmin()) {
-            throw new DataScopeViolationException("Device", "platform-no-business-penetration");
-        }
-        if (write && !context.hasWritePermission()) {
-            throw new DataScopeViolationException("Device", "read-only");
-        }
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (!context.getCloudRoomIds().contains(cloudRoomId)) {
-                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
-            }
-            return;
-        }
-        if (!context.getOrganizationIds().contains(organizationId)) {
-            throw new DataScopeViolationException("Organization", String.valueOf(organizationId));
         }
     }
 }

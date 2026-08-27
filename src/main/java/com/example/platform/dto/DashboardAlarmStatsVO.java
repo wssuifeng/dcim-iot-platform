@@ -8,15 +8,12 @@ import java.util.Map;
 
 /**
  * 告警看板聚合统计 VO
- *
- * <p>所有聚合字段必须经过服务层范围校验，不跨组织或机房泄露。</p>
  */
 @Schema(description = "告警看板聚合统计")
 @Data
 public class DashboardAlarmStatsVO {
 
-    @Schema(description = "当前授权范围说明（用于前端标识聚合范围）",
-            example = "ORG_ALL: 组织1")
+    @Schema(description = "当前授权范围说明（用于前端标识聚合范围）", example = "PLATFORM: 全量")
     private String scopeDescription;
 
     @Schema(description = "按状态分布统计")

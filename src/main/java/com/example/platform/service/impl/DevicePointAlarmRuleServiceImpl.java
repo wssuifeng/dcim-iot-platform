@@ -5,9 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.PointAlarmRuleCreateDTO;
 import com.example.platform.dto.PointAlarmRuleUpdateDTO;
 import com.example.platform.dto.PointAlarmRuleVO;
@@ -17,7 +15,6 @@ import com.example.platform.entity.DeviceTypePointTemplate;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.mapper.DevicePointAlarmRuleMapper;
 import com.example.platform.mapper.DeviceTypePointTemplateMapper;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DevicePointAlarmRuleService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DeviceService;
@@ -41,13 +38,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /*
- * 类功能:点位告警规则服务实现类，规则CRUD与三级降级解析
+ * 类功能:点位告警规则服务实现类，规则CRUD与降级解析
  *
- * 【三级降级（D18 按点位替换式）】
- *   1. 解析设备生效模板：组织级模板（organization_id=设备组织）存在则用之，否则降级平台级（organization_id=0）
+ * 【两级降级（按点位替换式）】
+ *   1. 解析设备生效模板
  *   2. 收集规则：生效模板项上的模板级规则（device_id IS NULL）+ 该设备的覆盖规则（device_id=设备ID）
  *   3. 按 pointId 分组替换：组内存在设备级规则→整组取设备级；否则取模板级
- *   4. source 标记：DEVICE_OVERRIDE / ORG_TEMPLATE / PLATFORM_TEMPLATE（按规则所属模板项组织判定）
+ *   4. source 标记：DEVICE_OVERRIDE / TEMPLATE
  * */
 @Slf4j
 @Service
@@ -56,7 +53,6 @@ public class DevicePointAlarmRuleServiceImpl
         extends ServiceImpl<DevicePointAlarmRuleMapper, DevicePointAlarmRule>
         implements DevicePointAlarmRuleService {
 
-    private static final long PLATFORM_ORG = 0L;
     private static final int ENABLED_ON = 1;
     private static final int ENABLED_OFF = 0;
     private static final BigDecimal OFFLINE_MIN_MINUTES = BigDecimal.ONE;
@@ -65,7 +61,6 @@ public class DevicePointAlarmRuleServiceImpl
     private final DeviceTypePointTemplateMapper templateMapper;
     private final DeviceService deviceService;
     private final DeviceScopeHelper deviceScopeHelper;
-    private final DataScopeService dataScopeService;
     private final PointDefinitionService pointDefinitionService;
 
     @Override
@@ -73,20 +68,10 @@ public class DevicePointAlarmRuleServiceImpl
                                             Integer typeId, Integer deviceId, Long pointId,
                                             String ruleType, Integer enabled) {
         int[] params = PaginationUtils.validate(current, size);
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
 
         LambdaQueryWrapper<DevicePointAlarmRule> wrapper = new LambdaQueryWrapper<>();
-        if (!context.isPlatformAdmin()) {
-            if (context.getOrganizationIds().isEmpty()) {
-                Page<PointAlarmRuleVO> empty = new Page<>(params[0], params[1]);
-                empty.setRecords(new ArrayList<>());
-                empty.setTotal(0);
-                return empty;
-            }
-            wrapper.in(DevicePointAlarmRule::getOrganizationId, context.getOrganizationIds());
-        }
         if (typeId != null) {
-            List<Long> itemIds = listTemplateItemIdsByType(typeId, null);
+            List<Long> itemIds = listTemplateItemIdsByType(typeId);
             if (itemIds.isEmpty()) {
                 Page<PointAlarmRuleVO> empty = new Page<>(params[0], params[1]);
                 empty.setRecords(new ArrayList<>());
@@ -99,17 +84,6 @@ public class DevicePointAlarmRuleServiceImpl
             deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
             wrapper.and(w -> w.eq(DevicePointAlarmRule::getDeviceId, deviceId)
                     .or().isNull(DevicePointAlarmRule::getDeviceId));
-        } else if ("ROOMS".equals(context.getScopeType())) {
-            Set<Integer> deviceIds = deviceService.listScoped(currentUserId).stream()
-                    .map(Device::getId).collect(Collectors.toSet());
-            if (deviceIds.isEmpty()) {
-                Page<PointAlarmRuleVO> empty = new Page<>(params[0], params[1]);
-                empty.setRecords(new ArrayList<>());
-                empty.setTotal(0);
-                return empty;
-            }
-            wrapper.and(w -> w.isNull(DevicePointAlarmRule::getDeviceId)
-                    .or().in(DevicePointAlarmRule::getDeviceId, deviceIds));
         }
         if (pointId != null) {
             wrapper.eq(DevicePointAlarmRule::getPointId, pointId);
@@ -218,9 +192,8 @@ public class DevicePointAlarmRuleServiceImpl
         if (device == null) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND, "设备不存在: " + deviceId);
         }
-        // 1. 解析生效模板（组织级优先降级平台级，模板粒度=organization_id+type_id 整体）
-        Long deviceOrg = device.getOrganizationId() != null ? device.getOrganizationId() : PLATFORM_ORG;
-        List<DeviceTypePointTemplate> effectiveItems = resolveEffectiveTemplateItems(device.getTypeId(), deviceOrg);
+        // 1. 解析生效模板
+        List<DeviceTypePointTemplate> effectiveItems = resolveEffectiveTemplateItems(device.getTypeId());
         if (effectiveItems.isEmpty()) {
             return new ArrayList<>();
         }
@@ -287,27 +260,19 @@ public class DevicePointAlarmRuleServiceImpl
 
     // ===================== 内部辅助 =====================
 
-    private List<DeviceTypePointTemplate> resolveEffectiveTemplateItems(Integer typeId, Long deviceOrg) {
-        LambdaQueryWrapper<DeviceTypePointTemplate> orgWrapper = new LambdaQueryWrapper<>();
-        orgWrapper.eq(DeviceTypePointTemplate::getTypeId, typeId)
-                .eq(DeviceTypePointTemplate::getOrganizationId, deviceOrg);
-        List<DeviceTypePointTemplate> orgItems = templateMapper.selectList(orgWrapper);
-        if (!orgItems.isEmpty()) {
-            return orgItems;
-        }
-        LambdaQueryWrapper<DeviceTypePointTemplate> platformWrapper = new LambdaQueryWrapper<>();
-        platformWrapper.eq(DeviceTypePointTemplate::getTypeId, typeId)
-                .eq(DeviceTypePointTemplate::getOrganizationId, PLATFORM_ORG);
-        return templateMapper.selectList(platformWrapper);
+    private List<DeviceTypePointTemplate> resolveEffectiveTemplateItems(Integer typeId) {
+        LambdaQueryWrapper<DeviceTypePointTemplate> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceTypePointTemplate::getTypeId, typeId);
+        return templateMapper.selectList(wrapper);
     }
 
     private String resolveTemplateSource(DevicePointAlarmRule rule,
                                          Map<Long, DeviceTypePointTemplate> itemById) {
         DeviceTypePointTemplate item = itemById.get(rule.getTemplateItemId());
-        if (item == null || item.getOrganizationId() == null || item.getOrganizationId() == PLATFORM_ORG) {
-            return PointAlarmRuleVO.SOURCE_PLATFORM_TEMPLATE;
+        if (item == null) {
+            return PointAlarmRuleVO.SOURCE_TEMPLATE;
         }
-        return PointAlarmRuleVO.SOURCE_ORG_TEMPLATE;
+        return PointAlarmRuleVO.SOURCE_TEMPLATE;
     }
 
     private DevicePointAlarmRule getRuleOrThrow(Long id) {
@@ -319,53 +284,12 @@ public class DevicePointAlarmRuleServiceImpl
     }
 
     private void ensureRuleAccess(DevicePointAlarmRule rule, Long currentUserId) {
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        if (context.isPlatformAdmin()) {
-            // 平台级资源可管理；组织级规则平台管理员只读观测（写操作拒绝，D26）
-            if (rule.getOrganizationId() != null && rule.getOrganizationId() != PLATFORM_ORG) {
-                throw new BusinessException(ResultCode.FORBIDDEN,
-                        "平台管理员不可修改组织级资源（D26）: 规则组织=" + rule.getOrganizationId());
-            }
-            return;
-        }
-        if (!context.hasWritePermission()) {
-            throw new DataScopeViolationException("DevicePointAlarmRule", "read-only-scope");
-        }
-        if (rule.getOrganizationId() == null
-                || !context.getOrganizationIds().contains(rule.getOrganizationId())) {
-            throw new DataScopeViolationException("DevicePointAlarmRule", String.valueOf(rule.getId()));
-        }
-        // ROOMS 范围必须校验关联设备是否在授权机房内
-        if ("ROOMS".equals(context.getScopeType()) && rule.getDeviceId() != null) {
+        if (rule.getDeviceId() != null) {
             deviceScopeHelper.ensureDeviceAccess(rule.getDeviceId(), currentUserId);
         }
     }
 
     private void validateRuleOwnership(DeviceTypePointTemplate item, Integer deviceId, Long currentUserId) {
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        Long itemOrg = item.getOrganizationId() != null ? item.getOrganizationId() : PLATFORM_ORG;
-        if (itemOrg == PLATFORM_ORG) {
-            // 平台级模板上的规则=平台级资源，仅平台管理员可创建（4030）
-            if (!context.isPlatformAdmin()) {
-                throw new BusinessException(ResultCode.FORBIDDEN,
-                        "平台级模板仅平台管理员可挂载告警规则");
-            }
-            if (deviceId != null) {
-                // 平台级模板上的设备覆盖规则归属设备组织，要求设备范围授权
-                deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
-            }
-            return;
-        }
-        // 组织级模板：创建者须为该组织成员范围
-        if (!context.isPlatformAdmin()
-                && !context.getOrganizationIds().contains(itemOrg)) {
-            throw new DataScopeViolationException("DeviceTypePointTemplate", String.valueOf(item.getId()));
-        }
-        if (context.isPlatformAdmin()) {
-            throw new BusinessException(ResultCode.FORBIDDEN,
-                    "平台管理员不可创建组织级资源（D26）: 模板组织=" + itemOrg);
-        }
-        // 组织级模板上的设备覆盖规则必须通过设备范围校验
         if (deviceId != null) {
             deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
         }
@@ -384,7 +308,6 @@ public class DevicePointAlarmRuleServiceImpl
         rule.setRemark(dto.getRemark());
         // METRIC 规则点位一律取模板指标项点位；通用规则（OFFLINE/COMM）点位为空
         rule.setPointId("METRIC".equals(rule.getRuleType()) ? item.getPointId() : null);
-        // 组织归属：设备覆盖规则=设备所属组织；模板级规则=模板项组织
         if (dto.getDeviceId() != null) {
             Device device = deviceService.getById(dto.getDeviceId());
             if (device == null) {
@@ -394,9 +317,6 @@ public class DevicePointAlarmRuleServiceImpl
                 throw new BusinessException(ResultCode.ALARM_RULE_INVALID,
                         "设备覆盖规则的设备必须属于模板对应设备类型");
             }
-            rule.setOrganizationId(device.getOrganizationId() != null ? device.getOrganizationId() : PLATFORM_ORG);
-        } else {
-            rule.setOrganizationId(item.getOrganizationId() != null ? item.getOrganizationId() : PLATFORM_ORG);
         }
         return rule;
     }
@@ -459,12 +379,9 @@ public class DevicePointAlarmRuleServiceImpl
         }
     }
 
-    private List<Long> listTemplateItemIdsByType(Integer typeId, Long organizationId) {
+    private List<Long> listTemplateItemIdsByType(Integer typeId) {
         LambdaQueryWrapper<DeviceTypePointTemplate> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceTypePointTemplate::getTypeId, typeId);
-        if (organizationId != null) {
-            wrapper.eq(DeviceTypePointTemplate::getOrganizationId, organizationId);
-        }
         return templateMapper.selectList(wrapper).stream()
                 .map(DeviceTypePointTemplate::getId)
                 .collect(Collectors.toList());

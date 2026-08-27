@@ -26,12 +26,12 @@ import java.util.List;
  *
  * <p>权限边界：
  * <ul>
- *   <li>创建/更新/删除/启停/步骤写入：ORG_ADMIN（Service 内 ensureSceneScope 范围校验）</li>
- *   <li>查询：ORG_ADMIN/OPERATOR/VIEWER（按授权组织范围过滤）</li>
+ *   <li>创建/更新/删除/启停/步骤写入：ADMIN</li>
+ *   <li>查询：ADMIN/OPERATOR/VIEWER</li>
  * </ul>
- * 安全边界由 Service 层统一校验，前端显隐仅用于交互。
+ * 安全边界由控制器 RBAC 统一保证，前端显隐仅用于交互。
  */
-@Tag(name = "模拟场景", description = "模拟场景定义与步骤管理（ORG_ADMIN 写，已认证按范围读）")
+@Tag(name = "模拟场景", description = "模拟场景定义与步骤管理（ADMIN 写，已认证读）")
 @RestController
 @RequestMapping("/simulation/scenes")
 @Validated
@@ -46,18 +46,18 @@ public class SimulationSceneController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "创建模拟场景", description = "ORG_ADMIN；可同时携带步骤列表")
+    @Operation(summary = "创建模拟场景", description = "ADMIN；可同时携带步骤列表")
     @PostMapping
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "CREATE_SIMULATION_SCENE", detail = "sceneCode:#dto.sceneCode")
     public Result<SimulationSceneVO> create(@Valid @RequestBody SimulationSceneCreateDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(simulationSceneService.createScene(dto, user.userId()));
     }
 
-    @Operation(summary = "更新模拟场景", description = "ORG_ADMIN；sceneCode 和 organizationId 不可变")
+    @Operation(summary = "更新模拟场景", description = "ADMIN；sceneCode 不可变")
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "UPDATE_SIMULATION_SCENE", detail = "sceneId:#id")
     public Result<SimulationSceneVO> update(@Parameter(description = "场景ID", required = true)
                                             @PathVariable Long id,
@@ -66,9 +66,9 @@ public class SimulationSceneController {
         return Result.success(simulationSceneService.updateScene(id, dto, user.userId()));
     }
 
-    @Operation(summary = "删除模拟场景", description = "ORG_ADMIN；级联逻辑删除步骤")
+    @Operation(summary = "删除模拟场景", description = "ADMIN；级联逻辑删除步骤")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "DELETE_SIMULATION_SCENE", detail = "sceneId:#id")
     public Result<Void> delete(@Parameter(description = "场景ID", required = true)
                                 @PathVariable Long id) {
@@ -77,33 +77,32 @@ public class SimulationSceneController {
         return Result.success();
     }
 
-    @Operation(summary = "查询场景详情（含步骤列表）", description = "BUSINESS_READ；按授权组织范围过滤")
+    @Operation(summary = "查询场景详情（含步骤列表）", description = "BUSINESS_READ")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<SimulationSceneVO> detail(@Parameter(description = "场景ID", required = true)
                                              @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(simulationSceneService.getSceneDetail(id, user.userId()));
     }
 
-    @Operation(summary = "分页查询模拟场景", description = "BUSINESS_READ；按授权组织范围过滤")
+    @Operation(summary = "分页查询模拟场景", description = "BUSINESS_READ")
     @GetMapping("/page")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<Page<SimulationSceneVO>> page(
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
-            @Parameter(description = "组织ID（可选）") @RequestParam(required = false) Long organizationId,
             @Parameter(description = "机房ID（可选）") @RequestParam(required = false) Long cloudRoomId,
             @Parameter(description = "状态：0-启用 1-停用") @RequestParam(required = false) Integer status,
             @Parameter(description = "关键字（场景编码或名称）") @RequestParam(required = false) String keyword) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(simulationSceneService.pageScenes(
-                user.userId(), current, size, organizationId, cloudRoomId, status, keyword));
+                user.userId(), current, size, cloudRoomId, status, keyword));
     }
 
-    @Operation(summary = "启停模拟场景", description = "ORG_ADMIN；状态 0-启用 1-停用")
+    @Operation(summary = "启停模拟场景", description = "ADMIN；状态 0-启用 1-停用")
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "SET_SIMULATION_SCENE_STATUS", detail = "sceneId:#id, status:#status")
     public Result<SimulationSceneVO> setStatus(@Parameter(description = "场景ID", required = true)
                                                @PathVariable Long id,
@@ -113,9 +112,9 @@ public class SimulationSceneController {
         return Result.success(simulationSceneService.setSceneStatus(id, status, user.userId()));
     }
 
-    @Operation(summary = "添加场景步骤", description = "ORG_ADMIN；步骤顺序 stepOrder 不可与其他步骤重复")
+    @Operation(summary = "添加场景步骤", description = "ADMIN；步骤顺序 stepOrder 不可与其他步骤重复")
     @PostMapping("/{id}/steps")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "ADD_SIMULATION_SCENE_STEP", detail = "sceneId:#id")
     public Result<SimulationSceneStep> addStep(@Parameter(description = "场景ID", required = true)
                                                @PathVariable Long id,
@@ -124,18 +123,18 @@ public class SimulationSceneController {
         return Result.success(simulationSceneService.addStep(id, dto, user.userId()));
     }
 
-    @Operation(summary = "查询场景步骤列表", description = "BUSINESS_READ；按场景范围过滤")
+    @Operation(summary = "查询场景步骤列表", description = "BUSINESS_READ")
     @GetMapping("/{id}/steps")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR','VIEWER')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<List<SimulationSceneStep>> listSteps(@Parameter(description = "场景ID", required = true)
                                                        @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(simulationSceneService.listSteps(id, user.userId()));
     }
 
-    @Operation(summary = "删除场景步骤", description = "ORG_ADMIN")
+    @Operation(summary = "删除场景步骤", description = "ADMIN")
     @DeleteMapping("/steps/{stepId}")
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "DELETE_SIMULATION_SCENE_STEP", detail = "stepId:#stepId")
     public Result<Void> deleteStep(@Parameter(description = "步骤ID", required = true)
                                    @PathVariable Long stepId) {

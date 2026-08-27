@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 指标采样写入请求 DTO（ORG_ADMIN/OPERATOR 单条写入）
+ * 指标采样写入请求 DTO（ADMIN/OPERATOR 单条写入）
  */
 @Schema(description = "指标采样写入请求")
 @Data

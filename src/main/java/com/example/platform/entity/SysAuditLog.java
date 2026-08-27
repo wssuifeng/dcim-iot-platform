@@ -29,15 +29,11 @@ public class SysAuditLog implements Serializable {
     @Schema(description = "操作人账号", example = "admin")
     private String username;
 
-    @Schema(description = "操作人角色（结构化字段，产品化新增）", example = "ORG_ADMIN")
+    @Schema(description = "操作人角色", example = "ADMIN")
     @TableField("role")
     private String role;
 
-    @Schema(description = "操作人所属组织ID（结构化字段，产品化新增）", example = "1")
-    @TableField("organization_id")
-    private Long organizationId;
-
-    @Schema(description = "操作人所属机房ID（结构化字段，产品化新增）", example = "1")
+    @Schema(description = "操作人所属机房ID", example = "1")
     @TableField("cloud_room_id")
     private Long cloudRoomId;
 

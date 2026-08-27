@@ -29,10 +29,10 @@ import java.util.List;
 /**
  * 指标采样历史接口层
  *
- * <p>权限边界：ORG_ADMIN/OPERATOR 可写；任何已认证用户可读；
+ * <p>权限边界：ADMIN/OPERATOR 可写；任何已认证用户可读；
  * 写入与查询均必须指定 deviceId，由 Service 层按授权设备范围校验。</p>
  */
-@Tag(name = "指标采样历史", description = "设备点位历史采样写入与查询（ORG_ADMIN/OPERATOR 写，已认证按范围读）")
+@Tag(name = "指标采样历史", description = "设备点位历史采样写入与查询（ADMIN/OPERATOR 写，已认证按范围读）")
 @RestController
 @RequestMapping("/metric-samples")
 @Validated
@@ -47,9 +47,9 @@ public class MetricSampleController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "写入单条指标采样", description = "ORG_ADMIN/OPERATOR；T1事务（采样+最新值+设备在线），提交后异步触发告警评估")
+    @Operation(summary = "写入单条指标采样", description = "ADMIN/OPERATOR；T1事务（采样+最新值+设备在线），提交后异步触发告警评估")
     @PostMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "WRITE_METRIC_SAMPLE", detail = "设备ID:#dto.deviceId, 点位ID:#dto.pointId")
     public Result<MetricSample> save(@Valid @RequestBody MetricSampleDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -57,9 +57,9 @@ public class MetricSampleController {
         return Result.success(metricSampleService.saveSample(dto, user.userId(), true));
     }
 
-    @Operation(summary = "批量写入指标采样", description = "ORG_ADMIN/OPERATOR；逐条独立事务（非原子，部分成功合法），返回成功数与失败明细")
+    @Operation(summary = "批量写入指标采样", description = "ADMIN/OPERATOR；逐条独立事务（非原子，部分成功合法），返回成功数与失败明细")
     @PostMapping("/batch")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "WRITE_METRIC_SAMPLE_BATCH", detail = "条数:#dto.items.size")
     public Result<MetricSampleBatchResultVO> saveBatch(@Valid @RequestBody MetricSampleBatchDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();

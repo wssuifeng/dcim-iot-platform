@@ -20,8 +20,8 @@ import java.util.Map;
  *
  * 【角色与范围】
  *   - 产生入口 trigger/autoRecover：评估引擎与离线检测（系统调用，无用户上下文）
- *   - 处理动作（ACK/HANDLING/RECOVER/CLOSE）：ORG_ADMIN/OPERATOR（按设备组织/机房范围）
- *   - 查询：ORG_ADMIN/OPERATOR/VIEWER（按授权范围过滤）
+ *   - 处理动作（ACK/HANDLING/RECOVER/CLOSE）：ADMIN/OPERATOR
+ *   - 查询：ADMIN/OPERATOR/VIEWER
  *
  * 【状态机】TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED
  *   - 非法流转抛 BusinessException(STATE_INVALID_TRANSITION)
@@ -89,7 +89,7 @@ public interface AlarmEventService extends IService<AlarmEvent> {
     List<AlarmHandlingRecordVO> listHandlingRecords(Long alarmEventId, Long currentUserId);
 
     /*
-     * 方法功能:校验当前用户对目标告警事件有权访问；未授权抛 DataScopeViolationException
+     * 方法功能:校验目标告警事件存在并返回
      * */
     AlarmEvent getEventOrThrow(Long alarmEventId, Long currentUserId);
 }

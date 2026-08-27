@@ -24,7 +24,7 @@ public class PointDefinition implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "点位编码（组织内唯一：平台级或本组织内不可重复）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "点位编码（全局唯一）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "点位编码不能为空")
     @Size(max = 50, message = "点位编码最长50个字符")
     @TableField("point_code")
@@ -48,10 +48,6 @@ public class PointDefinition implements Serializable {
     @Schema(description = "点位描述", example = "UPS输出A相电压")
     @Size(max = 200, message = "描述最长200个字符")
     private String description;
-
-    @Schema(description = "归属组织ID：0=平台级全局共享，>0=组织私有", example = "0")
-    @TableField("organization_id")
-    private Long organizationId;
 
     @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "create_time", fill = FieldFill.INSERT)

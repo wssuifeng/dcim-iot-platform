@@ -16,7 +16,7 @@ import java.util.List;
 @Data
 public class SimulationSceneCreateDTO {
 
-    @Schema(description = "场景编码（同组织内唯一）", example = "UPS_LOAD_TEST",
+    @Schema(description = "场景编码（全局唯一）", example = "UPS_LOAD_TEST",
             requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "场景编码不能为空")
     @Size(max = 50, message = "场景编码最长50个字符")
@@ -31,10 +31,6 @@ public class SimulationSceneCreateDTO {
     @Schema(description = "场景描述")
     @Size(max = 500, message = "描述最长500个字符")
     private String description;
-
-    @Schema(description = "所属组织ID（必须由后端从当前用户范围取值；前端传入仅用于跨组织管理员管理）",
-            example = "1")
-    private Long organizationId;
 
     @Schema(description = "所属机房ID（可空）", example = "1")
     private Long cloudRoomId;

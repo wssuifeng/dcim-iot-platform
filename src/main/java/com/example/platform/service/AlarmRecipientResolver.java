@@ -2,10 +2,14 @@ package com.example.platform.service;
 
 import java.util.Set;
 
-/**
- * Resolves users eligible to receive an alarm for an exact organization and cloud room.
- */
+/*
+ * 类功能:告警接收人解析接口，解析可接收告警通知的用户集合
+ * */
 public interface AlarmRecipientResolver {
 
-    Set<Long> resolveRecipientUserIds(Long organizationId, Long cloudRoomId);
+    /*
+     * 方法功能:解析可接收告警通知的用户ID集合
+     * 返回数据:Set<Long>-启用状态且具备接收角色的用户ID集合，无匹配时返回空集
+     * */
+    Set<Long> resolveRecipientUserIds();
 }

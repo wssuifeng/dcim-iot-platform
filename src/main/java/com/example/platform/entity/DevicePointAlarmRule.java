@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 
 /**
  * 点位告警规则实体类，映射 device_point_alarm_rule 表，
- * 定义针对模板指标项的告警判断条件，支持设备级覆盖（三级降级：设备级→组织模板→平台模板）
+ * 定义针对模板指标项的告警判断条件，支持设备级覆盖（设备级规则优先于模板级规则）
  */
 @Schema(description = "点位告警规则")
 @Data
@@ -75,10 +75,6 @@ public class DevicePointAlarmRule implements Serializable {
     @Schema(description = "是否启用：0-停用 1-启用", example = "1")
     @TableField("enabled")
     private Integer enabled;
-
-    @Schema(description = "归属组织ID（冗余自模板项归属；设备覆盖规则=设备所属组织）", example = "0")
-    @TableField("organization_id")
-    private Long organizationId;
 
     @Schema(description = "备注")
     @Size(max = 200, message = "备注最长200个字符")

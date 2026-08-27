@@ -27,9 +27,6 @@ public class SimulationSceneVO {
     @Schema(description = "场景描述")
     private String description;
 
-    @Schema(description = "所属组织ID")
-    private Long organizationId;
-
     @Schema(description = "所属机房ID")
     private Long cloudRoomId;
 
@@ -57,7 +54,6 @@ public class SimulationSceneVO {
         vo.setSceneCode(scene.getSceneCode());
         vo.setSceneName(scene.getSceneName());
         vo.setDescription(scene.getDescription());
-        vo.setOrganizationId(scene.getOrganizationId());
         vo.setCloudRoomId(scene.getCloudRoomId());
         vo.setDeviceTypeCode(scene.getDeviceTypeCode());
         vo.setStatus(scene.getStatus());

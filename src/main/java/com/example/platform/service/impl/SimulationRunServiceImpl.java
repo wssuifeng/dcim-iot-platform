@@ -6,14 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.SimulationGeneratedDataRefVO;
 import com.example.platform.dto.SimulationRunStartDTO;
 import com.example.platform.dto.SimulationRunVO;
-import com.example.platform.entity.CloudRoom;
-import com.example.platform.entity.Device;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationGeneratedDataRef;
 import com.example.platform.entity.SimulationRunRecord;
@@ -23,7 +19,6 @@ import com.example.platform.mapper.SimulationGeneratedDataRefMapper;
 import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
 import com.example.platform.service.CloudRoomService;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationRunExecutionService;
@@ -67,7 +62,6 @@ public class SimulationRunServiceImpl
     private final SimulationSceneService simulationSceneService;
     private final SimulationSceneStepMapper simulationSceneStepMapper;
     private final SimulationGeneratedDataRefMapper simulationGeneratedDataRefMapper;
-    private final DataScopeService dataScopeService;
     private final DeviceScopeHelper deviceScopeHelper;
     private final PointDefinitionService pointDefinitionService;
     private final SimulationRunExecutionService runExecutionService;
@@ -99,24 +93,15 @@ public class SimulationRunServiceImpl
                     "场景已停用，无法启动运行: " + dto.getSceneId());
         }
 
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        Long organizationId = scene.getOrganizationId();
         Long cloudRoomId = dto.getCloudRoomId() != null ? dto.getCloudRoomId() : scene.getCloudRoomId();
 
-        // 目标机房校验：请求覆盖的机房必须属于场景组织，且当前用户有权访问
+        // 目标机房校验：请求覆盖的机房必须与场景机房一致
         if (cloudRoomId != null) {
-            CloudRoom targetRoom = cloudRoomService.getCloudRoomOrThrow(cloudRoomId, currentUserId);
-            if (!targetRoom.getOrganizationId().equals(organizationId)) {
-                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
-            }
+            cloudRoomService.getCloudRoomOrThrow(cloudRoomId, currentUserId);
             if (scene.getCloudRoomId() != null && !scene.getCloudRoomId().equals(cloudRoomId)) {
                 throw new BusinessException(ResultCode.INVALID_PARAMETER,
                         "运行目标机房与场景机房不一致: sceneRoom=" + scene.getCloudRoomId()
                                 + " targetRoom=" + cloudRoomId);
-            }
-            if ("ROOMS".equals(context.getScopeType())
-                    && !context.getCloudRoomIds().contains(cloudRoomId)) {
-                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
             }
         }
 
@@ -130,23 +115,15 @@ public class SimulationRunServiceImpl
                     "场景不包含任何步骤，无法启动运行: " + scene.getId());
         }
 
-        // 目标设备范围校验（如指定 targetDeviceId）
+        // 目标设备校验（如指定 targetDeviceId）
         if (dto.getTargetDeviceId() != null) {
-            Device targetDevice = deviceScopeHelper.ensureDeviceAccess(
-                    dto.getTargetDeviceId(), currentUserId);
-            if (targetDevice.getOrganizationId() != null
-                    && !targetDevice.getOrganizationId().equals(organizationId)
-                    && !context.isPlatformAdmin()) {
-                throw new DataScopeViolationException("Device",
-                        String.valueOf(dto.getTargetDeviceId()));
-            }
+            deviceScopeHelper.ensureDeviceAccess(dto.getTargetDeviceId(), currentUserId);
         }
 
         // 创建运行记录
         SimulationRunRecord run = new SimulationRunRecord();
         run.setSceneId(scene.getId());
         run.setTriggerUserId(currentUserId);
-        run.setOrganizationId(organizationId);
         run.setCloudRoomId(cloudRoomId);
         run.setStatus(STATUS_PENDING);
         run.setTotalSteps(steps.size());
@@ -156,7 +133,7 @@ public class SimulationRunServiceImpl
             throw new BusinessException("创建模拟运行记录失败");
         }
 
-        scheduleExecutionAfterCommit(run.getId(), dto.getTargetDeviceId(), currentUserId, organizationId);
+        scheduleExecutionAfterCommit(run.getId(), dto.getTargetDeviceId(), currentUserId);
         return SimulationRunVO.fromEntity(run);
     }
 
@@ -197,33 +174,9 @@ public class SimulationRunServiceImpl
     public Page<SimulationRunVO> pageRuns(Long currentUserId, Integer current, Integer size,
                                          Long sceneId, String status) {
         int[] params = PaginationUtils.validate(current, size);
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
 
         Page<SimulationRunRecord> page = new Page<>(params[0], params[1]);
         LambdaQueryWrapper<SimulationRunRecord> wrapper = new LambdaQueryWrapper<>();
-        if (context.isPlatformAdmin()) {
-            // 平台管理员不穿透组织业务数据
-            Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
-            empty.setRecords(new ArrayList<>());
-            empty.setTotal(0);
-            return empty;
-        }
-        if (context.getOrganizationIds().isEmpty()) {
-            Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
-            empty.setRecords(new ArrayList<>());
-            empty.setTotal(0);
-            return empty;
-        }
-        wrapper.in(SimulationRunRecord::getOrganizationId, context.getOrganizationIds());
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
-                Page<SimulationRunVO> empty = new Page<>(params[0], params[1]);
-                empty.setRecords(new ArrayList<>());
-                empty.setTotal(0);
-                return empty;
-            }
-            wrapper.in(SimulationRunRecord::getCloudRoomId, context.getCloudRoomIds());
-        }
         if (sceneId != null) {
             wrapper.eq(SimulationRunRecord::getSceneId, sceneId);
         }
@@ -271,28 +224,13 @@ public class SimulationRunServiceImpl
         if (run == null) {
             throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "模拟运行不存在: " + runId);
         }
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        ensureRunScope(run, context);
         return run;
     }
 
-    private void ensureRunScope(SimulationRunRecord run, DataScopeContext context) {
-        if (context.isPlatformAdmin()) {
-            throw new DataScopeViolationException("SimulationRunRecord", "platform-no-business-penetration");
-        }
-        if (!context.getOrganizationIds().contains(run.getOrganizationId())) {
-            throw new DataScopeViolationException("SimulationRunRecord", String.valueOf(run.getId()));
-        }
-        if (run.getCloudRoomId() != null && "ROOMS".equals(context.getScopeType())
-                && !context.getCloudRoomIds().contains(run.getCloudRoomId())) {
-            throw new DataScopeViolationException("SimulationRunRecord", String.valueOf(run.getId()));
-        }
-    }
-
     private void scheduleExecutionAfterCommit(Long runId, Integer overrideDeviceId,
-                                              Long currentUserId, Long organizationId) {
+                                              Long currentUserId) {
         Runnable schedule = () -> runExecutionService.executeAsync(
-                runId, overrideDeviceId, currentUserId, organizationId);
+                runId, overrideDeviceId, currentUserId);
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             schedule.run();
             return;

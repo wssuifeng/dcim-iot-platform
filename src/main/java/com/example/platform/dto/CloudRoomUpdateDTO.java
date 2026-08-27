@@ -9,8 +9,8 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 云机房更新请求 DTO（ORG_ADMIN 专用）
- * <p>不允许修改 organizationId 与 roomCode，组织归属和编码在创建时固定。</p>
+ * 云机房更新请求 DTO（ADMIN 专用）
+ * <p>不允许修改 roomCode，编码在创建时固定。</p>
  */
 @Schema(description = "云机房更新请求")
 @Data

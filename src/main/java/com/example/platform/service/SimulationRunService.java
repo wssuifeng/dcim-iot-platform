@@ -13,8 +13,8 @@ import java.util.List;
  * 类功能:模拟运行服务接口
  *
  * 【角色与范围】
- *   - 启动/取消运行：ORG_ADMIN/OPERATOR（按场景组织/机房范围）
- *   - 查询运行记录/事件：ORG_ADMIN/OPERATOR/VIEWER（按授权范围过滤）
+ *   - 启动/取消运行：ADMIN/OPERATOR
+ *   - 查询运行记录/事件：ADMIN/OPERATOR/VIEWER
  *
  * 【执行模型】启动请求先持久化 PENDING 记录，事务提交后由后台执行器运行步骤。
  *

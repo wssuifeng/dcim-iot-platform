@@ -6,7 +6,6 @@ import com.example.platform.entity.SimulationRunRecord;
 import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
-import com.example.platform.security.CurrentOrganizationContext;
 import com.example.platform.service.SimulationRunExecutionService;
 import com.example.platform.service.SimulationStepExecutionService;
 import lombok.RequiredArgsConstructor;
@@ -31,12 +30,10 @@ public class SimulationRunExecutionServiceImpl implements SimulationRunExecution
     private final SimulationRunRecordMapper runMapper;
     private final SimulationSceneStepMapper stepMapper;
     private final SimulationStepExecutionService stepExecutionService;
-    private final CurrentOrganizationContext organizationContext;
 
     @Async
     @Override
-    public void executeAsync(Long runId, Integer overrideDeviceId, Long userId, Long organizationId) {
-        organizationContext.setOrganizationId(organizationId);
+    public void executeAsync(Long runId, Integer overrideDeviceId, Long userId) {
         try {
             SimulationRunRecord run = runMapper.selectById(runId);
             if (run == null || STATUS_CANCELLED.equals(run.getStatus())) {
@@ -75,8 +72,6 @@ public class SimulationRunExecutionServiceImpl implements SimulationRunExecution
         } catch (Exception ex) {
             markFailed(runId, 0, truncate(ex.getMessage(), 500));
             log.error("模拟运行编排失败 runId={} error={}", runId, ex.getMessage(), ex);
-        } finally {
-            organizationContext.clear();
         }
     }
 

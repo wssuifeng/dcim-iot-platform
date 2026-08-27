@@ -34,9 +34,6 @@ public class AlarmEventVO {
     @Schema(description = "权威状态：TRIGGERED/ACKED/HANDLING/RECOVERED/CLOSED")
     private String state;
 
-    @Schema(description = "所属组织ID")
-    private Long organizationId;
-
     @Schema(description = "所属机房ID")
     private Long cloudRoomId;
 
@@ -72,9 +69,7 @@ public class AlarmEventVO {
         vo.setAlarmType(event.getAlarmType());
         vo.setAlarmLevel(event.getAlarmLevel());
         vo.setAlarmMessage(event.getAlarmMessage());
-        vo.setState(event.getState());
-        vo.setOrganizationId(event.getOrganizationId());
-        vo.setCloudRoomId(event.getCloudRoomId());
+        vo.setState(event.getState());        vo.setCloudRoomId(event.getCloudRoomId());
         vo.setTriggeredTime(event.getTriggeredTime());
         vo.setRecoveredTime(event.getRecoveredTime());
         vo.setClosedTime(event.getClosedTime());

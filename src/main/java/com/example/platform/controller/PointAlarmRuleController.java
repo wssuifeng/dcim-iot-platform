@@ -22,8 +22,8 @@ import java.util.List;
 /**
  * 点位告警规则接口层（规则 CRUD 与设备生效规则降级解析）
  *
- * <p>权限边界：写操作 ORG_ADMIN/OPERATOR（删除仅 ORG_ADMIN，由 SecurityConfig DELETE 规则约束）；
- * 查询任何已认证用户按数据范围过滤；平台级模板规则仅 PLATFORM_ADMIN 可挂载（D26 由服务层校验）。</p>
+ * <p>权限边界：写操作 ADMIN/OPERATOR（删除仅 ADMIN，由 SecurityConfig DELETE 规则约束）；
+ * 查询任何已认证用户按数据范围过滤；平台级模板规则仅 ADMIN 可挂载（D26 由服务层校验）。</p>
  */
 @Tag(name = "点位告警规则", description = "点位告警规则 CRUD 与三级降级解析（设备级覆盖→组织模板→平台模板）")
 @RestController
@@ -57,7 +57,7 @@ public class PointAlarmRuleController {
 
     @Operation(summary = "创建告警规则", description = "锚定模板指标项；METRIC 点位取模板项点位；设备覆盖需带 deviceId")
     @PostMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "CREATE_POINT_ALARM_RULE", detail = "模板项:#dto.templateItemId, 类型:#dto.ruleType")
     public Result<PointAlarmRuleVO> create(@Valid @RequestBody PointAlarmRuleCreateDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
@@ -66,7 +66,7 @@ public class PointAlarmRuleController {
 
     @Operation(summary = "更新告警规则", description = "模板指标项与规则类型不可变更")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "UPDATE_POINT_ALARM_RULE", detail = "规则ID:#id")
     public Result<PointAlarmRuleVO> update(
             @Parameter(description = "规则ID", required = true) @PathVariable Long id,
@@ -75,7 +75,7 @@ public class PointAlarmRuleController {
         return Result.success(ruleService.update(id, dto, user.userId()));
     }
 
-    @Operation(summary = "删除告警规则", description = "逻辑删除，仅 ORG_ADMIN")
+    @Operation(summary = "删除告警规则", description = "逻辑删除，仅 ADMIN")
     @DeleteMapping("/{id}")
     @AuditLog(operation = "DELETE_POINT_ALARM_RULE", detail = "规则ID:#id")
     public Result<Void> delete(
@@ -87,7 +87,7 @@ public class PointAlarmRuleController {
 
     @Operation(summary = "启用/停用告警规则")
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "UPDATE_POINT_ALARM_RULE_STATUS", detail = "规则ID:#id")
     public Result<Void> updateStatus(
             @Parameter(description = "规则ID", required = true) @PathVariable Long id,

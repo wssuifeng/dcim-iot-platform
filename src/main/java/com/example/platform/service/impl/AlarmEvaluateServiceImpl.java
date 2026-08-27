@@ -112,7 +112,6 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
                         rule.getThreshold() != null
                                 ? rule.getThreshold().stripTrailingZeros().toPlainString() : "-",
                         rule.getAlarmLevel()))
-                .organizationId(device.getOrganizationId())
                 .cloudRoomId(device.getCloudRoomId())
                 .build();
         AlarmTriggerResult result = alarmEventService.trigger(context);

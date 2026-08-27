@@ -7,15 +7,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.exception.UsernameAlreadyExistsException;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.SysUserMapper;
 import com.example.platform.service.SysUserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Set;
 
 /*
  * 类功能:用户服务实现类，负责用户的CRUD、密码加密、账号状态管理及登录查询
@@ -60,7 +57,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setStatus(0);
         user.setRole("VIEWER");
-        user.setPlatformRole(null);
         user.setEmailVerified(true);
         user.setEmailVerifiedTime(java.time.LocalDateTime.now());
         if (!super.save(user)) {
@@ -74,8 +70,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         requireIdentityAvailable(user.getEmail(), user.getUsername());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setStatus(0);
-        user.setRole("VIEWER");
-        user.setPlatformRole("PLATFORM_ADMIN");
+        user.setRole("ADMIN");
         user.setEmailVerified(true);
         user.setEmailVerifiedTime(java.time.LocalDateTime.now());
         if (!super.save(user)) {
@@ -106,7 +101,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public void createUser(SysUser user) {
         checkUsernameUnique(user.getUsername());
-        validateOrganizationRole(user.getRole());
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         if (user.getStatus() == null) {
             user.setStatus(0);
@@ -114,8 +108,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getRole() == null) {
             user.setRole("VIEWER");
         }
-        // 通用创建接口不允许通过请求体设置平台角色，平台管理员只走初始化/专用流程
-        user.setPlatformRole(null);
         if (!super.save(user)) {
             throw new BusinessException("创建用户失败，请稍后重试");
         }
@@ -138,27 +130,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             wrapper.set(SysUser::getNickname, user.getNickname());
         }
         if (user.getRole() != null) {
-            validateOrganizationRole(user.getRole());
             wrapper.set(SysUser::getRole, user.getRole());
         }
         if (!update(wrapper)) {
             throw new BusinessException("更新用户失败，数据可能已被他人修改");
-        }
-    }
-
-    /*
-     * 方法功能:校验组织角色合法性，禁止通过请求体构造平台管理员身份
-     * 参数:role-请求携带的角色值
-     * 返回数据:无
-     * */
-    private void validateOrganizationRole(String role) {
-        if (role == null) {
-            return;
-        }
-        String normalized = com.example.platform.security.PlatformRole.normalize(role);
-        if (com.example.platform.security.PlatformRole.PLATFORM_ADMIN.equals(normalized)) {
-            throw new BusinessException(com.example.platform.common.ResultCode.FORBIDDEN,
-                    "平台管理员只能通过初始化流程创建，不能在此创建");
         }
     }
 
@@ -194,23 +169,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     /*
      * 方法功能:按用户名关键字分页查询用户列表，按创建时间倒序排列
-     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选), scope-当前用户数据范围
+     * 参数:current-当前页码, size-每页大小, keyword-用户名关键字(可选)
      * 返回数据:Page<SysUser>-分页用户数据
      * */
     @Override
-    public Page<SysUser> pageUsers(Integer current, Integer size, String keyword,
-                                   DataScopeContext scope) {
+    public Page<SysUser> pageUsers(Integer current, Integer size, String keyword) {
         Page<SysUser> page = new Page<>(current, size);
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
-
-        if (!scope.isPlatformAdmin()) {
-            Set<Long> organizationIds = scope.getOrganizationIds();
-            if (organizationIds == null || organizationIds.isEmpty()) {
-                return page;
-            }
-            return baseMapper.selectPageByOrganizationScope(
-                    page, normalizedKeyword, organizationIds);
-        }
 
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         if (normalizedKeyword != null) {

@@ -3,7 +3,6 @@ package com.example.platform.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -12,7 +11,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 云机房实体类，映射 sys_cloud_room 表，隶属于组织的数据范围二级单元
+ * 云机房实体类，映射 sys_cloud_room 表，顶层物理资源单元
  */
 @Schema(description = "云机房")
 @Data
@@ -25,18 +24,13 @@ public class CloudRoom implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "所属组织ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "所属组织不能为空")
-    @TableField("organization_id")
-    private Long organizationId;
-
     @Schema(description = "机房名称", example = "华东一号机房", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "机房名称不能为空")
     @Size(max = 100, message = "机房名称最长100个字符")
     @TableField("room_name")
     private String roomName;
 
-    @Schema(description = "机房编码（组织内唯一）", example = "ROOM-001", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "机房编码（全局唯一）", example = "ROOM-001", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "机房编码不能为空")
     @Size(max = 50, message = "机房编码最长50个字符")
     @TableField("room_code")

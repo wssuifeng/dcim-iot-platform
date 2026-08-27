@@ -41,9 +41,6 @@ public class AlarmNotificationLogVO implements Serializable {
     @Schema(description = "发送时间")
     private LocalDateTime sentTime;
 
-    @Schema(description = "所属组织ID")
-    private Long organizationId;
-
     public static AlarmNotificationLogVO fromEntity(AlarmNotificationLog log) {
         AlarmNotificationLogVO vo = new AlarmNotificationLogVO();
         vo.setId(log.getId());
@@ -54,7 +51,6 @@ public class AlarmNotificationLogVO implements Serializable {
         vo.setStatus(log.getStatus());
         vo.setErrorMessage(log.getErrorMessage());
         vo.setSentTime(log.getSentTime());
-        vo.setOrganizationId(log.getOrganizationId());
         return vo;
     }
 }

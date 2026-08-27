@@ -103,7 +103,6 @@ public class DeviceOfflineMonitorTask {
                             .alarmType(ALARM_TYPE_OFFLINE)
                             .alarmLevel(resolveOfflineLevel(device.getId()))
                             .alarmMessage(String.format("设备离线：超过%d分钟未上报数据", minutes))
-                            .organizationId(device.getOrganizationId())
                             .cloudRoomId(device.getCloudRoomId())
                             .build();
                     var result = alarmEventService.trigger(context);

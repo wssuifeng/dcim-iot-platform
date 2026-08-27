@@ -15,7 +15,7 @@ import java.util.List;
 /*
  * 类功能:指标采样历史服务接口（T1 采样事务唯一所有者）
  *
- * 【角色与范围】ORG_ADMIN/OPERATOR 可写（按设备范围）；所有用户按数据范围只读查询
+ * 【角色与范围】ADMIN/OPERATOR 可写；所有已认证用户只读查询
  *
  * 【T1 采样事务】INSERT metric_sample + UPSERT metric_latest + 刷设备在线状态(status=1)；
  *   事务提交后发布 MetricSampleSavedEvent（仅向前传播至告警评估）。

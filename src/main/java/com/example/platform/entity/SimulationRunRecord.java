@@ -12,8 +12,7 @@ import java.time.LocalDateTime;
 /**
  * 模拟运行记录实体类，映射 simulation_run_record 表
  *
- * <p>记录每次场景运行的事实和状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）。
- * 所有数据范围校验依赖 organization_id 和 cloud_room_id，不得依赖 Device.location。</p>
+ * <p>记录每次场景运行的事实和状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）。</p>
  */
 @Schema(description = "模拟运行记录")
 @Data
@@ -39,12 +38,6 @@ public class SimulationRunRecord implements Serializable {
     @NotNull(message = "触发用户ID不能为空")
     @TableField("trigger_user_id")
     private Long triggerUserId;
-
-    @Schema(description = "所属组织ID（数据范围校验依据）", example = "1",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "组织ID不能为空")
-    @TableField("organization_id")
-    private Long organizationId;
 
     @Schema(description = "所属机房ID（可空）", example = "1")
     @TableField("cloud_room_id")

@@ -10,7 +10,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 点位定义新增请求 DTO（PLATFORM_ADMIN 维护全局点位字典）
+ * 点位定义新增请求 DTO（ADMIN 维护全局点位字典）
  */
 @Schema(description = "点位定义新增请求")
 @Data

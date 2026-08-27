@@ -5,25 +5,32 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.dto.RegisterDTO;
 import com.example.platform.entity.SysUser;
 import com.example.platform.service.EmailVerificationService;
-import com.example.platform.service.PlatformRegistrationSettingsService;
 import com.example.platform.service.PublicRegistrationService;
 import com.example.platform.service.SysUserService;
 import com.example.platform.service.VerificationPurpose;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/*
+ * 类功能:公开注册服务实现类，通过邮箱验证码完成自助注册（开关由 auth.registration-enabled 控制）
+ * */
 @Service
 @RequiredArgsConstructor
 public class PublicRegistrationServiceImpl implements PublicRegistrationService {
-    private final PlatformRegistrationSettingsService settingsService;
     private final EmailVerificationService verificationService;
     private final SysUserService userService;
+
+    @Value("${auth.registration-enabled:true}")
+    private boolean registrationEnabled;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void register(RegisterDTO dto, String ip) {
-        settingsService.requireAccountRegistrationEnabled();
+        if (!registrationEnabled) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "注册通道已关闭，请联系管理员");
+        }
         if (!dto.getPassword().equals(dto.getConfirmPassword())) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "两次输入的密码不一致");
         }

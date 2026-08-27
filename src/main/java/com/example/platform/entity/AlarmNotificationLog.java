@@ -61,10 +61,6 @@ public class AlarmNotificationLog implements Serializable {
     @TableField("sent_time")
     private LocalDateTime sentTime;
 
-    @Schema(description = "所属组织ID（查询隔离）", example = "1")
-    @TableField("organization_id")
-    private Long organizationId;
-
     @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

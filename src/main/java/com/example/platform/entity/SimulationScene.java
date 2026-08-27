@@ -3,7 +3,6 @@ package com.example.platform.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -15,7 +14,6 @@ import java.time.LocalDateTime;
  * 模拟场景实体类，映射 simulation_scene 表
  *
  * <p>契约依据：共享契约 §6 模拟端契约。场景由后端服务管理，前端不能直接构造核心事实。</p>
- * <p>范围字段：organization_id（必填）、cloud_room_id（可空，表示跨机房场景）。</p>
  */
 @Schema(description = "模拟场景")
 @Data
@@ -28,7 +26,7 @@ public class SimulationScene implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "场景编码（同组织内唯一）", example = "UPS_LOAD_TEST",
+    @Schema(description = "场景编码（全局唯一）", example = "UPS_LOAD_TEST",
             requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "场景编码不能为空")
     @Size(max = 50, message = "场景编码最长50个字符")
@@ -45,12 +43,6 @@ public class SimulationScene implements Serializable {
     @Schema(description = "场景描述")
     @Size(max = 500, message = "描述最长500个字符")
     private String description;
-
-    @Schema(description = "所属组织ID（数据范围校验依据）", example = "1",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "组织ID不能为空")
-    @TableField("organization_id")
-    private Long organizationId;
 
     @Schema(description = "所属机房ID（可空，表示跨机房场景）", example = "1")
     @TableField("cloud_room_id")

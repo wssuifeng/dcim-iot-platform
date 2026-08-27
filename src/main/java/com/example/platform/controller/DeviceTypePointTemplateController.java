@@ -4,7 +4,6 @@ import com.example.platform.common.Result;
 import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.DeviceTypePointTemplateBatchDTO;
 import com.example.platform.entity.DeviceTypePointTemplate;
-import com.example.platform.security.CurrentOrganizationContext;
 import com.example.platform.security.CurrentUser;
 import com.example.platform.security.CurrentUserContext;
 import com.example.platform.service.DeviceTypePointTemplateService;
@@ -19,31 +18,26 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 设备类型点位模板接口层（双层）
+ * 设备类型点位模板接口层
  *
- * <p>组织级模板（当前组织上下文）ORG_ADMIN/OPERATOR 可写；查询返回当前组织的
- * 生效模板（组织级优先降级平台级）。平台级默认模板管理见
- * /platform/point-templates/device-types/{typeId}。</p>
+ * <p>模板按设备类型整批覆盖保存；查询返回生效模板，按 sortOrder 升序。</p>
  */
-@Tag(name = "设备类型点位模板", description = "组织级模板读写与生效模板解析（平台级模板见 /platform/**）")
+@Tag(name = "设备类型点位模板", description = "类型点位模板读写与生效模板解析")
 @RestController
 @RequestMapping("/point-templates/device-types/{typeId}")
 @Validated
 public class DeviceTypePointTemplateController {
 
     private final DeviceTypePointTemplateService deviceTypePointTemplateService;
-    private final CurrentOrganizationContext currentOrganizationContext;
     private final CurrentUserContext currentUserContext;
 
     public DeviceTypePointTemplateController(DeviceTypePointTemplateService deviceTypePointTemplateService,
-                                             CurrentOrganizationContext currentOrganizationContext,
                                              CurrentUserContext currentUserContext) {
         this.deviceTypePointTemplateService = deviceTypePointTemplateService;
-        this.currentOrganizationContext = currentOrganizationContext;
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "查询某设备类型的生效模板", description = "当前组织组织级模板优先，无则降级平台级；按 sortOrder 升序")
+    @Operation(summary = "查询某设备类型的生效模板", description = "按 sortOrder 升序")
     @GetMapping
     public Result<List<DeviceTypePointTemplate>> list(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer typeId) {
@@ -51,20 +45,9 @@ public class DeviceTypePointTemplateController {
         return Result.success(deviceTypePointTemplateService.listTemplates(typeId, user.userId()));
     }
 
-    @Operation(summary = "查询生效模板（显式组织参数）", description = "指定组织解析生效模板（与 GET / 相同逻辑，便于跨组织预览）")
-    @GetMapping("/effective")
-    public Result<List<DeviceTypePointTemplate>> effective(
-            @Parameter(description = "设备类型ID", required = true) @PathVariable Integer typeId,
-            @Parameter(description = "组织ID（可选，默认当前组织）") @RequestParam(required = false) Long organizationId) {
-        CurrentUser user = currentUserContext.requireCurrentUser();
-        Long orgId = organizationId != null ? organizationId
-                : currentOrganizationContext.currentOrganizationId().orElse(null);
-        return Result.success(deviceTypePointTemplateService.listEffectiveTemplates(typeId, orgId, user.userId()));
-    }
-
-    @Operation(summary = "批量覆盖设置组织级模板", description = "目标层=当前组织上下文；先清空同层旧模板再整批写入")
+    @Operation(summary = "批量覆盖设置模板", description = "先清空该类型旧模板再整批写入")
     @PutMapping
-    @PreAuthorize("hasRole('ORG_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "SAVE_TYPE_POINT_TEMPLATES", detail = "设备类型ID:#typeId")
     public Result<List<DeviceTypePointTemplate>> save(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer typeId,

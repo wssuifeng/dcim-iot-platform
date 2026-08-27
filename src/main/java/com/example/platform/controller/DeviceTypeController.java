@@ -43,7 +43,7 @@ public class DeviceTypeController {
 
     @Operation(summary = "新增设备类型", description = "内部校验 type_code 全局唯一性；编码仅允许字母数字下划线")
     @PostMapping
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "CREATE_DEVICE_TYPE", detail = "类型名称:#deviceType.typeName, 类型编码:#deviceType.typeCode")
     public Result<DeviceType> create(@Validated @RequestBody DeviceType deviceType) {
         return Result.success(deviceTypeService.create(deviceType));
@@ -51,7 +51,7 @@ public class DeviceTypeController {
 
     @Operation(summary = "更新设备类型", description = "支持部分字段更新；设备类型不存在时抛出 DeviceTypeNotFound")
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "UPDATE_DEVICE_TYPE", detail = "类型ID:#id, 类型名称:#deviceType.typeName")
     public Result<DeviceType> update(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id,
@@ -61,7 +61,7 @@ public class DeviceTypeController {
 
     @Operation(summary = "删除设备类型", description = "若该类型下存在关联设备则返回 400 拒绝删除")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "DELETE_DEVICE_TYPE", detail = "类型ID:#id")
     public Result<Void> delete(
             @Parameter(description = "设备类型ID", required = true) @PathVariable Integer id) {

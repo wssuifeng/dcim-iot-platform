@@ -39,11 +39,7 @@ public class Device implements Serializable {
     @NotNull(message = "设备类型不能为空", groups = {CreateGroup.class, UpdateGroup.class})
     private Integer typeId;
 
-    @Schema(description = "所属组织ID（数据范围校验依据，产品化新增）", example = "1")
-    @TableField("organization_id")
-    private Long organizationId;
-
-    @Schema(description = "所属机房ID（数据范围校验依据，产品化新增）", example = "1")
+    @Schema(description = "所属机房ID", example = "1")
     @TableField("cloud_room_id")
     private Long cloudRoomId;
 

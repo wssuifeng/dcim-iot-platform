@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 点位告警规则 VO（含点位展示回填与降级来源标记）
+ * 点位告警规则 VO（含点位展示回填与来源标记）
  */
 @Schema(description = "点位告警规则响应")
 @Data
@@ -18,8 +18,7 @@ public class PointAlarmRuleVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public static final String SOURCE_DEVICE_OVERRIDE = "DEVICE_OVERRIDE";
-    public static final String SOURCE_ORG_TEMPLATE = "ORG_TEMPLATE";
-    public static final String SOURCE_PLATFORM_TEMPLATE = "PLATFORM_TEMPLATE";
+    public static final String SOURCE_TEMPLATE = "TEMPLATE";
 
     @Schema(description = "规则ID")
     private Long id;
@@ -60,13 +59,10 @@ public class PointAlarmRuleVO implements Serializable {
     @Schema(description = "是否启用：0停用 1启用")
     private Integer enabled;
 
-    @Schema(description = "归属组织ID：0=平台级")
-    private Long organizationId;
-
     @Schema(description = "备注")
     private String remark;
 
-    @Schema(description = "生效层级来源（仅 effective 接口返回）：DEVICE_OVERRIDE/ORG_TEMPLATE/PLATFORM_TEMPLATE")
+    @Schema(description = "生效层级来源（仅 effective 接口返回）：DEVICE_OVERRIDE/TEMPLATE")
     private String source;
 
     @Schema(description = "更新时间")
@@ -84,7 +80,6 @@ public class PointAlarmRuleVO implements Serializable {
         vo.setThreshold(rule.getThreshold());
         vo.setAlarmLevel(rule.getAlarmLevel());
         vo.setEnabled(rule.getEnabled());
-        vo.setOrganizationId(rule.getOrganizationId());
         vo.setRemark(rule.getRemark());
         vo.setUpdateTime(rule.getUpdateTime());
         return vo;

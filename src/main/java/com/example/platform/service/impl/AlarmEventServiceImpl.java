@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlarmEventVO;
 import com.example.platform.dto.AlarmHandlingRecordVO;
@@ -13,7 +12,6 @@ import com.example.platform.dto.AlarmStatsVO;
 import com.example.platform.dto.AlarmStateTransitionVO;
 import com.example.platform.dto.AlarmTriggerContext;
 import com.example.platform.dto.AlarmTriggerResult;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.AlarmEvent;
 import com.example.platform.entity.AlarmHandlingRecord;
 import com.example.platform.entity.AlarmStateTransition;
@@ -26,7 +24,6 @@ import com.example.platform.mapper.AlarmHandlingRecordMapper;
 import com.example.platform.mapper.AlarmStateTransitionMapper;
 import com.example.platform.service.AlarmEventService;
 import com.example.platform.service.AlarmRecipientResolver;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.InAppNotificationService;
 import com.example.platform.service.PointDefinitionService;
@@ -40,7 +37,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +74,6 @@ public class AlarmEventServiceImpl
 
     private final AlarmStateTransitionMapper alarmStateTransitionMapper;
     private final AlarmHandlingRecordMapper alarmHandlingRecordMapper;
-    private final DataScopeService dataScopeService;
     private final InAppNotificationService inAppNotificationService;
     private final AlarmRecipientResolver alarmRecipientResolver;
     private final ApplicationEventPublisher eventPublisher;
@@ -123,7 +118,6 @@ public class AlarmEventServiceImpl
             event.setAlarmLevel(context.getAlarmLevel());
             event.setAlarmMessage(context.getAlarmMessage());
             event.setState(STATE_TRIGGERED);
-            event.setOrganizationId(context.getOrganizationId());
             event.setCloudRoomId(context.getCloudRoomId());
             if (!save(event)) {
                 throw new BusinessException("写入告警事件失败");
@@ -277,40 +271,9 @@ public class AlarmEventServiceImpl
                                          Integer deviceId, String state, Integer alarmLevel,
                                          Long organizationId, Long cloudRoomId) {
         int[] params = PaginationUtils.validate(current, size);
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
 
         LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
-        if (!context.isPlatformAdmin()) {
-            if (context.getOrganizationIds().isEmpty()) {
-                Page<AlarmEventVO> empty = new Page<>(params[0], params[1]);
-                empty.setRecords(new ArrayList<>());
-                empty.setTotal(0);
-                return empty;
-            }
-            wrapper.in(AlarmEvent::getOrganizationId, context.getOrganizationIds());
-        }
-        if (organizationId != null) {
-            if (!context.isPlatformAdmin()
-                    && !context.hasOrganizationAccess(organizationId)) {
-                throw new DataScopeViolationException("Organization", String.valueOf(organizationId));
-            }
-            wrapper.eq(AlarmEvent::getOrganizationId, organizationId);
-        }
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
-                return emptyAlarmPage(params[0], params[1]);
-            }
-            wrapper.in(AlarmEvent::getCloudRoomId, context.getCloudRoomIds());
-        }
         if (cloudRoomId != null) {
-            if (!context.isPlatformAdmin() && "ROOMS".equals(context.getScopeType())
-                    && !context.getCloudRoomIds().contains(cloudRoomId)) {
-                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
-            }
-            if (!context.isPlatformAdmin() && "ORG_ALL".equals(context.getScopeType())
-                    && organizationId != null && !context.getOrganizationIds().contains(organizationId)) {
-                throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoomId));
-            }
             wrapper.eq(AlarmEvent::getCloudRoomId, cloudRoomId);
         }
         if (deviceId != null) {
@@ -371,9 +334,6 @@ public class AlarmEventServiceImpl
             throw new BusinessException(ResultCode.ALARM_EVENT_NOT_FOUND,
                     "告警事件不存在: " + alarmEventId);
         }
-        if (currentUserId != null) {
-            ensureEventScope(event, dataScopeService.resolveDataScope(currentUserId));
-        }
         return event;
     }
 
@@ -387,18 +347,7 @@ public class AlarmEventServiceImpl
     }
 
     private List<AlarmEvent> listScopedEvents(Long currentUserId, LocalDateTime start, LocalDateTime end) {
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        if (context.isPlatformAdmin() || context.getOrganizationIds().isEmpty()) {
-            return Collections.emptyList();
-        }
         LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(AlarmEvent::getOrganizationId, context.getOrganizationIds());
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
-                return Collections.emptyList();
-            }
-            wrapper.in(AlarmEvent::getCloudRoomId, context.getCloudRoomIds());
-        }
         if (start != null) {
             wrapper.ge(AlarmEvent::getTriggeredTime, start);
         }
@@ -500,37 +449,17 @@ public class AlarmEventServiceImpl
         }
     }
 
-    private void ensureEventScope(AlarmEvent event, DataScopeContext context) {
-        if (context.isPlatformAdmin()) {
-            return;
-        }
-        Long orgId = event.getOrganizationId();
-        if (orgId == null) {
-            // 缺少组织字段的旧告警：仅允许平台管理员访问
-            throw new DataScopeViolationException("AlarmEvent", String.valueOf(event.getId()));
-        }
-        if (!context.getOrganizationIds().contains(orgId)) {
-            throw new DataScopeViolationException("AlarmEvent", String.valueOf(event.getId()));
-        }
-        if (event.getCloudRoomId() != null && "ROOMS".equals(context.getScopeType())
-                && !context.getCloudRoomIds().contains(event.getCloudRoomId())) {
-            throw new DataScopeViolationException("AlarmEvent", String.valueOf(event.getId()));
-        }
-    }
-
     private void notifyInApp(AlarmEvent event, String toState) {
         Set<Long> recipientUserIds;
         try {
-            recipientUserIds = alarmRecipientResolver.resolveRecipientUserIds(
-                    event.getOrganizationId(), event.getCloudRoomId());
+            recipientUserIds = alarmRecipientResolver.resolveRecipientUserIds();
         } catch (Exception ex) {
             log.warn("解析告警接收用户失败 alarmEventId={} error={}",
                     event.getId(), ex.getMessage());
             return;
         }
         if (recipientUserIds.isEmpty()) {
-            log.debug("告警无符合组织和机房范围的接收用户 alarmEventId={} orgId={} roomId={}",
-                    event.getId(), event.getOrganizationId(), event.getCloudRoomId());
+            log.debug("告警无可用接收用户 alarmEventId={}", event.getId());
             return;
         }
 

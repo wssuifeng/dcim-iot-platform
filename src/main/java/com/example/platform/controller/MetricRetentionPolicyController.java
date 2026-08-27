@@ -18,10 +18,10 @@ import java.util.List;
 /**
  * 指标数据保留策略接口层
  *
- * <p>权限边界：仅 PLATFORM_ADMIN 可写（全局策略或单点策略）；任何已认证用户可读（策略本身不泄露业务数据）。
+ * <p>权限边界：仅 ADMIN 可写（全局策略或单点策略）；任何已认证用户可读（策略本身不泄露业务数据）。
  * 保留天数上限 90 天，由 DTO 校验保证（共享契约：不得默认启用无限保留）。</p>
  */
-@Tag(name = "指标保留策略", description = "全局/点位级指标数据保留策略管理（PLATFORM_ADMIN 写）")
+@Tag(name = "指标保留策略", description = "全局/点位级指标数据保留策略管理（ADMIN 写）")
 @RestController
 @RequestMapping("/metric-retention-policies")
 @Validated
@@ -61,9 +61,9 @@ public class MetricRetentionPolicyController {
         return Result.success(metricRetentionPolicyService.listAllPolicies());
     }
 
-    @Operation(summary = "更新或创建保留策略", description = "PLATFORM_ADMIN 专用；retentionDays 1~90；pointId 为 null 表示全局")
+    @Operation(summary = "更新或创建保留策略", description = "ADMIN 专用；retentionDays 1~90；pointId 为 null 表示全局")
     @PutMapping
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "UPSERT_RETENTION_POLICY", detail = "点位ID:#dto.pointId, 天数:#dto.retentionDays")
     public Result<MetricRetentionPolicy> upsert(@Valid @RequestBody MetricRetentionPolicyDTO dto) {
         return Result.success(metricRetentionPolicyService.upsertPolicy(dto));

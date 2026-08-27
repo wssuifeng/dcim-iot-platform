@@ -10,9 +10,8 @@ import java.util.List;
 /*
  * 类功能:设备点位绑定服务接口
  *
- * 【角色与范围】ORG_ADMIN 本组织设备可管理；所有已认证用户按数据范围查询
- *
- * 安全边界由服务层 ensureDeviceScope（DataScopeService）保证，不依赖前端显隐
+ * 【角色与范围】ADMIN/OPERATOR 可管理绑定；所有已认证用户可查询，
+ *   安全边界由控制器 RBAC 与 Service 层设备存在性校验保证，不依赖前端显隐
  * */
 public interface DevicePointBindingService extends IService<DevicePointBinding> {
 

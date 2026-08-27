@@ -50,10 +50,6 @@ public class AlarmEvent implements Serializable {
             allowableValues = {"TRIGGERED", "ACKED", "HANDLING", "RECOVERED", "CLOSED"})
     private String state;
 
-    @Schema(description = "所属组织ID（数据范围校验依据）", example = "1")
-    @TableField("organization_id")
-    private Long organizationId;
-
     @Schema(description = "所属机房ID（数据范围校验依据）", example = "1")
     @TableField("cloud_room_id")
     private Long cloudRoomId;

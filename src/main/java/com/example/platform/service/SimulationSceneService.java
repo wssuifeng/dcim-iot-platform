@@ -14,11 +14,7 @@ import java.util.List;
 /*
  * 类功能:模拟场景服务接口
  *
- * 【角色与范围】
- *   - 场景管理（创建/更新/删除/启停/步骤写入）：ORG_ADMIN（按 organizationId 范围）
- *   - 查询：ORG_ADMIN/OPERATOR/VIEWER（按授权组织范围过滤）
- *
- * 安全边界由服务层 ensureSceneScope 校验，不依赖前端显隐。
+ * 【角色与范围】写操作由控制器 RBAC（ADMIN）保证；查询任何已认证用户。
  * */
 public interface SimulationSceneService extends IService<SimulationScene> {
 
@@ -31,7 +27,7 @@ public interface SimulationSceneService extends IService<SimulationScene> {
     SimulationSceneVO getSceneDetail(Long sceneId, Long currentUserId);
 
     Page<SimulationSceneVO> pageScenes(Long currentUserId, Integer current, Integer size,
-                                      Long organizationId, Long cloudRoomId,
+                                      Long cloudRoomId,
                                       Integer status, String keyword);
 
     SimulationSceneVO setSceneStatus(Long sceneId, Integer status, Long currentUserId);
@@ -43,8 +39,8 @@ public interface SimulationSceneService extends IService<SimulationScene> {
     List<SimulationSceneStep> listSteps(Long sceneId, Long currentUserId);
 
     /*
-     * 方法功能:校验当前用户对目标场景有权访问（含 PLATFORM_ADMIN 放行），
-     * 返回场景实体便于上游调用。未授权抛 DataScopeViolationException。
+     * 方法功能:查询目标场景，不存在抛业务异常，
+     * 返回场景实体便于上游调用。
      * */
     SimulationScene getSceneOrThrow(Long sceneId, Long currentUserId);
 }

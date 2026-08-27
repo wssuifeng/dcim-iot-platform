@@ -5,9 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.SimulationSceneCreateDTO;
 import com.example.platform.dto.SimulationSceneStepDTO;
 import com.example.platform.dto.SimulationSceneUpdateDTO;
@@ -20,7 +18,6 @@ import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationSceneMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
 import com.example.platform.service.CloudRoomService;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DevicePointMetricContract;
 import com.example.platform.service.PointDefinitionService;
@@ -38,11 +35,7 @@ import java.util.Objects;
 /*
  * 类功能:模拟场景服务实现类
  *
- * 【数据范围依据】共享契约 §3：数据范围必须依赖 organizationId 和 cloudRoomId，
- *   不依赖 Device.location。所有查询/写入必须经过 ensureSceneScope。
- *
- * 【PLATFORM_ADMIN】平台管理员可跨组织管理场景（用于平台级运维场景模板）；
- *   但不放宽业务级越权写入。
+ * 【契约依据】共享契约 §6 模拟端契约：场景由后端服务管理，前端不能直接构造核心事实。
  * */
 @Slf4j
 @Service
@@ -52,7 +45,6 @@ public class SimulationSceneServiceImpl
         implements SimulationSceneService {
 
     private final SimulationSceneStepMapper simulationSceneStepMapper;
-    private final DataScopeService dataScopeService;
     private final CloudRoomService cloudRoomService;
     private final DeviceScopeHelper deviceScopeHelper;
     private final PointDefinitionService pointDefinitionService;
@@ -63,34 +55,17 @@ public class SimulationSceneServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SimulationSceneVO createScene(SimulationSceneCreateDTO dto, Long currentUserId) {
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-        Long organizationId = dto.getOrganizationId();
-        if (organizationId == null) {
-            // 默认绑定调用方当前组织（ORG_ADMIN 单组织授权场景）
-            if (context.isPlatformAdmin()) {
-                throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                        "PLATFORM_ADMIN 创建场景必须显式指定 organizationId");
-            }
-            if (context.getOrganizationIds().isEmpty()) {
-                throw new BusinessException(ResultCode.DATA_SCOPE_NOT_ASSIGNED,
-                        "当前用户未授权任何组织");
-            }
-            organizationId = context.getOrganizationIds().iterator().next();
-        }
-        ensureOrganizationAccess(context, organizationId);
         if (dto.getCloudRoomId() != null) {
-            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, dto.getCloudRoomId());
-            ensureCloudRoomOrganization(cloudRoom, organizationId);
+            ensureCloudRoomExists(dto.getCloudRoomId());
         }
         validateDeviceTypeCode(dto.getDeviceTypeCode());
 
-        checkSceneCodeUnique(organizationId, dto.getSceneCode());
+        checkSceneCodeUnique(dto.getSceneCode());
 
         SimulationScene scene = new SimulationScene();
         scene.setSceneCode(dto.getSceneCode());
         scene.setSceneName(dto.getSceneName());
         scene.setDescription(dto.getDescription());
-        scene.setOrganizationId(organizationId);
         scene.setCloudRoomId(dto.getCloudRoomId());
         scene.setDeviceTypeCode(dto.getDeviceTypeCode());
         scene.setStatus(STATUS_ENABLED);
@@ -107,8 +82,7 @@ public class SimulationSceneServiceImpl
             }
         }
 
-        log.info("模拟场景创建成功 sceneId={} sceneCode={} orgId={}",
-                scene.getId(), scene.getSceneCode(), organizationId);
+        log.info("模拟场景创建成功 sceneId={} sceneCode={}", scene.getId(), scene.getSceneCode());
         return getSceneDetail(scene.getId(), currentUserId);
     }
 
@@ -123,8 +97,7 @@ public class SimulationSceneServiceImpl
             scene.setDescription(dto.getDescription());
         }
         if (dto.getCloudRoomId() != null) {
-            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, dto.getCloudRoomId());
-            ensureCloudRoomOrganization(cloudRoom, scene.getOrganizationId());
+            ensureCloudRoomExists(dto.getCloudRoomId());
             scene.setCloudRoomId(dto.getCloudRoomId());
         }
         if (StringUtils.hasText(dto.getDeviceTypeCode())) {
@@ -164,37 +137,15 @@ public class SimulationSceneServiceImpl
 
     @Override
     public Page<SimulationSceneVO> pageScenes(Long currentUserId, Integer current, Integer size,
-                                              Long organizationId, Long cloudRoomId,
+                                              Long cloudRoomId,
                                               Integer status, String keyword) {
         int[] params = PaginationUtils.validate(current, size);
-        DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
 
         Page<SimulationScene> page = new Page<>(params[0], params[1]);
         LambdaQueryWrapper<SimulationScene> wrapper = new LambdaQueryWrapper<>();
 
-        if (context.isPlatformAdmin()) {
-            // 平台管理员不穿透组织业务数据（组织模拟场景属业务资源）
-            return emptyVOPage(params[0], params[1]);
-        }
-        if (context.getOrganizationIds().isEmpty()) {
-            return emptyVOPage(params[0], params[1]);
-        }
-        wrapper.in(SimulationScene::getOrganizationId, context.getOrganizationIds());
-        if ("ROOMS".equals(context.getScopeType())) {
-            if (context.getCloudRoomIds() == null || context.getCloudRoomIds().isEmpty()) {
-                return emptyVOPage(params[0], params[1]);
-            }
-            wrapper.in(SimulationScene::getCloudRoomId, context.getCloudRoomIds());
-        }
-        if (organizationId != null) {
-            ensureOrganizationAccess(context, organizationId);
-            wrapper.eq(SimulationScene::getOrganizationId, organizationId);
-        }
         if (cloudRoomId != null) {
-            CloudRoom cloudRoom = ensureCloudRoomAccess(currentUserId, cloudRoomId);
-            if (organizationId != null) {
-                ensureCloudRoomOrganization(cloudRoom, organizationId);
-            }
+            ensureCloudRoomExists(cloudRoomId);
             wrapper.eq(SimulationScene::getCloudRoomId, cloudRoomId);
         }
         if (status != null) {
@@ -264,10 +215,6 @@ public class SimulationSceneServiceImpl
             throw new BusinessException(ResultCode.SIMULATION_SCENE_NOT_FOUND,
                     "模拟场景不存在: " + sceneId);
         }
-        if (currentUserId != null) {
-            DataScopeContext context = dataScopeService.resolveDataScope(currentUserId);
-            ensureSceneScope(scene, context);
-        }
         return scene;
     }
 
@@ -279,12 +226,10 @@ public class SimulationSceneServiceImpl
         validateSampleValue(point, dto.getSampleValue());
         if (dto.getTargetDeviceId() != null) {
             Device device = deviceScopeHelper.ensureDeviceAccess(dto.getTargetDeviceId(), currentUserId);
-            if (!Objects.equals(device.getOrganizationId(), scene.getOrganizationId())) {
-                throw new DataScopeViolationException("Device", String.valueOf(device.getId()));
-            }
             if (scene.getCloudRoomId() != null
                     && !Objects.equals(scene.getCloudRoomId(), device.getCloudRoomId())) {
-                throw new DataScopeViolationException("Device", String.valueOf(device.getId()));
+                throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                        "目标设备与场景机房不一致: deviceId=" + device.getId());
             }
         }
 
@@ -319,38 +264,8 @@ public class SimulationSceneServiceImpl
         return step;
     }
 
-    private void ensureSceneScope(SimulationScene scene, DataScopeContext context) {
-        if (context.isPlatformAdmin()) {
-            throw new DataScopeViolationException("SimulationScene", "platform-no-business-penetration");
-        }
-        Long orgId = scene.getOrganizationId();
-        if (!context.getOrganizationIds().contains(orgId)) {
-            throw new DataScopeViolationException("SimulationScene", String.valueOf(scene.getId()));
-        }
-        Long roomId = scene.getCloudRoomId();
-        if (roomId != null && "ROOMS".equals(context.getScopeType())
-                && !context.getCloudRoomIds().contains(roomId)) {
-            throw new DataScopeViolationException("SimulationScene", String.valueOf(scene.getId()));
-        }
-    }
-
-    private void ensureOrganizationAccess(DataScopeContext context, Long organizationId) {
-        if (context.isPlatformAdmin()) {
-            return;
-        }
-        if (!context.hasOrganizationAccess(organizationId)) {
-            throw new DataScopeViolationException("Organization", String.valueOf(organizationId));
-        }
-    }
-
-    private CloudRoom ensureCloudRoomAccess(Long currentUserId, Long cloudRoomId) {
-        return cloudRoomService.getCloudRoomOrThrow(cloudRoomId, currentUserId);
-    }
-
-    private void ensureCloudRoomOrganization(CloudRoom cloudRoom, Long organizationId) {
-        if (!Objects.equals(cloudRoom.getOrganizationId(), organizationId)) {
-            throw new DataScopeViolationException("CloudRoom", String.valueOf(cloudRoom.getId()));
-        }
+    private CloudRoom ensureCloudRoomExists(Long cloudRoomId) {
+        return cloudRoomService.getCloudRoomOrThrow(cloudRoomId, null);
     }
 
     private void validateDeviceTypeCode(String typeCode) {
@@ -382,13 +297,12 @@ public class SimulationSceneServiceImpl
         }
     }
 
-    private void checkSceneCodeUnique(Long organizationId, String sceneCode) {
+    private void checkSceneCodeUnique(String sceneCode) {
         LambdaQueryWrapper<SimulationScene> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SimulationScene::getOrganizationId, organizationId)
-                .eq(SimulationScene::getSceneCode, sceneCode);
+        wrapper.eq(SimulationScene::getSceneCode, sceneCode);
         if (count(wrapper) > 0) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "场景编码在同一组织内已存在: " + sceneCode);
+                    "场景编码已存在: " + sceneCode);
         }
     }
 
@@ -404,12 +318,5 @@ public class SimulationSceneServiceImpl
         }
         result.setRecords(records);
         return result;
-    }
-
-    private Page<SimulationSceneVO> emptyVOPage(int current, int size) {
-        Page<SimulationSceneVO> empty = new Page<>(current, size);
-        empty.setRecords(new ArrayList<>());
-        empty.setTotal(0);
-        return empty;
     }
 }

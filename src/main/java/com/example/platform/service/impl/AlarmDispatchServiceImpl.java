@@ -143,8 +143,7 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
 
     private Set<Long> resolveRecipients(AlarmEvent alarmEvent) {
         try {
-            return alarmRecipientResolver.resolveRecipientUserIds(
-                    alarmEvent.getOrganizationId(), alarmEvent.getCloudRoomId());
+            return alarmRecipientResolver.resolveRecipientUserIds();
         } catch (Exception ex) {
             log.warn("解析告警收件人失败 alarmEventId={} error={}",
                     alarmEvent.getId(), ex.getMessage());
@@ -226,7 +225,6 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
             logEntry.setContent(content != null && content.length() > 500 ? content.substring(0, 500) : content);
             logEntry.setStatus(status);
             logEntry.setErrorMessage(error);
-            logEntry.setOrganizationId(alarmEvent.getOrganizationId());
             notificationLogMapper.insert(logEntry);
         } catch (Exception ex) {
             log.warn("告警发送日志写入失败 alarmEventId={} channel={}", alarmEvent.getId(), channel);

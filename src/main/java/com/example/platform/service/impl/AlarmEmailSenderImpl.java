@@ -102,7 +102,6 @@ public class AlarmEmailSenderImpl implements AlarmEmailSender {
             logEntry.setContent(content != null && content.length() > 500 ? content.substring(0, 500) : content);
             logEntry.setStatus(status);
             logEntry.setErrorMessage(error);
-            logEntry.setOrganizationId(event.getOrganizationId());
             notificationLogMapper.insert(logEntry);
         } catch (Exception ex) {
             log.warn("告警邮件发送日志写入失败 alarmEventId={} error={}", event.getId(), ex.getMessage());

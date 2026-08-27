@@ -8,7 +8,6 @@ import com.example.platform.common.exception.UserNotFoundException;
 import com.example.platform.common.group.CreateGroup;
 import com.example.platform.common.group.UpdateGroup;
 import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.PasswordResetDTO;
 import com.example.platform.entity.SysUser;
 import com.example.platform.security.CurrentUserContext;
@@ -44,9 +43,8 @@ public class SysUserController {
             @Parameter(description = "每页大小，默认10") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "用户名关键字（可选）") @RequestParam(required = false) String keyword) {
         int[] pageParams = PaginationUtils.validate(current, size);
-        DataScopeContext scope = currentUserContext.requireDataScope();
         return Result.success(sysUserService.pageUsers(
-                pageParams[0], pageParams[1], keyword, scope));
+                pageParams[0], pageParams[1], keyword));
     }
 
     @Operation(summary = "按用户名精确查找", description = "未找到时抛出 UserNotFoundException 返回 404")

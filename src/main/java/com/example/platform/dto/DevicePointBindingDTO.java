@@ -8,7 +8,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 设备点位绑定请求 DTO（ORG_ADMIN 为设备绑定点位）
+ * 设备点位绑定请求 DTO（ADMIN/OPERATOR 为设备绑定点位）
  */
 @Schema(description = "设备点位绑定请求")
 @Data

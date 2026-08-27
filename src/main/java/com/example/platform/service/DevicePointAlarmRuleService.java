@@ -47,7 +47,7 @@ public interface DevicePointAlarmRuleService extends IService<DevicePointAlarmRu
     PointAlarmRuleVO update(Long id, PointAlarmRuleUpdateDTO dto, Long currentUserId);
 
     /*
-     * 方法功能:删除告警规则（逻辑删除，仅ORG_ADMIN）
+     * 方法功能:删除告警规则（逻辑删除，仅ADMIN）
      * 参数:id-规则ID, currentUserId-当前用户
      * 返回数据:无
      * */

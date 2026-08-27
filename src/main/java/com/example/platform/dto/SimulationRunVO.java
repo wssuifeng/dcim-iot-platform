@@ -25,9 +25,6 @@ public class SimulationRunVO {
     @Schema(description = "触发用户ID")
     private Long triggerUserId;
 
-    @Schema(description = "所属组织ID")
-    private Long organizationId;
-
     @Schema(description = "所属机房ID")
     private Long cloudRoomId;
 
@@ -58,7 +55,6 @@ public class SimulationRunVO {
         vo.setSceneId(record.getSceneId());
         vo.setSceneSnapshot(record.getSceneSnapshot());
         vo.setTriggerUserId(record.getTriggerUserId());
-        vo.setOrganizationId(record.getOrganizationId());
         vo.setCloudRoomId(record.getCloudRoomId());
         vo.setStatus(record.getStatus());
         vo.setTotalSteps(record.getTotalSteps());

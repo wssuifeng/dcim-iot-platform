@@ -24,7 +24,5 @@ public class AlarmTriggerContext implements Serializable {
 
     private String alarmMessage;
 
-    private Long organizationId;
-
     private Long cloudRoomId;
 }
