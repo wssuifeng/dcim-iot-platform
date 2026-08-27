@@ -11,7 +11,7 @@
         </el-tooltip>
         <el-tooltip :content="realtimeConnected ? '站内通知' : '站内通知（实时连接中断）'">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
-            <el-button circle :icon="Bell" aria-label="站内通知" @click="router.push('/notifications')" />
+            <el-button circle :icon="Bell" aria-label="站内通知" @click="notificationVisible = true" />
           </el-badge>
         </el-tooltip>
         <el-dropdown @command="handleCommand">
@@ -53,14 +53,22 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <notification-modal
+      v-model:visible="notificationVisible"
+      :unread-count="unreadCount"
+      @read="refreshUnreadCount"
+    />
   </el-container>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Bell, Sunny, Moon } from '@element-plus/icons-vue'
+import { ElNotification } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getAlarmEvent } from '@/api/alarmEvent'
+import NotificationModal from '@/components/NotificationModal.vue'
 import { getUnreadNotificationCount } from '@/api/notification'
 import {
   connectSummarySocket,
@@ -86,6 +94,7 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const unreadCount = ref(0)
 const realtimeConnected = ref(false)
+const notificationVisible = ref(false)
 let removeSummaryListener = null
 let removeConnectionListener = null
 let removeUnreadCountListener = null
@@ -137,9 +146,49 @@ async function refreshUnreadCount() {
 
 async function handleSummary(summary) {
   if (summary.resourceType === 'ALARM_EVENT') {
-    await getAlarmEvent(summary.resourceId).catch(() => null)
+    await popAlarmNotification(summary)
   }
   await refreshUnreadCount()
+}
+
+// 右上角卡片式告警弹窗：摘要自带 title/level 时直接弹，否则回查告警详情
+async function popAlarmNotification(summary) {
+  const titles = {
+    ALARM_CREATED: '告警触发',
+    ALARM_UPGRADED: '告警升级',
+    ALARM_RECOVERED: '告警恢复',
+  }
+  let title = titles[summary.eventType] || '告警动态'
+  let message = summary.title
+  let type = summary.state === 'RECOVERED' ? 'success' : 'warning'
+
+  if (!message) {
+    const result = await getAlarmEvent(summary.resourceId).catch(() => null)
+    const event = result?.data
+    if (!event) return
+    message = event.alarmMessage || `告警事件 #${summary.resourceId}`
+    type = event.state === 'RECOVERED' ? 'success' : levelType(event.alarmLevel)
+    if (event.alarmLevel <= 2) title = '紧急告警'
+  } else if (summary.level != null) {
+    type = summary.state === 'RECOVERED' ? 'success' : levelType(summary.level)
+    if (summary.level <= 2 && summary.state !== 'RECOVERED') title = '紧急告警'
+  }
+
+  ElNotification({
+    title,
+    message,
+    type,
+    duration: 6000,
+    position: 'top-right',
+    showClose: true,
+  })
+}
+
+function levelType(level) {
+  // 告警级别 1-5（小=严重）：1/2 错误级、3/4 警告级、5 提示级
+  if (level <= 2) return 'error'
+  if (level <= 4) return 'warning'
+  return 'info'
 }
 
 function handleCommand(command) {

@@ -19,3 +19,7 @@ export function updateCloudRoom(id, data) {
 export function updateCloudRoomStatus(id, status) {
   return request.put(`/cloud-rooms/${id}/status`, null, { params: { status } })
 }
+
+export function deleteCloudRoom(id) {
+  return request.delete(`/cloud-rooms/${id}`)
+}

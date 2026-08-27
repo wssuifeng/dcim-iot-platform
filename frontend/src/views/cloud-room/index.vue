@@ -38,7 +38,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="updateTime" label="更新时间" min-width="170" />
-      <el-table-column v-if="canManage" label="操作" width="190" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
           <el-button
@@ -49,6 +49,7 @@
           >
             {{ row.status === 0 ? '停用' : '启用' }}
           </el-button>
+          <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -92,11 +93,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import {
   createCloudRoom,
+  deleteCloudRoom,
   getCloudRoomPage,
   updateCloudRoom,
   updateCloudRoomStatus,
@@ -196,6 +198,18 @@ async function submitForm() {
   } finally {
     submitting.value = false
   }
+}
+
+async function handleDelete(row) {
+  const confirmed = await ElMessageBox.confirm(
+    `确认删除机房“${row.roomName}”？机房下存在设备或网关凭证时将拒绝删除。`,
+    '删除确认',
+    { type: 'warning' },
+  ).catch(() => false)
+  if (!confirmed) return
+  await deleteCloudRoom(row.id)
+  ElMessage.success('机房已删除')
+  await fetchRooms()
 }
 
 async function toggleStatus(row) {

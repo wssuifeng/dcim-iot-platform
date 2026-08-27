@@ -10,7 +10,9 @@ public record WebSocketSummary(
         String resourceType,
         String resourceId,
         String state,
-        Instant occurredAt) {
+        Instant occurredAt,
+        String title,
+        Integer level) {
 
     public WebSocketSummary {
         requireText(eventType, "eventType");
@@ -20,6 +22,12 @@ public record WebSocketSummary(
         if (occurredAt == null) {
             throw new IllegalArgumentException("occurredAt不能为空");
         }
+    }
+
+    // 兼容无标题摘要的旧构造（回查场景）
+    public WebSocketSummary(String eventType, String resourceType, String resourceId,
+                            String state, Instant occurredAt) {
+        this(eventType, resourceType, resourceId, state, occurredAt, null, null);
     }
 
     private static void requireText(String value, String field) {

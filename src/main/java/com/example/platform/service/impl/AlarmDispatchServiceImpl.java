@@ -153,11 +153,14 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
 
     private WebSocketSummary buildSummary(AlarmEvent alarmEvent, String eventType) {
         return new WebSocketSummary(
+                
                 eventType,
                 RESOURCE_TYPE_ALARM_EVENT,
                 String.valueOf(alarmEvent.getId()),
                 alarmEvent.getState(),
-                Instant.now());
+                Instant.now(),
+                alarmEvent.getAlarmMessage() != null ? alarmEvent.getAlarmMessage() : eventType,
+                alarmEvent.getAlarmLevel());
     }
 
     private void pushWebSocket(AlarmEvent alarmEvent, Long userId, WebSocketSummary summary) {

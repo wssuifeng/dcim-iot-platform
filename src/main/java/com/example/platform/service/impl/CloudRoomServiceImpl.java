@@ -26,6 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom> implements CloudRoomService {
 
+    private final com.example.platform.mapper.DeviceMapper deviceMapper;
+    private final com.example.platform.ingest.mapper.IngestCredentialMapper ingestCredentialMapper;
+
+    public CloudRoomServiceImpl(com.example.platform.mapper.DeviceMapper deviceMapper,
+                                com.example.platform.ingest.mapper.IngestCredentialMapper ingestCredentialMapper) {
+        this.deviceMapper = deviceMapper;
+        this.ingestCredentialMapper = ingestCredentialMapper;
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CloudRoom createCloudRoom(CloudRoomCreateDTO createDTO, Long currentUserId) {
@@ -127,5 +136,35 @@ public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom
         if (status == null || status < 0 || status > 1) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "状态值无效，允许值：0-正常，1-停用");
         }
+    }
+
+    /*
+     * 方法功能:删除机房（物理删除，须机房下无设备且无绑定网关凭证）
+     * 参数:id-机房ID, currentUserId-操作用户
+     * 返回数据:无（存在设备或凭证时抛业务异常）
+     * */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCloudRoom(Long id, Long currentUserId) {
+        CloudRoom room = getById(id);
+        if (room == null) {
+            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "机房不存在");
+        }
+        Long deviceCount = deviceMapper.selectCount(
+                new LambdaQueryWrapper<com.example.platform.entity.Device>()
+                        .eq(com.example.platform.entity.Device::getCloudRoomId, id));
+        if (deviceCount != null && deviceCount > 0) {
+            throw new BusinessException(ResultCode.ROOM_IN_USE_BY_DEVICE,
+                    "机房下仍有 " + deviceCount + " 台设备，须先删除或迁移设备");
+        }
+        Long credentialCount = ingestCredentialMapper.selectCount(
+                new LambdaQueryWrapper<com.example.platform.ingest.entity.IngestCredential>()
+                        .eq(com.example.platform.ingest.entity.IngestCredential::getCloudRoomId, id));
+        if (credentialCount != null && credentialCount > 0) {
+            throw new BusinessException(ResultCode.ROOM_IN_USE_BY_DEVICE,
+                    "机房仍绑定 " + credentialCount + " 个网关凭证，须先删除凭证");
+        }
+        removeById(id);
+        log.info("机房删除 roomId={} roomCode={} operator={}", id, room.getRoomCode(), currentUserId);
     }
 }

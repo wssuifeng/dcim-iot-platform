@@ -33,6 +33,13 @@ public interface CloudRoomService extends IService<CloudRoom> {
     CloudRoom updateStatus(Long id, Integer status, Long currentUserId);
 
     /*
+     * 方法功能:删除机房（物理删除，须机房下无设备且无绑定网关凭证）
+     * 参数:id-机房ID, currentUserId-操作用户
+     * 返回数据:无（存在设备或凭证时抛业务异常）
+     * */
+    void deleteCloudRoom(Long id, Long currentUserId);
+
+    /*
      * 方法功能:按 ID 查询机房，不存在抛出资源不存在异常
      * 参数:id-机房ID, currentUserId-当前操作用户ID
      * 返回数据:CloudRoom

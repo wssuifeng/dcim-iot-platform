@@ -65,6 +65,9 @@ public final class ResultCode {
     public static final int ALARM_STATE_INVALID_TRANSITION = 4081;
     public static final int ALARM_STATE_CONFLICT = 4082;
 
+    // 机房模块 409x 前段
+    public static final int ROOM_IN_USE_BY_DEVICE = 4094;
+
     // 接入门模块 409x（数据接收门预留段 4095-4098，鉴权 401 由 GatewayAuthenticationFilter 直接返回）
     public static final int INGEST_UNAUTHORIZED = 4095;
     public static final int INGEST_CREDENTIAL_NOT_FOUND = 4096;

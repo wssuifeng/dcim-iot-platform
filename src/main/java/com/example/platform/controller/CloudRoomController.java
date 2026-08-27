@@ -25,8 +25,7 @@ import org.springframework.web.bind.annotation.*;
  *   <li>写操作（创建/更新/停用）：仅 ADMIN（@PreAuthorize 兜底）</li>
  *   <li>读操作：任何已认证用户可调用</li>
  * </ul>
- * 按 HTTP DELETE 删除机房的精细化权限（ADMIN 权限校验）由 Service 兜底，
- * 下方 {@code delete} 端点不开放机房的物理删除，仅提供停用接口避免数据回溯丢失。</p>
+ * 机房删除须机房下无设备且无绑定网关凭证，由 Service 校验兜底。</p>
  */
 @Tag(name = "云机房管理", description = "机房生命周期管理（ADMIN 写，已认证用户读）")
 @RestController
@@ -81,6 +80,17 @@ public class CloudRoomController {
             @Valid @RequestBody CloudRoomUpdateDTO updateDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(cloudRoomService.updateCloudRoom(id, updateDTO, user.userId()));
+    }
+
+    @Operation(summary = "删除机房", description = "ADMIN 专用；机房下存在设备或网关凭证时拒绝删除")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @AuditLog(operation = "DELETE_CLOUD_ROOM", detail = "机房ID:#id")
+    public Result<Void> delete(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        cloudRoomService.deleteCloudRoom(id, user.userId());
+        return Result.success();
     }
 
     @Operation(summary = "启用/停用机房", description = "ADMIN 专用，软停用；status：0-正常 1-停用")
