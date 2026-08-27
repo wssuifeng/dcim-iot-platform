@@ -52,6 +52,23 @@ services:
       timeout: 3s
       retries: 5
 
+  # MQTT broker：数据接收门北向通道（平台订阅 dcim/+/samples 等 topic）
+  # 启用平台 MQTT 适配器需设 INGEST_MQTT_ENABLED=true
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: iot-platform-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "healthcheck", "-C", "1", "-W", "3"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mysql_data:
   redis_data:
+  mosquitto_data:

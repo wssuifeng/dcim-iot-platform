@@ -79,6 +79,12 @@ const routes = [
         meta: { title: '设备类型', icon: 'Grid', navigation: true, navigationOrder: 60, roles: ALL_ROLES },
       },
       {
+        path: 'ingest-credentials',
+        name: 'ingest-credentials',
+        component: () => import('@/views/ingest-credential/index.vue'),
+        meta: { title: '接入管理', icon: 'Connection', navigation: true, navigationOrder: 65, roles: [ADMIN] },
+      },
+      {
         path: 'users',
         name: 'users',
         component: () => import('@/views/user/index.vue'),

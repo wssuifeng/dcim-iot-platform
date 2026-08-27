@@ -63,9 +63,18 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 ---
 
-## 四、数据上报（网关北向契约，阶段二路线）
+## 四、数据上报（网关北向契约）
 
-现场设备（RS485/Modbus/SNMP/BACnet）接入采集网关，网关做协议翻译后向北推送统一 JSON——**平台不实现任何南向协议**（决策记录：`docs/adr/ADR-002`）。北向契约要点：网关凭证鉴权、批量 JSON（deviceId/pointCode/值/设备时间戳/seq）、幂等去重、断网补传。当前版本使用用户态 API `POST /metric-samples` 上报（阶段二将由 `/ingest/samples` 网关通道取代）；内置仿真引擎将作为"官方诚实网关"走同一条契约。
+现场设备（RS485/Modbus/SNMP/BACnet）接入采集网关，网关做协议翻译后向北推送统一 JSON——**平台不实现任何南向协议**（决策记录：`docs/adr/ADR-002`）。
+
+**网关接入（已实现）**：管理员在"接入管理"页为机房签发网关凭证（accessKey/secret，secret 仅创建/重置时展示一次）。网关经两条等价通道上报：
+
+- **HTTP**：`POST /api/ingest/samples`，请求头 `Authorization: Gateway {accessKey}:{sha256(secret + rawBody)}`
+- **MQTT**：发布到 `dcim/{accessKey}/samples`（QoS 1），报文 `{"signature","batch"}`；心跳走 `dcim/{accessKey}/heartbeat`，断连由 broker 遗嘱 `dcim/{accessKey}/lwt` 上报（broker 由 `docker compose up -d mosquitto` 提供，平台侧 `INGEST_MQTT_ENABLED=true` 启用）
+
+两种通道汇入同一条传输无关处理链：机房归属校验 → `deviceCode+pointCode+seq` 幂等去重（QoS1 重发计入 duplicated）→ 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；凭证只能上报其绑定机房的设备，越权条目失败不落库。`POST /api/ingest/heartbeat` 刷新网关存活时间（接入管理页可见 last_seen_at）。
+
+用户态 API `POST /metric-samples` 保留用于手工调试；第三阶段的机房仿真服务将作为"官方诚实网关"走同一条 ingest 契约。
 
 ---
 
@@ -76,14 +85,16 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 │   ├── controller/            # REST 控制器
 │   ├── service/ + impl/       # 服务层（含 AlertRuleEngine 告警规则引擎）
 │   ├── entity/ mapper/ dto/   # 数据模型
+│   ├── ingest/                # 数据接收门：HTTP/MQTT 适配器 + 传输无关核心 + 网关凭证
 │   ├── security/              # JWT 过滤链、三角色模型、WebSocket 鉴权
 │   ├── common/                # Result 统一响应、异常体系、审计切面、限流/XSS 过滤器
 │   ├── config/                # Security/Redis/MyBatis-Plus/Async/生产安全门控
-│   └── task/                  # 离线检测、数据 TTL 清理
+│   └── task/                  # 离线检测、数据 TTL 清理、幂等键清理
 ├── src/main/resources/db/
-│   ├── migration/             # Flyway V1–V10（V10 为用户域收束迁移）
+│   ├── migration/             # Flyway V1–V11（V10 用户域收束，V11 网关接收门）
 │   └── seed/                  # V9 开发种子（仅 dev profile 加载）
-├── frontend/                  # Vue3 管理后台（12 个业务页面）
+├── frontend/                  # Vue3 管理后台（13 个业务页面）
+├── docker/mosquitto/          # MQTT broker 配置（数据接收门北向通道）
 └── docs/adr/                  # 架构决策记录
 ```
 
@@ -95,7 +106,7 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 | 命令 | 用途 |
 |------|------|
-| `./mvnw test` | 全量测试（225 个用例） |
+| `./mvnw test` | 全量测试（277 个用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
@@ -108,8 +119,8 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| 一 | 用户域收束：多组织 SaaS → 单租户三角色（本版本） | ✅ 完成 |
-| 二 | 数据接收门：传输无关核心 + HTTP/MQTT 双协议适配器，网关凭证鉴权、幂等、心跳 | 📋 规划中 |
+| 一 | 用户域收束：多组织 SaaS → 单租户三角色 | ✅ 完成 |
+| 二 | 数据接收门：传输无关核心 + HTTP/MQTT 双协议适配器，网关凭证鉴权、幂等、心跳 | ✅ 完成（本版本） |
 | 三 | 独立机房仿真服务（新仓库）：设备模块（Modbus TCP slave）+ 网关模块（轮询/策略/北向上报），完整还原设备→网关→云平台两级链路 | 📋 规划中 |
 
 详细实施计划见 [docs/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md](docs/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md)。

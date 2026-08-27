@@ -96,6 +96,9 @@ task:
   # 采样历史保留清理：每天凌晨 2 点，按保留策略分批删除
   cleanup-metric-sample-cron: 0 0 2 * * ?
   cleanup-batch-size: 5000
+  # 上报幂等去重键清理：每天 2:30，窗口外的 dedup 键不再有拦截价值
+  cleanup-ingest-dedup-cron: 0 30 2 * * ?
+  cleanup-ingest-dedup-retention-days: 7
 
 # ==================== CORS 跨域配置 ====================
 cors:
@@ -138,3 +141,16 @@ verification:
 # ==================== 开放注册开关（自部署实例由管理员控制） ====================
 auth:
   registration-enabled: ${AUTH_REGISTRATION_ENABLED:true}
+
+# ==================== 数据接收门 MQTT 适配器（北向通道） ====================
+# dev 默认关闭（HTTP 单跑）；启用前需先起 mosquitto broker（docker compose up mosquitto）
+ingest:
+  mqtt:
+    enabled: ${INGEST_MQTT_ENABLED:false}
+    broker-url: ${INGEST_MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id: ${INGEST_MQTT_CLIENT_ID:platform-ingest}
+    username: ${INGEST_MQTT_USERNAME:}
+    password: ${INGEST_MQTT_PASSWORD:}
+    keep-alive-seconds: 30
+    # 处理结果回执 topic 前缀：dcim/{accessKey}/ack
+    ack-enabled: true

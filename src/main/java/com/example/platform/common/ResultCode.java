@@ -69,6 +69,12 @@ public final class ResultCode {
     public static final int SIMULATION_WRITE_DISABLED = 4091;
     public static final int SIMULATION_SCENE_NOT_FOUND = 4092;
 
+    // 接入门模块 409x（数据接收门预留段 4095-4098，鉴权 401 由 GatewayAuthenticationFilter 直接返回）
+    public static final int INGEST_UNAUTHORIZED = 4095;
+    public static final int INGEST_CREDENTIAL_NOT_FOUND = 4096;
+    public static final int INGEST_ACCESS_KEY_EXISTS = 4097;
+    public static final int INGEST_ROOM_ACCESS_DENIED = 4098;
+
     // 限流模块 429x
     public static final int RATE_LIMITED = 4290;
 

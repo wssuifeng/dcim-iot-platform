@@ -1,5 +1,6 @@
 package com.example.platform.config;
 
+import com.example.platform.ingest.http.GatewayAuthenticationFilter;
 import com.example.platform.security.CustomAccessDeniedHandler;
 import com.example.platform.security.CustomAuthenticationEntryPoint;
 import com.example.platform.security.JwtAuthenticationFilter;
@@ -48,17 +49,20 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final GatewayAuthenticationFilter gatewayAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final SysAuditLogService sysAuditLogService;
     private final boolean apiDocsEnabled;
     private final boolean swaggerUiEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          GatewayAuthenticationFilter gatewayAuthenticationFilter,
                           CorsConfigurationSource corsConfigurationSource,
                           SysAuditLogService sysAuditLogService,
                           @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
                           @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.gatewayAuthenticationFilter = gatewayAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
         this.sysAuditLogService = sysAuditLogService;
         this.apiDocsEnabled = apiDocsEnabled;
@@ -123,6 +127,10 @@ public class SecurityConfig {
                                 "/auth/registration-codes").permitAll();
                         // 公开端点：Actuator 健康检查与 SpringDoc 文档（开发/内网使用）
                         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
+                        // 数据接收门：网关机器鉴权（GatewayAuthenticationFilter 验签，无效 401）
+                        auth.requestMatchers("/ingest/**").permitAll();
+                        // 接入管理面：网关凭证 CRUD 全部 ADMIN（@PreAuthorize 兜底）
+                        auth.requestMatchers("/ingest-credentials/**").hasAnyRole(ADMIN_ONLY_ROLES);
                         if (swaggerUiEnabled) {
                             auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll();
                         }
@@ -168,6 +176,9 @@ public class SecurityConfig {
                         auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class)
+                // 网关机器鉴权只拦 /ingest/**，与用户 JWT 链互不干扰
+                .addFilterBefore(gatewayAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
