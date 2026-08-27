@@ -33,6 +33,7 @@ public class IngestInventoryServiceImpl implements IngestInventoryService {
     private final DeviceService deviceService;
     private final DevicePointBindingService devicePointBindingService;
     private final PointDefinitionService pointDefinitionService;
+    private final com.example.platform.ingest.service.DeviceTypeInferencer typeInferencer;
 
     @Override
     public IngestInventoryResultVO handleInventory(IngestCredential credential,
@@ -53,12 +54,19 @@ public class IngestInventoryServiceImpl implements IngestInventoryService {
                     itemResult.setResult("exists");
                     itemResult.setMessage("已存在，补建绑定" + bound + "个");
                 } else if (importEnabled) {
+                    Integer typeId = resolveTypeId(item, credential);
+                    if (typeId == null) {
+                        itemResult.setResult("failed");
+                        itemResult.setMessage("无法确定设备类型（清单未带类型码、点位无法推断且凭证未配置默认类型）");
+                        results.add(itemResult);
+                        continue;
+                    }
                     Device device = deviceService.autoRegisterDevice(
                             item.getDeviceCode(), credential.getCloudRoomId(),
-                            credential.getDefaultTypeId(), credential.getId());
+                            typeId, credential.getId());
                     int bound = bindMissingPoints(device, item.getPointCodes());
                     itemResult.setResult("registered");
-                    itemResult.setMessage("已建档，绑定" + bound + "个点位");
+                    itemResult.setMessage("已建档（类型ID " + typeId + "），绑定" + bound + "个点位");
                 } else {
                     itemResult.setResult("unknown");
                     itemResult.setMessage("平台未注册且凭证未开启自动注册");
@@ -80,6 +88,19 @@ public class IngestInventoryServiceImpl implements IngestInventoryService {
                 credential.getAccessKey(), result.getRegistered(), result.getExists(),
                 result.getFailed(), result.getUnknown());
         return result;
+    }
+
+    // 类型优先级：清单显式类型码 > 上报点位推断 > 凭证默认类型
+    private Integer resolveTypeId(IngestInventoryDTO.DeviceItem item, IngestCredential credential) {
+        Integer byCode = typeInferencer.resolveByTypeCode(item.getDeviceTypeCode());
+        if (byCode != null) {
+            return byCode;
+        }
+        Integer byPoints = typeInferencer.inferByPointCodes(item.getPointCodes());
+        if (byPoints != null) {
+            return byPoints;
+        }
+        return credential.getDefaultTypeId();
     }
 
     // 补建缺失点位绑定（清单 pointCodes 与平台点位目录交集内），返回新建绑定数

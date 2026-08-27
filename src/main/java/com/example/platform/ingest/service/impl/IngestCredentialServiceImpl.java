@@ -68,10 +68,6 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         credential.setCloudRoomId(createDTO.getCloudRoomId());
         credential.setSimulated(createDTO.getSimulated() == null ? 0 : createDTO.getSimulated());
         int autoRegister = createDTO.getAutoRegister() == null ? 0 : createDTO.getAutoRegister();
-        if (autoRegister == 1 && createDTO.getDefaultTypeId() == null) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "开启首包自动注册必须配置默认设备类型");
-        }
         credential.setAutoRegister(autoRegister);
         credential.setDefaultTypeId(createDTO.getDefaultTypeId());
         credential.setStatus(0);

@@ -17,8 +17,10 @@ import java.util.List;
 /*
  * 类功能:网关离线检测任务——启用凭证的 last_seen_at 超阈值即产出 GATEWAY_OFFLINE 告警
  *
- * 【判定口径】status=0（启用）且 last_seen_at 距今超阈值；从未上报（last_seen_at
- *   为空）的新凭证不判离线（刚签发未接入是正常态）。
+ * 【判定口径】status=0（启用）凭证：
+ *   ① 已上报过：last_seen_at 距今超阈值 → 离线；
+ *   ② 从未上报：签发（create_time）超阈值仍无任何上报 → "从未上线"告警
+ *     （网关侧配置错误/网络不通时同样能被发现，不留观测盲区）。
  * 【恢复口径】心跳/上报成功时由 IngestCredentialService.refreshLastSeen 联动
  *   autoRecover(null, null, GATEWAY_OFFLINE)；MQTT LWT 由监听器立即触发同一类型。
  * 【告警形态】设备级告警（device_id 为空），复用告警工作流与通知链路。
@@ -52,21 +54,44 @@ public class IngestGatewayOfflineMonitorTask {
         LocalDateTime deadline = LocalDateTime.now().minusSeconds(offlineThresholdSeconds);
         List<IngestCredential> credentials = ingestCredentialMapper.selectList(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<IngestCredential>()
-                        .eq(IngestCredential::getStatus, 0)
-                        .isNotNull(IngestCredential::getLastSeenAt));
+                        .eq(IngestCredential::getStatus, 0));
         if (credentials.isEmpty()) {
             return;
         }
         for (IngestCredential credential : credentials) {
-            if (credential.getLastSeenAt() == null || credential.getLastSeenAt().isAfter(deadline)) {
-                continue;
-            }
             try {
-                triggerGatewayOffline(credential);
+                if (credential.getLastSeenAt() != null) {
+                    // 已上线过：最近活跃超阈值判离线
+                    if (credential.getLastSeenAt().isBefore(deadline)) {
+                        triggerGatewayOffline(credential);
+                    }
+                } else if (credential.getCreateTime() != null
+                        && credential.getCreateTime().isBefore(deadline)) {
+                    // 从未上线：签发超阈值仍无任何上报（配置错误/网络不通同样可见）
+                    triggerNeverOnline(credential);
+                }
             } catch (Exception ex) {
                 log.warn("网关离线告警触发失败 credentialId={} error={}",
                         credential.getId(), ex.getMessage());
             }
+        }
+    }
+
+    private void triggerNeverOnline(IngestCredential credential) {
+        long minutes = java.time.Duration.between(credential.getCreateTime(), LocalDateTime.now()).toMinutes();
+        AlarmTriggerContext context = AlarmTriggerContext.builder()
+                .deviceId(null)
+                .pointId(null)
+                .alarmType(ALARM_TYPE_GATEWAY_OFFLINE)
+                .alarmLevel(3)
+                .alarmMessage(String.format("网关从未上线：%s 签发超过%d分钟无任何心跳/上报，请检查网关配置",
+                        credential.getGatewayName(), Math.max(minutes, 1)))
+                .cloudRoomId(credential.getCloudRoomId())
+                .build();
+        var result = alarmEventService.trigger(context);
+        if (result.isNotifiable()) {
+            log.warn("网关从未上线告警已触发 gateway={} credentialId={}",
+                    credential.getGatewayName(), credential.getId());
         }
     }
 

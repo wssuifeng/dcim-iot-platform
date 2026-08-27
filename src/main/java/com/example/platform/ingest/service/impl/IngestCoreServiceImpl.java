@@ -45,6 +45,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
 
     private final DeviceService deviceService;
     private final DevicePointBindingService devicePointBindingService;
+    private final com.example.platform.ingest.service.DeviceTypeInferencer typeInferencer;
     private final PointDefinitionService pointDefinitionService;
     private final MetricSampleService metricSampleService;
     private final IngestCredentialService ingestCredentialService;
@@ -65,7 +66,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         for (int i = 0; i < items.size(); i++) {
             IngestSampleItemDTO item = items.get(i);
             try {
-                Device device = resolveDevice(item.getDeviceCode(), deviceCache, credential);
+                Device device = resolveDevice(item.getDeviceCode(), item.getPointCode(), deviceCache, credential);
                 PointDefinition point = resolvePoint(item.getPointCode(), pointCache);
                 if (device.getCloudRoomId() == null
                         || !device.getCloudRoomId().equals(credential.getCloudRoomId())) {
@@ -133,7 +134,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         return false;
     }
 
-    private Device resolveDevice(String deviceCode, Map<String, Device> cache,
+    private Device resolveDevice(String deviceCode, String pointCode, Map<String, Device> cache,
                                  IngestCredential credential) {
         Device cached = cache.get(deviceCode);
         if (cached != null) {
@@ -141,7 +142,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         }
         Device device = deviceService.findByCode(deviceCode);
         if (device == null) {
-            device = tryAutoRegister(deviceCode, credential);
+            device = tryAutoRegister(deviceCode, pointCode, credential);
         }
         if (device == null) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND, "设备不存在: " + deviceCode);
@@ -150,22 +151,26 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         return device;
     }
 
-    // 首包自动注册：凭证开启且配置了默认类型才走；失败降级为 DEVICE_NOT_FOUND（由调用方捕获）
-    private Device tryAutoRegister(String deviceCode, IngestCredential credential) {
-        if (credential.getAutoRegister() == null || credential.getAutoRegister() != 1
-                || credential.getDefaultTypeId() == null) {
+    // 首包自动注册：凭证开启即走，类型取 点位推断 > 凭证默认；失败降级 DEVICE_NOT_FOUND
+    private Device tryAutoRegister(String deviceCode, String pointCode, IngestCredential credential) {
+        if (credential.getAutoRegister() == null || credential.getAutoRegister() != 1) {
             return null;
         }
         try {
+            Integer typeId = typeInferencer.inferByPointCodes(List.of(pointCode));
+            if (typeId == null) {
+                typeId = credential.getDefaultTypeId();
+            }
+            if (typeId == null) {
+                return null;
+            }
             Device device = deviceService.autoRegisterDevice(
-                    deviceCode, credential.getCloudRoomId(),
-                    credential.getDefaultTypeId(), credential.getId());
+                    deviceCode, credential.getCloudRoomId(), typeId, credential.getId());
             // 模板点位绑定：自动注册设备开箱即可收数（currentUserId 传凭证ID 供审计）
             devicePointBindingService.initBindingsFromTemplate(
-                    device.getId(), credential.getDefaultTypeId(), credential.getId());
+                    device.getId(), typeId, credential.getId());
             log.info("首包自动注册 deviceCode={} roomId={} typeId={} credentialId={}",
-                    deviceCode, credential.getCloudRoomId(),
-                    credential.getDefaultTypeId(), credential.getId());
+                    deviceCode, credential.getCloudRoomId(), typeId, credential.getId());
             return device;
         } catch (Exception ex) {
             log.warn("首包自动注册失败 deviceCode={} error={}", deviceCode, ex.getMessage());

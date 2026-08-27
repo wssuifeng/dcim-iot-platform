@@ -44,6 +44,10 @@ public class IngestInventoryDTO implements Serializable {
         @Size(max = 50)
         private String deviceName;
 
+        @Schema(description = "设备类型码（平台 device_types.type_code，如 TEMP_HUMIDITY；自动注册时优先采用）", example = "TEMP_HUMIDITY")
+        @Size(max = 50)
+        private String deviceTypeCode;
+
         @Schema(description = "网关侧点位编码列表", example = "[\"temperature\",\"humidity\"]")
         @Size(max = 50)
         private List<String> pointCodes;

@@ -48,6 +48,8 @@ class IngestCoreServiceImplTest {
     @Mock
     private com.example.platform.service.DevicePointBindingService devicePointBindingService;
     @Mock
+    private com.example.platform.ingest.service.DeviceTypeInferencer typeInferencer;
+    @Mock
     private IngestCredentialService ingestCredentialService;
     @Mock
     private IngestDedupMapper ingestDedupMapper;
@@ -166,6 +168,7 @@ class IngestCoreServiceImplTest {
         when(deviceService.findByCode("DEV-NEW")).thenReturn(null);
         Device created = device("DEV-NEW", 77, 5L);
         when(deviceService.autoRegisterDevice("DEV-NEW", 5L, 4, 100L)).thenReturn(created);
+        when(typeInferencer.inferByPointCodes(java.util.List.of("temperature"))).thenReturn(null);
         stubPoint("temperature", 1L);
         IngestCredential credential = credential(100L, 5L);
         credential.setAutoRegister(1);
@@ -198,6 +201,7 @@ class IngestCoreServiceImplTest {
     @Test
     void autoRegisterFailureFallsBackWithoutBlockingBatch() {
         stubTransactionPassThrough();
+        when(typeInferencer.inferByPointCodes(any())).thenReturn(4);
         when(deviceService.findByCode("DEV-BAD")).thenReturn(null);
         when(deviceService.autoRegisterDevice("DEV-BAD", 5L, 4, 100L))
                 .thenThrow(new BusinessException(ResultCode.INVALID_PARAMETER, "类型不受支持"));

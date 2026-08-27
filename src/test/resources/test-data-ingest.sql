@@ -23,10 +23,11 @@ INSERT INTO devices (id, device_name, device_code, type_id, cloud_room_id, statu
     (-2002, '接收门测试设备B', 'IT-DEV-B', 1, -2002, 1, '测试机柜B'),
     (-2003, '接收门测试设备C', 'IT-DEV-C', 1, -2001, 1, '测试机柜C');
 
--- 自动注册用模板：type 1(UPS, V3 迁移自带) → point -2001（V9 种子不在测试 profile，须自备模板行）
-DELETE FROM device_type_point_template WHERE type_id = 1 AND point_id = -2001;
+-- 自动注册用模板：pointCode 含 temp/hum 推断为 TEMP_HUMIDITY(type 4) → point -2001
+-- （V9 种子不在测试 profile，须自备模板行）
+DELETE FROM device_type_point_template WHERE point_id = -2001;
 INSERT INTO device_type_point_template (type_id, point_id, is_required, sort_order) VALUES
-    (1, -2001, 1, 1);
+    (4, -2001, 1, 1);
 
 -- 设备A 绑定启用（含 V9 种子点位 voltage_a 供幂等键范围用例）；
 -- 设备B 跨机房（越权用例）；设备C 同机房但绑定停用（SAMPLE_POINT_NOT_BOUND 失败路径）

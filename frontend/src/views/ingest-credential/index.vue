@@ -32,7 +32,7 @@
 
     <el-table v-loading="loading" :data="credentials" row-key="id">
       <el-table-column prop="gatewayName" label="网关名称" min-width="160" />
-      <el-table-column prop="accessKey" label="接入标识" min-width="190" />
+      <el-table-column prop="accessKey" label="AccessKey" min-width="190" />
       <el-table-column label="绑定机房" min-width="140">
         <template #default="{ row }">{{ roomName(row.cloudRoomId) }}</template>
       </el-table-column>
@@ -135,7 +135,7 @@
           </el-select>
         </el-form-item>
         <el-form-item v-if="dialogMode === 'create'" label="接入标识">
-          <el-input v-model="form.accessKey" maxlength="64" placeholder="留空自动生成；4-64位字母数字短横线" />
+          <el-input v-model="form.accessKey" maxlength="64" placeholder="留空自动生成；4-64位字母数字短横线（AccessKey）" />
         </el-form-item>
         <el-form-item label="过期时间">
           <el-date-picker
@@ -161,8 +161,8 @@
         class="secret-alert"
       />
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="接入标识">{{ secretInfo.accessKey }}</el-descriptions-item>
-        <el-descriptions-item label="签名密钥">
+        <el-descriptions-item label="AccessKey">{{ secretInfo.accessKey }}</el-descriptions-item>
+        <el-descriptions-item label="SecretKey">
           <span class="secret-text">{{ secretInfo.secret }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="上报地址">

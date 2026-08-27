@@ -238,7 +238,7 @@ class IngestHttpIntegrationTest {
         createDTO.setGatewayName("auto-reg-gw");
         createDTO.setCloudRoomId(-2001L);
         createDTO.setAutoRegister(1);
-        createDTO.setDefaultTypeId(1);
+        createDTO.setDefaultTypeId(4);
         IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
 
         String body = bodyOf(item("IT-AUTO-NEW", 25.0, LocalDateTime.now(), 1L));
@@ -258,16 +258,31 @@ class IngestHttpIntegrationTest {
     }
 
     @Test
-    void autoRegisterWithoutTypeRejected() {
+    void autoRegisterWithoutCredentialDefaultTypeInfersFromPointCode() throws Exception {
+        // 凭证未配默认类型：首包按点位编码推断（temperature → TEMP_HUMIDITY）
         com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
                 new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
-        createDTO.setGatewayName("no-type-gw");
+        createDTO.setGatewayName("infer-gw");
         createDTO.setCloudRoomId(-2001L);
         createDTO.setAutoRegister(1);
-        org.assertj.core.api.Assertions.assertThatCode(() ->
-                        credentialService.createCredential(createDTO, 1L))
-                .isInstanceOf(com.example.platform.common.exception.BusinessException.class)
-                .hasMessageContaining("默认设备类型");
+        createDTO.setDefaultTypeId(null);
+        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+
+        String body = bodyOf(item("IT-INFER-NEW", 22.0, LocalDateTime.now(), 1L));
+        MvcResult result = mockMvc.perform(post("/ingest/samples")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .content(body))
+                .andExpect(status().isOk()).andReturn();
+
+        assertThat(dataOf(result).get("accepted").asInt()).isEqualTo(1);
+        // temperature 推断为 TEMP_HUMIDITY(id=1, V3 种子)——但注意 V9 点位绑定在 type 1
+        mockMvc.perform(get("/devices/code-available")
+                        .param("code", "IT-INFER-NEW")
+                        .header("Authorization", "Bearer " + loginToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
     }
 
     @Test
@@ -277,7 +292,7 @@ class IngestHttpIntegrationTest {
         createDTO.setGatewayName("inv-gw");
         createDTO.setCloudRoomId(-2001L);
         createDTO.setAutoRegister(1);
-        createDTO.setDefaultTypeId(1);
+        createDTO.setDefaultTypeId(4);
         IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
 
         String body = "{\"devices\":["

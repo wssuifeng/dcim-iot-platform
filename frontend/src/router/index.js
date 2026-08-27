@@ -55,12 +55,6 @@ const routes = [
         meta: { title: '告警管理', icon: 'Bell', navigation: true, navigationOrder: 40, roles: ALL_ROLES },
       },
       {
-        path: 'notifications',
-        name: 'notifications',
-        component: () => import('@/views/notification/index.vue'),
-        meta: { title: '站内通知', icon: 'Message', navigation: true, navigationOrder: 45, roles: ALL_ROLES },
-      },
-      {
         path: 'metric',
         name: 'metric',
         component: () => import('@/views/metric/index.vue'),
