@@ -135,5 +135,6 @@ simulation:
 verification:
   hmac-secret: ${VERIFICATION_CODE_HMAC_SECRET:dev-verification-hmac-secret-change-me}
 
-platform:
-  bootstrap-token: ${PLATFORM_BOOTSTRAP_TOKEN:}
+# ==================== 开放注册开关（自部署实例由管理员控制） ====================
+auth:
+  registration-enabled: ${AUTH_REGISTRATION_ENABLED:true}
