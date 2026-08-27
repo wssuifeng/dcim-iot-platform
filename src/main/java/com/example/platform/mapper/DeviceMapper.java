@@ -39,4 +39,12 @@ public interface DeviceMapper extends BaseMapper<Device> {
      * */
     @Select("SELECT * FROM devices WHERE last_online_time < #{checkTime} AND status != 0 ORDER BY last_online_time")
     List<Device> getOnlineDetection(@Param("checkTime") LocalDateTime checkTime);
+
+    /*
+     * 方法功能:按编码查设备（无视逻辑删除位，供网关寻址与自动注册复活判断）
+     * 参数:deviceCode-设备编码
+     * 返回数据:Device-设备行（含已逻辑删除），不存在返回null
+     * */
+    @Select("SELECT * FROM devices WHERE device_code = #{deviceCode} LIMIT 1")
+    Device selectByCodeIgnoreDeleted(@Param("deviceCode") String deviceCode);
 }

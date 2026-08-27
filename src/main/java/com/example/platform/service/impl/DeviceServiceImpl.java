@@ -46,11 +46,14 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
     private final DeviceTypeService deviceTypeService;
     private final CloudRoomService cloudRoomService;
+    private final com.example.platform.mapper.DeviceMapper deviceMapper;
 
     public DeviceServiceImpl(DeviceTypeService deviceTypeService,
-                             CloudRoomService cloudRoomService) {
+                             CloudRoomService cloudRoomService,
+                             com.example.platform.mapper.DeviceMapper deviceMapper) {
         this.deviceTypeService = deviceTypeService;
         this.cloudRoomService = cloudRoomService;
+        this.deviceMapper = deviceMapper;
     }
 
     /*
@@ -160,7 +163,8 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
     @Override
     public Device findByCode(String deviceCode) {
-        return getOne(new LambdaQueryWrapper<Device>().eq(Device::getDeviceCode, deviceCode));
+        // 网关寻址视角：设备编码是物理身份，逻辑删除位不影响
+        return deviceMapper.selectByCodeIgnoreDeleted(deviceCode);
     }
 
     /*
@@ -171,6 +175,17 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Device autoRegisterDevice(String deviceCode, Long cloudRoomId, Integer typeId, Long credentialId) {
+        // 逻辑删除的旧行占着唯一键：复活并改挂当前机房（网关世界里设备码是物理身份）
+        Device tombstone = deviceMapper.selectByCodeIgnoreDeleted(deviceCode);
+        if (tombstone != null && tombstone.getDeleted() != null && tombstone.getDeleted() == 1) {
+            tombstone.setDeleted(0);
+            tombstone.setCloudRoomId(cloudRoomId);
+            tombstone.setTypeId(typeId);
+            tombstone.setLastOnlineTime(LocalDateTime.now());
+            tombstone.setLastIngestCredentialId(credentialId);
+            deviceMapper.updateById(tombstone);
+            return getById(tombstone.getId());
+        }
         DeviceType type = deviceTypeService.getTypeOrThrow(typeId);
         if (!DevicePointMetricContract.isSupportedDeviceType(type.getTypeCode())) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
