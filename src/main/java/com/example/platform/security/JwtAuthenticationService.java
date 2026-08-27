@@ -51,17 +51,17 @@ public class JwtAuthenticationService {
         }
 
         String username = claims.get("username", String.class);
-        String platformRole = claims.get("platformRole", String.class);
-        if (!StringUtils.hasText(username)
-                || (StringUtils.hasText(platformRole)
-                && !PlatformRole.PLATFORM_ADMIN.equals(platformRole))) {
+        if (!StringUtils.hasText(username)) {
             throw new BadCredentialsException("JWT Token缺少有效用户信息");
         }
 
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(PlatformRole.authenticatedUserAuthority());
-        if (PlatformRole.PLATFORM_ADMIN.equals(platformRole)) {
-            authorities.addAll(PlatformRole.authoritiesFor(platformRole));
+        String role = jwtUtil.getRoleFromToken(token);
+        if (StringUtils.hasText(role)) {
+            authorities.addAll(PlatformRole.authoritiesFor(role));
+        } else {
+            throw new BadCredentialsException("JWT Token缺少角色信息");
         }
 
         UsernamePasswordAuthenticationToken authentication =

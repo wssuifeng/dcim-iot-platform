@@ -60,15 +60,11 @@ public class SysUser implements Serializable {
     @Size(max = 50, message = "昵称最长50个字符", groups = {CreateGroup.class, UpdateGroup.class})
     private String nickname;
 
-    @Schema(description = "角色标识：PLATFORM_ADMIN-平台管理员，ORG_ADMIN-组织管理员，OPERATOR-运维，VIEWER-只读；ADMIN为旧角色兼容", example = "ORG_ADMIN", allowableValues = {"PLATFORM_ADMIN", "ORG_ADMIN", "OPERATOR", "VIEWER", "ADMIN"}, requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "角色标识：ADMIN-管理员，OPERATOR-运维，VIEWER-只读", example = "ADMIN", allowableValues = {"ADMIN", "OPERATOR", "VIEWER"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "角色不能为空", groups = {CreateGroup.class, UpdateGroup.class})
-    @Pattern(regexp = "^(PLATFORM_ADMIN|ORG_ADMIN|OPERATOR|VIEWER|ADMIN)$", message = "角色仅允许PLATFORM_ADMIN/ORG_ADMIN/OPERATOR/VIEWER，ADMIN仅用于旧数据兼容",
+    @Pattern(regexp = "^(ADMIN|OPERATOR|VIEWER)$", message = "角色仅允许ADMIN/OPERATOR/VIEWER",
             groups = {CreateGroup.class, UpdateGroup.class})
     private String role;
-
-    @Schema(description = "平台角色，当前仅支持PLATFORM_ADMIN", accessMode = Schema.AccessMode.READ_ONLY)
-    @TableField("platform_role")
-    private String platformRole;
 
     public String getNormalizedRole() {
         return PlatformRole.normalize(role);

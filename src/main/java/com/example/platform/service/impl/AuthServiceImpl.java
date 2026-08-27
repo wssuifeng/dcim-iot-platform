@@ -96,9 +96,7 @@ public class AuthServiceImpl implements AuthService {
         cacheService.delete(FAIL_STATE_PREFIX + ip);
         sysUserService.resetLoginFailCount(user.getId());
 
-        String platformRole = PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())
-                ? PlatformRole.PLATFORM_ADMIN : null;
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), platformRole);
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
 
         sysAuditLogService.log(user.getId(), user.getUsername(), "LOGIN_SUCCESS", ip, "登录成功");
 
@@ -189,8 +187,7 @@ public class AuthServiceImpl implements AuthService {
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setNickname(user.getNickname());
-        response.setRole(PlatformRole.PLATFORM_ADMIN.equals(user.getPlatformRole())
-                ? PlatformRole.PLATFORM_ADMIN : PlatformRole.AUTHENTICATED_USER);
+        response.setRole(user.getNormalizedRole());
         return response;
     }
 }

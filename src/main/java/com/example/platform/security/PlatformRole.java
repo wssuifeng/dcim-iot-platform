@@ -7,19 +7,19 @@ import java.util.Locale;
 import java.util.Set;
 
 /*
- * 类功能:第四阶段角色模型工具，集中处理新角色和旧 ADMIN 角色兼容策略
+ * 类功能:单租户三角色模型（ADMIN/OPERATOR/VIEWER），集中处理历史角色归一化
+ *
+ * 【历史兼容】多组织 SaaS 时期的 PLATFORM_ADMIN/ORG_ADMIN 及 v1.0 的 ADMIN
+ *   在认证时统一归一化为 ADMIN，存量数据与登录态不失效。
  * */
 public final class PlatformRole {
 
     public static final String AUTHENTICATED_USER = "AUTHENTICATED_USER";
-    public static final String PLATFORM_ADMIN = "PLATFORM_ADMIN";
-    public static final String ORG_ADMIN = "ORG_ADMIN";
+    public static final String ADMIN = "ADMIN";
     public static final String OPERATOR = "OPERATOR";
     public static final String VIEWER = "VIEWER";
-    public static final String LEGACY_ADMIN = "ADMIN";
 
-    private static final Set<String> VALID_DATABASE_ROLES = Set.of(
-            PLATFORM_ADMIN, ORG_ADMIN, OPERATOR, VIEWER, LEGACY_ADMIN);
+    private static final Set<String> VALID_DATABASE_ROLES = Set.of(ADMIN, OPERATOR, VIEWER);
 
     private PlatformRole() {
     }
@@ -29,8 +29,9 @@ public final class PlatformRole {
             return VIEWER;
         }
         String normalized = role.trim().toUpperCase(Locale.ROOT);
-        if (LEGACY_ADMIN.equals(normalized)) {
-            return ORG_ADMIN;
+        if ("ORG_ADMIN".equals(normalized) || "PLATFORM_ADMIN".equals(normalized)
+                || "ADMIN".equals(normalized)) {
+            return ADMIN;
         }
         return normalized;
     }
@@ -40,14 +41,7 @@ public final class PlatformRole {
     }
 
     public static List<SimpleGrantedAuthority> authoritiesFor(String role) {
-        String normalized = normalize(role);
-        if (LEGACY_ADMIN.equalsIgnoreCase(role)) {
-            return List.of(
-                    new SimpleGrantedAuthority("ROLE_" + ORG_ADMIN),
-                    new SimpleGrantedAuthority("ROLE_" + LEGACY_ADMIN)
-            );
-        }
-        return List.of(new SimpleGrantedAuthority("ROLE_" + normalized));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + normalize(role)));
     }
 
     public static SimpleGrantedAuthority authenticatedUserAuthority() {

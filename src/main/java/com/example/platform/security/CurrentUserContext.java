@@ -1,8 +1,5 @@
 package com.example.platform.security;
 
-import com.example.platform.dto.DataScopeContext;
-import com.example.platform.service.DataScopeService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -15,13 +12,10 @@ import java.util.Optional;
 import java.util.Set;
 
 /*
- * 类功能:统一读取 HTTP SecurityContext 或 WebSocket Principal 中的当前用户和数据范围
+ * 类功能:统一读取 HTTP SecurityContext 或 WebSocket Principal 中的当前用户
  * */
 @Component
-@RequiredArgsConstructor
 public class CurrentUserContext {
-
-    private final DataScopeService dataScopeService;
 
     public Optional<CurrentUser> currentUser() {
         return fromAuthentication(SecurityContextHolder.getContext().getAuthentication());
@@ -40,14 +34,6 @@ public class CurrentUserContext {
 
     public CurrentUser requireCurrentUser(Principal principal) {
         return currentUser(principal).orElseThrow(this::unauthenticated);
-    }
-
-    public DataScopeContext requireDataScope() {
-        return dataScopeService.resolveDataScope(requireCurrentUser().userId());
-    }
-
-    public DataScopeContext requireDataScope(Principal principal) {
-        return dataScopeService.resolveDataScope(requireCurrentUser(principal).userId());
     }
 
     private Optional<CurrentUser> fromAuthentication(Authentication authentication) {

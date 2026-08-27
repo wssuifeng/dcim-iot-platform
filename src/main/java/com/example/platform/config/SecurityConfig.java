@@ -4,7 +4,6 @@ import com.example.platform.security.CustomAccessDeniedHandler;
 import com.example.platform.security.CustomAuthenticationEntryPoint;
 import com.example.platform.security.JwtAuthenticationFilter;
 import com.example.platform.security.PlatformRole;
-import com.example.platform.security.OrganizationContextFilter;
 import com.example.platform.service.SysAuditLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +23,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 /*
  * 类功能:Spring Security核心配置类，定义JWT过滤链、端点访问规则、RBAC鉴权策略
  *
- * RBAC权限层级: ADMIN > OPERATOR > VIEWER
+ * RBAC权限层级（单租户三角色）: ADMIN > OPERATOR > VIEWER
  * - ADMIN:    全部操作 + 用户管理 + 删除操作 + Druid监控 + 审计日志清理
  * - OPERATOR: 设备管理 + 告警处理 + 数据上报 + 只读查询
  * - VIEWER:   只读查询（设备/数据/告警/日志）
@@ -37,44 +36,29 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
-    static final String[] ORG_MANAGE_ROLES = {
-            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN
-    };
+    static final String[] ADMIN_ONLY_ROLES = {PlatformRole.ADMIN};
     static final String[] BUSINESS_READ_ROLES = {
-            PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR, PlatformRole.VIEWER
-    };
-    static final String[] DEVICE_TYPE_READ_ROLES = {
-            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN,
-            PlatformRole.OPERATOR, PlatformRole.VIEWER
-    };
-    static final String[] DEVICE_TYPE_WRITE_ROLES = {
-            PlatformRole.PLATFORM_ADMIN
+            PlatformRole.ADMIN, PlatformRole.OPERATOR, PlatformRole.VIEWER
     };
     static final String[] BUSINESS_WRITE_ROLES = {
-            PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR
-    };
-    static final String[] BUSINESS_ADMIN_ROLES = {
-            PlatformRole.ORG_ADMIN
+            PlatformRole.ADMIN, PlatformRole.OPERATOR
     };
     static final String[] AUDIT_READ_ROLES = {
-            PlatformRole.PLATFORM_ADMIN, PlatformRole.ORG_ADMIN, PlatformRole.OPERATOR
+            PlatformRole.ADMIN, PlatformRole.OPERATOR
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final OrganizationContextFilter organizationContextFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final SysAuditLogService sysAuditLogService;
     private final boolean apiDocsEnabled;
     private final boolean swaggerUiEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          OrganizationContextFilter organizationContextFilter,
                           CorsConfigurationSource corsConfigurationSource,
                           SysAuditLogService sysAuditLogService,
                           @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
                           @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.organizationContextFilter = organizationContextFilter;
         this.corsConfigurationSource = corsConfigurationSource;
         this.sysAuditLogService = sysAuditLogService;
         this.apiDocsEnabled = apiDocsEnabled;
@@ -103,7 +87,7 @@ public class SecurityConfig {
 
     /*
      * 方法功能:创建权限不足处理器Bean（手动实例化，避免循环依赖）
-     * 参数:无
+     * 参数:sysAuditLogService-审计日志服务
      * 返回数据:CustomAccessDeniedHandler-权限不足处理器实例
      * */
     @Bean
@@ -117,10 +101,10 @@ public class SecurityConfig {
      *   1. 无状态会话（JWT无状态认证，不使用Session）
      *   2. CORS跨域支持
      *   3. CSRF禁用（JWT无状态，无需CSRF防护）
-     *   4. 公开端点：登录
-     *   5. PLATFORM_ADMIN：平台级管理与监控入口
-     *   6. ORG_ADMIN/OPERATOR：组织业务写入
-     *   7. ORG_ADMIN/OPERATOR/VIEWER：组织业务只读
+     *   4. 公开端点：登录/注册
+     *   5. ADMIN：用户管理 + 设备类型写 + Druid监控 + 审计清理
+     *   6. ADMIN/OPERATOR：业务写入
+     *   7. 全部已认证用户：业务只读
      *   8. JWT过滤器插入UsernamePasswordAuthenticationFilter之前
      * */
     @Bean
@@ -134,10 +118,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint(customAuthenticationEntryPoint())
                         .accessDeniedHandler(customAccessDeniedHandler(sysAuditLogService)))
                 .authorizeHttpRequests(auth -> {
-                        // 公开端点：登录接口无需认证
+                        // 公开端点：登录与注册接口无需认证
                         auth.requestMatchers("/auth/login", "/auth/register",
-                                "/auth/registration-codes", "/setup/**").permitAll();
-                        auth.requestMatchers("/platform/**").hasRole(PlatformRole.PLATFORM_ADMIN);
+                                "/auth/registration-codes").permitAll();
                         // 公开端点：Actuator 健康检查与 SpringDoc 文档（开发/内网使用）
                         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
                         if (swaggerUiEnabled) {
@@ -146,23 +129,23 @@ public class SecurityConfig {
                         if (apiDocsEnabled) {
                             auth.requestMatchers("/v3/api-docs/**").permitAll();
                         }
-                        // 平台/组织管理员：用户管理接口（后续由数据范围服务细化到组织）
-                        auth.requestMatchers("/users/**").hasRole(PlatformRole.PLATFORM_ADMIN);
-                        // 平台/组织管理员：Druid监控和审计清理
-                        auth.requestMatchers("/druid/**").hasAnyRole(ORG_MANAGE_ROLES);
-                        auth.requestMatchers(HttpMethod.DELETE, "/audit-logs/**").hasAnyRole(ORG_MANAGE_ROLES);
-                        // 平台/组织管理员/运维：审计日志查询
+                        // 管理员：用户管理接口
+                        auth.requestMatchers("/users/**").hasAnyRole(ADMIN_ONLY_ROLES);
+                        // 管理员：Druid监控和审计清理
+                        auth.requestMatchers("/druid/**").hasAnyRole(ADMIN_ONLY_ROLES);
+                        auth.requestMatchers(HttpMethod.DELETE, "/audit-logs/**").hasAnyRole(ADMIN_ONLY_ROLES);
+                        // 管理员/运维：审计日志查询
                         auth.requestMatchers("/audit-logs/**").hasAnyRole(AUDIT_READ_ROLES);
-                        // 设备类型是平台级目录，所有写操作仅允许 PLATFORM_ADMIN。
+                        // 设备类型是全局目录，写操作仅允许 ADMIN。
                         auth.requestMatchers(HttpMethod.POST, "/device-types", "/device-types/**")
-                                .hasAnyRole(DEVICE_TYPE_WRITE_ROLES);
+                                .hasAnyRole(ADMIN_ONLY_ROLES);
                         auth.requestMatchers(HttpMethod.PUT, "/device-types/**")
-                                .hasAnyRole(DEVICE_TYPE_WRITE_ROLES);
+                                .hasAnyRole(ADMIN_ONLY_ROLES);
                         auth.requestMatchers(HttpMethod.DELETE, "/device-types/**")
-                                .hasAnyRole(DEVICE_TYPE_WRITE_ROLES);
-                        // 组织管理员：其他业务删除操作
-                        auth.requestMatchers(HttpMethod.DELETE).hasAnyRole(BUSINESS_ADMIN_ROLES);
-                        // 组织管理员/运维：设备/点位/采样写入（其余写接口由 @PreAuthorize 细化）
+                                .hasAnyRole(ADMIN_ONLY_ROLES);
+                        // 管理员：其他业务删除操作
+                        auth.requestMatchers(HttpMethod.DELETE).hasAnyRole(ADMIN_ONLY_ROLES);
+                        // 管理员/运维：设备/点位/采样写入（其余写接口由 @PreAuthorize 细化）
                         auth.requestMatchers(HttpMethod.POST, "/devices", "/metric-samples",
                                 "/metric-samples/batch", "/point-definitions",
                                 "/point-alarm-rules").hasAnyRole(BUSINESS_WRITE_ROLES);
@@ -170,26 +153,22 @@ public class SecurityConfig {
                                 "/point-definitions/**", "/point-templates/**",
                                 "/point-alarm-rules/**", "/metric-samples/**")
                                 .hasAnyRole(BUSINESS_WRITE_ROLES);
-                        // 组织管理员/运维：告警处理（VIEWER不可处理告警）
+                        // 管理员/运维：告警处理（VIEWER不可处理告警）
                         auth.requestMatchers(HttpMethod.PUT, "/alarm-events/**").hasAnyRole(BUSINESS_WRITE_ROLES);
-                        // 平台管理员需要读取设备类型目录，才能维护类型级点位模板。
-                        auth.requestMatchers(HttpMethod.GET, "/device-types/**")
-                                .hasAnyRole(DEVICE_TYPE_READ_ROLES);
-                        // 组织业务只读接口：PLATFORM_ADMIN 不默认穿透组织业务数据
+                        // 业务只读接口：全部已认证角色
                         auth.requestMatchers(HttpMethod.GET,
                                 "/devices/**", "/metric-samples/**", "/metric-latest/**",
                                 "/point-definitions/**", "/point-templates/**",
                                 "/point-alarm-rules/**", "/alarm-events/**",
                                 "/alarm-notification-logs/**",
                                 "/dashboard/**").hasAnyRole(BUSINESS_READ_ROLES);
-                        // 其他GET仅要求认证，具体业务范围由后续服务层校验
+                        // 其他GET仅要求认证
                         auth.requestMatchers(HttpMethod.GET).authenticated();
                         // 兜底规则：其余请求需认证
                         auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(organizationContextFilter, JwtAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

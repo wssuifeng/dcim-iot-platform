@@ -1,5 +1,6 @@
 package com.example.platform.common.util;
 
+import com.example.platform.security.PlatformRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -43,17 +44,17 @@ public class JwtUtil {
 
     /*
      * 方法功能:生成JWT Token，包含唯一ID(jti)用于黑名单精确标识
-     * 参数:userId-用户ID, username-用户名, role-角色标识
+     * 参数:userId-用户ID, username-用户名, role-角色标识（ADMIN/OPERATOR/VIEWER）
      * 返回数据:String-JWT Token字符串
      * */
-    public String generateToken(Long userId, String username, String platformRole) {
+    public String generateToken(Long userId, String username, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration * 1000);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
-                .claim("platformRole", platformRole)
+                .claim("role", PlatformRole.normalize(role))
                 .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -97,11 +98,16 @@ public class JwtUtil {
     /*
      * 方法功能:从Token中提取角色
      * 参数:token-JWT Token字符串
-     * 返回数据:String-角色标识
+     * 返回数据:String-角色标识（ADMIN/OPERATOR/VIEWER）
      * */
     public String getRoleFromToken(String token) {
         Claims claims = parseToken(token);
-        return claims.get("platformRole", String.class);
+        String role = claims.get("role", String.class);
+        // 历史多组织时期 Token 的 platformRole 声明统一归一化为 ADMIN
+        if (role == null && claims.get("platformRole", String.class) != null) {
+            return PlatformRole.ADMIN;
+        }
+        return role;
     }
 
     /*
