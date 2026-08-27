@@ -78,6 +78,16 @@ logging:
     com.example.platform: debug
     com.example.platform.mapper: debug
 
+# ==================== 开发环境健康检查（mail 未配真实主机时跳过，避免 health 卡 20 秒） ====================
+management:
+  health:
+    mail:
+      enabled: false
+
+# ==================== 开发环境登录锁定放宽（密码调试期间 60 秒即解锁） ====================
+jwt:
+  lock-duration: 60
+
 # ==================== 开发环境限流（压测友好） ====================
 # 压测时可通过 RATE_LIMIT_ENABLED=false 直接关闭，或保持开启但调高阈值
 rate-limit:
