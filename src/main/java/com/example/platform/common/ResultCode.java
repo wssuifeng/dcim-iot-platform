@@ -65,10 +65,6 @@ public final class ResultCode {
     public static final int ALARM_STATE_INVALID_TRANSITION = 4081;
     public static final int ALARM_STATE_CONFLICT = 4082;
 
-    // 模拟端模块 409x
-    public static final int SIMULATION_WRITE_DISABLED = 4091;
-    public static final int SIMULATION_SCENE_NOT_FOUND = 4092;
-
     // 接入门模块 409x（数据接收门预留段 4095-4098，鉴权 401 由 GatewayAuthenticationFilter 直接返回）
     public static final int INGEST_UNAUTHORIZED = 4095;
     public static final int INGEST_CREDENTIAL_NOT_FOUND = 4096;
@@ -111,7 +107,6 @@ public final class ResultCode {
     public static final String SCOPE_ACCESS_DENIED = "SCOPE_ACCESS_DENIED";
     public static final String VALIDATION_INVALID_PARAMETER = "VALIDATION_INVALID_PARAMETER";
     public static final String STATE_INVALID_TRANSITION = "STATE_INVALID_TRANSITION";
-    public static final String SIM_WRITE_DISABLED = "SIM_WRITE_DISABLED";
     public static final String RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED";
     public static final String AUDIT_WRITE_FAILED = "AUDIT_WRITE_FAILED";
     public static final String WS_UNAUTHORIZED = "WS_UNAUTHORIZED";
@@ -127,7 +122,6 @@ public final class ResultCode {
         SCOPE_ACCESS_DENIED(ResultCode.SCOPE_ACCESS_DENIED, ResultCode.DATA_SCOPE_ACCESS_DENIED, "数据范围拒绝访问"),
         VALIDATION_INVALID_PARAMETER(ResultCode.VALIDATION_INVALID_PARAMETER, ResultCode.INVALID_PARAMETER, "参数校验失败"),
         STATE_INVALID_TRANSITION(ResultCode.STATE_INVALID_TRANSITION, ResultCode.ALARM_STATE_INVALID_TRANSITION, "状态流转不合法"),
-        SIM_WRITE_DISABLED(ResultCode.SIM_WRITE_DISABLED, ResultCode.SIMULATION_WRITE_DISABLED, "模拟写入已禁用"),
         RATE_LIMIT_EXCEEDED(ResultCode.RATE_LIMIT_EXCEEDED, ResultCode.RATE_LIMITED, "请求过于频繁"),
         AUDIT_WRITE_FAILED(ResultCode.AUDIT_WRITE_FAILED, ResultCode.AUDIT_RECORD_FAILED, "审计记录写入失败"),
         WS_UNAUTHORIZED(ResultCode.WS_UNAUTHORIZED, ResultCode.WEBSOCKET_UNAUTHORIZED, "WebSocket未认证"),

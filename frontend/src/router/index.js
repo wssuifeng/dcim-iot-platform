@@ -49,12 +49,6 @@ const routes = [
         meta: { title: '数据监控', icon: 'TrendCharts', navigation: true, navigationOrder: 30, roles: ALL_ROLES },
       },
       {
-        path: 'simulation',
-        name: 'simulation',
-        component: () => import('@/views/simulation/index.vue'),
-        meta: { title: '模拟运行', icon: 'SetUp', navigation: true, navigationOrder: 35, roles: ALL_ROLES },
-      },
-      {
         path: 'alerts',
         name: 'alerts',
         component: () => import('@/views/alert/index.vue'),

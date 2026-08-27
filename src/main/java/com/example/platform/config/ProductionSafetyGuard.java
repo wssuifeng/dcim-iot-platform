@@ -47,7 +47,6 @@ public class ProductionSafetyGuard {
         requireSpringDocDisabled(violations);
         requireTrustedOrigins("cors.allowed-origins", "CORS", violations);
         requireTrustedOrigins("websocket.allowed-origins", "WebSocket", violations);
-        requireFalse("simulation.write-enabled", "生产环境必须关闭模拟写入开关", violations);
         requireTextProperty("spring.data.redis.password", "生产环境 Redis 密码不能为空", violations);
         requireTextProperty("spring.datasource.password", "生产环境数据库密码不能为空", violations);
 

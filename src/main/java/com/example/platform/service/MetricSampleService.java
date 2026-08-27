@@ -21,8 +21,8 @@ import java.util.List;
  *   事务提交后发布 MetricSampleSavedEvent（仅向前传播至告警评估）。
  *   T1 内禁止调用任何告警类（依赖单向铁律）。
  *
- * 【写入分流】triggerAlarm=true（HTTP上报）发布事件触发告警评估；
- *   triggerAlarm=false（模拟运行，由 simulation.alarm-trigger-enabled 开关控制）只落库不评估。
+ * 【写入分流】triggerAlarm=true（网关上报/手工写入）发布事件触发告警评估；
+ *   triggerAlarm=false 只落库不评估（预留给批量导入等不产告警的写入场景）。
  *
  * 【批量语义（D10）】逐条独立处理（TransactionTemplate 编程式事务），部分成功合法；
  *   返回 successCount 与逐条失败明细，任一失败不影响其余。

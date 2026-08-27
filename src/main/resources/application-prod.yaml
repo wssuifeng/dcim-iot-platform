@@ -99,9 +99,6 @@ cors:
 websocket:
   allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGINS}}
 
-# ==================== 生产环境 JWT 与模拟端门控 ====================
+# ==================== 生产环境 JWT 门控 ====================
 jwt:
   secret: ${JWT_SECRET}
-
-simulation:
-  write-enabled: ${SIMULATION_WRITE_ENABLED:false}

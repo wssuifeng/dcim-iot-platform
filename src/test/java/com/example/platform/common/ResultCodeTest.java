@@ -24,7 +24,6 @@ class ResultCodeTest {
                         ResultCode.SCOPE_ACCESS_DENIED,
                         ResultCode.VALIDATION_INVALID_PARAMETER,
                         ResultCode.STATE_INVALID_TRANSITION,
-                        ResultCode.SIM_WRITE_DISABLED,
                         ResultCode.RATE_LIMIT_EXCEEDED,
                         ResultCode.AUDIT_WRITE_FAILED,
                         ResultCode.WS_UNAUTHORIZED,
@@ -42,8 +41,6 @@ class ResultCodeTest {
                 .isEqualTo(ResultCode.DATA_SCOPE_ACCESS_DENIED);
         assertThat(ResultCode.legacyCodeOf(ResultCode.STATE_INVALID_TRANSITION))
                 .isEqualTo(ResultCode.ALARM_STATE_INVALID_TRANSITION);
-        assertThat(ResultCode.legacyCodeOf(ResultCode.SIM_WRITE_DISABLED))
-                .isEqualTo(ResultCode.SIMULATION_WRITE_DISABLED);
         assertThat(ResultCode.legacyCodeOf(ResultCode.SUPPLY_UNSAFE_CONFIG))
                 .isEqualTo(ResultCode.SUPPLY_CONFIG_UNSAFE);
     }
