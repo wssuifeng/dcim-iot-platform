@@ -67,6 +67,14 @@ public class DeviceController {
         return Result.success(deviceService.listScoped(currentUser().userId()));
     }
 
+    @Operation(summary = "设备编码可用性检查", description = "添加设备时实时防重：返回编码是否可用")
+    @GetMapping("/code-available")
+    public Result<Map<String, Object>> codeAvailable(
+            @Parameter(description = "待检查设备编码", required = true) @RequestParam String code) {
+        boolean available = deviceService.findByCode(code) == null;
+        return Result.success(Map.of("available", available));
+    }
+
     @Operation(summary = "根据ID查询设备详情", description = "设备不存在时抛出 DeviceNotFoundException，由全局异常处理器返回 404")
     @GetMapping("/{id}")
     public Result<Device> getById(

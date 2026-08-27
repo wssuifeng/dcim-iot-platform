@@ -43,38 +43,23 @@ INSERT INTO device_type_point_template (id, type_id, point_id, organization_id, 
     (3, 1, 3, 999, 1, 1),
     (4, 1, 4, 999, 1, 2);
 
--- ==================== 5. 设备（每机房2台） ====================
--- 设备4 last_online_time 30分钟前：演示离线检测（OFFLINE 规则阈值15分钟）
-INSERT INTO devices (id, device_name, device_code, type_id, organization_id, cloud_room_id, status, location, last_online_time) VALUES
-    (1, '机房A-UPS-01',   'UPS-ROOM1-A', 1, 999, 1, 1, '演示机房A-01机柜', NOW()),
-    (2, '机房A-温湿度-01', 'TH-ROOM1-B',  4, 999, 1, 1, '演示机房A-02机柜', NOW()),
-    (3, '机房B-UPS-01',   'UPS-ROOM2-A', 1, 999, 2, 1, '演示机房B-01机柜', NOW()),
-    (4, '机房B-温湿度-01', 'TH-ROOM2-B',  4, 999, 2, 0, '演示机房B-02机柜', DATE_SUB(NOW(), INTERVAL 30 MINUTE));
+-- ==================== 5. 设备 ====================
+-- 设备数据不预置：留给接入链路全流程集成测试（网关首包自动注册 / 管理页手工添加 /
+-- 清单导入）。开发期调试可临时 INSERT，提交前务必清理。
 
 -- ==================== 6. 设备点位绑定 ====================
--- 设备2 的 voltage_a 绑定置为停用（status=1）：演示上报绑定校验拒绝
-INSERT INTO device_point_binding (device_id, point_id, status) VALUES
-    (1, 3, 0),
-    (1, 4, 0),
-    (2, 1, 0),
-    (2, 2, 0),
-    (2, 3, 1),
-    (3, 3, 0),
-    (3, 4, 0),
-    (4, 1, 0),
-    (4, 2, 0);
+-- 同上：随设备创建（模板拷贝或自动注册）生成，不预置。
 
 -- ==================== 7. 点位告警规则 ====================
 -- 规则1-3：TEMP_HUMIDITY 温度阈值规则（挂在模板项1=type4+temperature）
 -- 规则4：离线通用规则（rule_type=OFFLINE，point_id 为空，threshold=15分钟）
--- 规则5：设备级覆盖（设备2 高温阈值收紧为30，演示按点位替换式降级）
+-- 规则5：设备级覆盖：示例（设备级模板项挂设备ID）。设备不再预置，此规则改为全局注释。
 INSERT INTO device_point_alarm_rule
     (id, template_item_id, device_id, point_id, rule_type, rule_name, operator, threshold, alarm_level, enabled, organization_id, remark) VALUES
-    (1, 1, NULL, 1,    'METRIC', '高温警告',     'GT', 35.0000, 2, 1, 999, '全局：温度高于35℃触发警告'),
-    (2, 1, NULL, 1,    'METRIC', '高温紧急',     'GT', 40.0000, 1, 1, 999, '全局：温度高于40℃触发紧急'),
-    (3, 1, NULL, 1,    'METRIC', '低温警告',     'LT', 10.0000, 4, 1, 999, '全局：温度低于10℃触发警告'),
-    (4, 1, NULL, NULL, 'OFFLINE', '设备离线',    NULL, 15.0000, 2, 1, 999, '全局：超过15分钟未上报判定离线'),
-    (5, 1, 2,    1,    'METRIC', '高温警告(设备级)', 'GT', 30.0000, 2, 1, 999, '设备级覆盖：机房A-温湿度-01 高温阈值收紧为30');
+    (1, 1, NULL, 1,    'METRIC', '高温警告',  'GT', 35.0000, 2, 1, 999, '全局：温度高于35℃触发警告'),
+    (2, 1, NULL, 1,    'METRIC', '高温紧急',  'GT', 40.0000, 1, 1, 999, '全局：温度高于40℃触发紧急'),
+    (3, 1, NULL, 1,    'METRIC', '低温警告',  'LT', 10.0000, 4, 1, 999, '全局：温度低于10℃触发警告'),
+    (4, 1, NULL, NULL, 'OFFLINE', '设备离线', NULL, 15.0000, 2, 1, 999, '全局：超过15分钟未上报判定离线');
 
 -- ==================== 8. 保留策略（全局默认） ====================
 INSERT INTO metric_retention_policy (id, point_id, retention_days) VALUES

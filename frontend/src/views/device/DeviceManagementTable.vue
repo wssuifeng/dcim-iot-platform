@@ -26,6 +26,20 @@
       </template>
     </el-table-column>
     <el-table-column prop="location" label="位置" min-width="150" show-overflow-tooltip />
+    <el-table-column label="最后上报" min-width="165">
+      <template #default="{ row }">
+        <span v-if="row.lastOnlineTime">{{ row.lastOnlineTime }}</span>
+        <el-text v-else type="info" size="small">从未上报</el-text>
+      </template>
+    </el-table-column>
+    <el-table-column label="接入网关" min-width="150">
+      <template #default="{ row }">
+        <span v-if="row.lastIngestCredentialId && gatewayNames[row.lastIngestCredentialId]">
+          {{ gatewayNames[row.lastIngestCredentialId] }}
+        </span>
+        <el-text v-else type="info" size="small">-</el-text>
+      </template>
+    </el-table-column>
     <el-table-column prop="updateTime" label="更新时间" min-width="170" />
     <el-table-column label="操作" width="310" fixed="right">
       <template #default="{ row }">
@@ -67,6 +81,7 @@ defineProps({
   canDelete: { type: Boolean, default: false },
   typeNames: { type: Object, default: () => ({}) },
   roomNames: { type: Object, default: () => ({}) },
+  gatewayNames: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['edit', 'delete', 'status-change', 'points'])
 

@@ -32,6 +32,12 @@ public class IngestCredentialVO implements Serializable {
     @Schema(description = "仿真网关标记：0-真实网关，1=仿真服务专用", example = "0")
     private Integer simulated;
 
+    @Schema(description = "首包自动注册：1=收到未知 deviceCode 自动建档", example = "0")
+    private Integer autoRegister;
+
+    @Schema(description = "自动注册设备默认类型ID", example = "4")
+    private Integer defaultTypeId;
+
     @Schema(description = "状态：0-启用，1-停用", example = "0")
     private Integer status;
 
@@ -54,6 +60,8 @@ public class IngestCredentialVO implements Serializable {
         vo.setGatewayName(entity.getGatewayName());
         vo.setCloudRoomId(entity.getCloudRoomId());
         vo.setSimulated(entity.getSimulated());
+        vo.setAutoRegister(entity.getAutoRegister());
+        vo.setDefaultTypeId(entity.getDefaultTypeId());
         vo.setStatus(entity.getStatus());
         vo.setLastSeenAt(entity.getLastSeenAt());
         vo.setExpireAt(entity.getExpireAt());

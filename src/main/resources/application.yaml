@@ -93,6 +93,9 @@ task:
   check-device-cron: 0 0/5 * * * ?
   # 离线判定兜底阈值（无 OFFLINE 规则的设备使用；规则阈值优先）
   offline-threshold-seconds: 300
+  # 网关离线判定阈值（秒）：启用凭证 last_seen_at 超时产出 GATEWAY_OFFLINE 告警
+  gateway-offline-threshold-seconds: 300
+  check-gateway-offline-cron: 0 1/5 * * * ?
   # 采样历史保留清理：每天凌晨 2 点，按保留策略分批删除
   cleanup-metric-sample-cron: 0 0 2 * * ?
   cleanup-batch-size: 5000

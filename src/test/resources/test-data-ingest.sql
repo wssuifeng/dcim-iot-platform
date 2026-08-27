@@ -16,10 +16,17 @@ INSERT INTO sys_cloud_room (id, room_name, room_code, location) VALUES
 INSERT INTO point_definition (id, point_code, point_name, unit, data_type, description) VALUES
     (-2001, 'IT_TEST_TEMP', '接收门测试温度', '℃', 'NUMBER', '数据接收门集成测试点位');
 
+
+
 INSERT INTO devices (id, device_name, device_code, type_id, cloud_room_id, status, location) VALUES
     (-2001, '接收门测试设备A', 'IT-DEV-A', 1, -2001, 1, '测试机柜A'),
     (-2002, '接收门测试设备B', 'IT-DEV-B', 1, -2002, 1, '测试机柜B'),
     (-2003, '接收门测试设备C', 'IT-DEV-C', 1, -2001, 1, '测试机柜C');
+
+-- 自动注册用模板：type 1(UPS, V3 迁移自带) → point -2001（V9 种子不在测试 profile，须自备模板行）
+DELETE FROM device_type_point_template WHERE type_id = 1 AND point_id = -2001;
+INSERT INTO device_type_point_template (type_id, point_id, is_required, sort_order) VALUES
+    (1, -2001, 1, 1);
 
 -- 设备A 绑定启用（含 V9 种子点位 voltage_a 供幂等键范围用例）；
 -- 设备B 跨机房（越权用例）；设备C 同机房但绑定停用（SAMPLE_POINT_NOT_BOUND 失败路径）

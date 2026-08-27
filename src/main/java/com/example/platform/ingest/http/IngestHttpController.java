@@ -1,10 +1,13 @@
 package com.example.platform.ingest.http;
 
 import com.example.platform.common.Result;
+import com.example.platform.ingest.dto.IngestInventoryDTO;
+import com.example.platform.ingest.dto.IngestInventoryResultVO;
 import com.example.platform.ingest.dto.IngestResultVO;
 import com.example.platform.ingest.dto.IngestSampleBatchDTO;
 import com.example.platform.ingest.entity.IngestCredential;
 import com.example.platform.ingest.service.IngestCoreService;
+import com.example.platform.ingest.service.IngestInventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,9 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class IngestHttpController {
 
     private final IngestCoreService ingestCoreService;
+    private final IngestInventoryService ingestInventoryService;
 
-    public IngestHttpController(IngestCoreService ingestCoreService) {
+    public IngestHttpController(IngestCoreService ingestCoreService,
+                                IngestInventoryService ingestInventoryService) {
         this.ingestCoreService = ingestCoreService;
+        this.ingestInventoryService = ingestInventoryService;
     }
 
     @Operation(summary = "网关批量数据上报",
@@ -53,5 +59,16 @@ public class IngestHttpController {
                 (IngestCredential) request.getAttribute(GatewayAuthenticationFilter.ATTR_CREDENTIAL);
         ingestCoreService.heartbeat(credential);
         return Result.success();
+    }
+
+    @Operation(summary = "网关设备清单上报",
+            description = "清单上报式接入：auto_register=1 时逐台导入（已存在跳过并补建缺失点位绑定），"
+                    + "否则仅返回 unknown 比对结果供前端人工导入；单批 ≤ 500 台")
+    @PostMapping("/inventory")
+    public Result<IngestInventoryResultVO> inventory(@Valid @RequestBody IngestInventoryDTO inventory,
+                                                     HttpServletRequest request) {
+        IngestCredential credential =
+                (IngestCredential) request.getAttribute(GatewayAuthenticationFilter.ATTR_CREDENTIAL);
+        return Result.success(ingestInventoryService.handleInventory(credential, inventory));
     }
 }

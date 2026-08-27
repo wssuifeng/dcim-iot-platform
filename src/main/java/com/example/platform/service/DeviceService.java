@@ -24,6 +24,27 @@ public interface DeviceService extends IService<Device> {
     Device getDeviceOrThrow(Integer id);
 
     /*
+     * 方法功能:批量回写设备的最后上报网关凭证（接入视角，批级一次）
+     * 参数:deviceIds-设备ID集合, credentialId-网关凭证ID
+     * 返回数据:无
+     * */
+    void markIngestSource(java.util.Collection<Integer> deviceIds, Long credentialId);
+
+    /*
+     * 方法功能:按设备编码查询（网关上报寻址用）
+     * 参数:deviceCode-设备编码
+     * 返回数据:Device-设备对象，不存在返回null
+     * */
+    Device findByCode(String deviceCode);
+
+    /*
+     * 方法功能:网关首包自动注册——收到未知 deviceCode 时系统建档（不依赖用户上下文）
+     * 参数:deviceCode-设备编码, cloudRoomId-凭证绑定机房, typeId-凭证默认类型, credentialId-来源凭证
+     * 返回数据:Device-新建的设备
+     * */
+    Device autoRegisterDevice(String deviceCode, Long cloudRoomId, Integer typeId, Long credentialId);
+
+    /*
      * 方法功能:根据设备名称模糊查询
      * 参数:name-设备名称关键词
      * 返回数据:List<Device>-匹配的设备列表

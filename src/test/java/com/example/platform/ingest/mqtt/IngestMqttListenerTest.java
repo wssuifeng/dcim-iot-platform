@@ -41,6 +41,8 @@ class IngestMqttListenerTest {
     private IngestCredentialService ingestCredentialService;
     @Mock
     private SysAuditLogService sysAuditLogService;
+    @Mock
+    private com.example.platform.service.AlarmEventService alarmEventService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +51,8 @@ class IngestMqttListenerTest {
     @BeforeEach
     void setUp() {
         listener = new IngestMqttListener(ingestCoreService, ingestCredentialService,
-                sysAuditLogService, Validation.buildDefaultValidatorFactory().getValidator(),
+                sysAuditLogService, alarmEventService,
+                Validation.buildDefaultValidatorFactory().getValidator(),
                 objectMapper, "tcp://localhost:1883", "test-ingest", "", "", 30, false);
     }
 
@@ -126,10 +129,23 @@ class IngestMqttListenerTest {
 
     @Test
     void lwtRecordedAsStructuredAudit() {
+        // 凭证不存在：仅审计，不产出告警
+        when(ingestCredentialService.authenticate("gw-a"))
+                .thenThrow(new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证无效"));
         listener.handleLwt("dcim/gw-a/lwt", "offline".getBytes(StandardCharsets.UTF_8));
 
         verify(sysAuditLogService).logStructured(any(), eq("gw-a"), eq("GATEWAY"), any(),
                 eq("INGEST_GATEWAY_LWT"), any(), eq("gw-a"), eq("FAILURE"), any(), any(), any(), any());
+        verify(alarmEventService, never()).trigger(any());
+    }
+
+    @Test
+    void lwtWithValidCredentialTriggersGatewayOfflineAlarm() {
+        when(ingestCredentialService.authenticate("gw-a")).thenReturn(credential());
+
+        listener.handleLwt("dcim/gw-a/lwt", "offline".getBytes(StandardCharsets.UTF_8));
+
+        verify(alarmEventService).trigger(any(com.example.platform.dto.AlarmTriggerContext.class));
     }
 
     @Test

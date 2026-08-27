@@ -7,6 +7,20 @@
       </div>
     </header>
 
+    <el-card v-if="gateways.length" class="gateway-panel" shadow="never">
+      <template #header>
+        <span class="gateway-panel-title">接入网关</span>
+      </template>
+      <div class="gateway-list">
+        <div v-for="gw in gateways" :key="gw.id" class="gateway-item">
+          <span class="gw-dot" :class="gatewayState(gw)" />
+          <span class="gw-name">{{ gw.gatewayName }}</span>
+          <span class="gw-room">{{ roomLabel(gw.cloudRoomId) }}</span>
+          <span class="gw-seen">{{ gatewaySeen(gw) }}</span>
+        </div>
+      </div>
+    </el-card>
+
     <div class="monitor-layout">
       <aside class="device-panel">
         <device-sidebar v-model="selectedDeviceId" :devices="devices" />
@@ -128,6 +142,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { getCredentialPage } from '@/api/ingestCredential'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -302,6 +317,34 @@ watch(selectedDeviceId, () => {
   void loadSelectedDevice()
 })
 
+const gateways = ref([])
+const rooms = ref([])
+
+function gatewayState(gw) {
+  if (gw.status !== 0) return 'off'
+  if (!gw.lastSeenAt) return 'idle'
+  return new Date(gw.lastSeenAt).getTime() > Date.now() - 5 * 60 * 1000 ? 'online' : 'offline'
+}
+
+function gatewaySeen(gw) {
+  if (gw.status !== 0) return '已停用'
+  if (!gw.lastSeenAt) return '从未上报'
+  return `最近活跃 ${gw.lastSeenAt}`
+}
+
+function roomLabel(id) {
+  return rooms.value.find((item) => item.id === id)?.roomName || `机房 #${id}`
+}
+
+async function loadGateways() {
+  const [credResult, roomResult] = await Promise.all([
+    getCredentialPage({ current: 1, size: 100 }),
+    import('@/api/cloudRoom').then((m) => m.getCloudRoomPage({ current: 1, size: 100 })),
+  ])
+  gateways.value = credResult.data?.records || []
+  rooms.value = roomResult.data?.records || []
+}
+
 onMounted(loadReferenceData)
 </script>
 
@@ -402,5 +445,57 @@ onMounted(loadReferenceData)
     border-right: 0;
     border-bottom: 1px solid var(--color-border-light);
   }
+}
+
+.gateway-panel {
+  margin-bottom: 16px;
+}
+
+.gateway-panel-title {
+  font-weight: 600;
+}
+
+.gateway-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+
+.gateway-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.gw-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.gw-dot.online {
+  background: var(--el-color-success);
+}
+
+.gw-dot.offline {
+  background: var(--el-color-danger);
+}
+
+.gw-dot.idle {
+  background: var(--el-color-warning);
+}
+
+.gw-dot.off {
+  background: var(--el-color-info);
+}
+
+.gw-room {
+  color: var(--color-text-3);
+}
+
+.gw-seen {
+  color: var(--color-text-3);
+  font-size: 12px;
 }
 </style>

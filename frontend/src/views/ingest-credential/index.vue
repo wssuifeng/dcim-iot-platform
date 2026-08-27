@@ -50,9 +50,15 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="自动注册" width="95">
+        <template #default="{ row }">
+          <el-tag v-if="row.autoRegister === 1" type="success">开启</el-tag>
+          <el-tag v-else type="info" size="small">关闭</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="最近活跃" min-width="165">
         <template #default="{ row }">
-          <span v-if="row.lastSeenAt">{{ row.lastSeenAt }}</span>
+          <span v-if="row.lastSeenAt" :class="{ stale: isStale(row) }">{{ row.lastSeenAt }}</span>
           <el-text v-else type="info" size="small">从未上报</el-text>
         </template>
       </el-table-column>
@@ -114,6 +120,20 @@
             <el-radio :value="1">仿真网关</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="首包自动注册" prop="autoRegister">
+          <el-switch v-model="form.autoRegister" :active-value="1" :inactive-value="0" />
+          <span class="form-tip">收到未知设备编码的数据时自动建档</span>
+        </el-form-item>
+        <el-form-item v-if="form.autoRegister === 1" label="默认设备类型" prop="defaultTypeId">
+          <el-select v-model="form.defaultTypeId" filterable class="full-width">
+            <el-option
+              v-for="item in deviceTypes"
+              :key="item.id"
+              :label="`${item.typeName} (${item.typeCode})`"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item v-if="dialogMode === 'create'" label="接入标识">
           <el-input v-model="form.accessKey" maxlength="64" placeholder="留空自动生成；4-64位字母数字短横线" />
         </el-form-item>
@@ -172,6 +192,7 @@ import {
   updateCredentialStatus,
 } from '@/api/ingestCredential'
 import { getCloudRoomPage } from '@/api/cloudRoom'
+import { getDeviceTypes } from '@/api/deviceType'
 
 defineOptions({ name: 'IngestCredentialManagement' })
 
@@ -179,6 +200,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const credentials = ref([])
 const rooms = ref([])
+const deviceTypes = ref([])
 const total = ref(0)
 const filters = reactive({ keyword: '', status: null, simulated: null })
 const pagination = reactive({ current: 1, size: 10 })
@@ -186,7 +208,7 @@ const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const formRef = ref(null)
-const form = reactive({ gatewayName: '', cloudRoomId: null, simulated: 0, accessKey: '', expireAt: null })
+const form = reactive({ gatewayName: '', cloudRoomId: null, simulated: 0, autoRegister: 0, defaultTypeId: null, accessKey: '', expireAt: null })
 const secretVisible = ref(false)
 const secretInfo = ref({})
 
@@ -194,6 +216,13 @@ const activeRooms = computed(() => rooms.value.filter((item) => item.status === 
 const rules = {
   gatewayName: [{ required: true, message: '请输入网关名称', trigger: 'blur' }],
   cloudRoomId: [{ required: true, message: '请选择绑定机房', trigger: 'change' }],
+  defaultTypeId: [{ required: true, message: '开启自动注册必须选择默认设备类型', trigger: 'change' }],
+}
+
+// 离线判定：最近活跃超 5 分钟视为疑似离线（与后端网关离线任务同口径）
+function isStale(row) {
+  if (!row.lastSeenAt) return false
+  return new Date(row.lastSeenAt).getTime() < Date.now() - 5 * 60 * 1000
 }
 
 function roomName(id) {
@@ -203,6 +232,11 @@ function roomName(id) {
 async function fetchRooms() {
   const result = await getCloudRoomPage({ current: 1, size: 100 })
   rooms.value = result.data?.records || []
+}
+
+async function fetchDeviceTypes() {
+  const result = await getDeviceTypes()
+  deviceTypes.value = result.data || []
 }
 
 async function fetchCredentials() {
@@ -251,6 +285,8 @@ function resetForm() {
   form.gatewayName = ''
   form.cloudRoomId = null
   form.simulated = 0
+  form.autoRegister = 0
+  form.defaultTypeId = null
   form.accessKey = ''
   form.expireAt = null
   formRef.value?.clearValidate()
@@ -271,6 +307,8 @@ async function submitForm() {
         gatewayName: form.gatewayName,
         cloudRoomId: form.cloudRoomId,
         simulated: form.simulated,
+        autoRegister: form.autoRegister,
+        defaultTypeId: form.autoRegister === 1 ? form.defaultTypeId : null,
         accessKey: form.accessKey || null,
         expireAt: form.expireAt || null,
       })
@@ -331,7 +369,7 @@ async function handleDelete(row) {
 }
 
 onMounted(async () => {
-  await fetchRooms()
+  await Promise.all([fetchRooms(), fetchDeviceTypes()])
   await fetchCredentials()
 })
 </script>
@@ -383,6 +421,16 @@ onMounted(async () => {
 
 .secret-alert {
   margin-bottom: 14px;
+}
+
+.stale {
+  color: var(--el-color-danger);
+}
+
+.form-tip {
+  margin-left: 10px;
+  color: var(--color-text-3);
+  font-size: 12px;
 }
 
 .secret-text {

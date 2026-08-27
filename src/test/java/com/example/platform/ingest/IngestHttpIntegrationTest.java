@@ -22,7 +22,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -227,6 +229,111 @@ class IngestHttpIntegrationTest {
     void emptyItemsRejectedByValidation() throws Exception {
         IngestCredential credential = createCredential(-2001L);
         postRaw(credential, "{\"items\":[]}", 400);
+    }
+
+    @Test
+    void autoRegisterCredentialRegistersUnknownDevice() throws Exception {
+        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
+                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
+        createDTO.setGatewayName("auto-reg-gw");
+        createDTO.setCloudRoomId(-2001L);
+        createDTO.setAutoRegister(1);
+        createDTO.setDefaultTypeId(1);
+        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+
+        String body = bodyOf(item("IT-AUTO-NEW", 25.0, LocalDateTime.now(), 1L));
+        MvcResult result = mockMvc.perform(post("/ingest/samples")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .content(body))
+                .andExpect(status().isOk()).andReturn();
+
+        assertThat(dataOf(result).get("accepted").asInt()).isEqualTo(1);
+        mockMvc.perform(get("/devices/code-available")
+                        .param("code", "IT-AUTO-NEW")
+                        .header("Authorization", "Bearer " + loginToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+    }
+
+    @Test
+    void autoRegisterWithoutTypeRejected() {
+        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
+                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
+        createDTO.setGatewayName("no-type-gw");
+        createDTO.setCloudRoomId(-2001L);
+        createDTO.setAutoRegister(1);
+        org.assertj.core.api.Assertions.assertThatCode(() ->
+                        credentialService.createCredential(createDTO, 1L))
+                .isInstanceOf(com.example.platform.common.exception.BusinessException.class)
+                .hasMessageContaining("默认设备类型");
+    }
+
+    @Test
+    void inventoryRegistersDevicesWhenAutoRegisterEnabled() throws Exception {
+        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
+                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
+        createDTO.setGatewayName("inv-gw");
+        createDTO.setCloudRoomId(-2001L);
+        createDTO.setAutoRegister(1);
+        createDTO.setDefaultTypeId(1);
+        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+
+        String body = "{\"devices\":["
+                + "{\"deviceCode\":\"IT-INV-1\",\"deviceName\":\"inv1\",\"pointCodes\":[\"temperature\"]},"
+                + "{\"deviceCode\":\"IT-DEV-A\",\"pointCodes\":[\"temperature\"]}]}";
+        MvcResult result = mockMvc.perform(post("/ingest/inventory")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .content(body))
+                .andExpect(status().isOk()).andReturn();
+
+        JsonNode data = dataOf(result);
+        assertThat(data.get("registered").asInt()).isEqualTo(1);
+        assertThat(data.get("exists").asInt()).isEqualTo(1);
+        assertThat(data.get("unknown").asInt()).isZero();
+    }
+
+    @Test
+    void inventoryReturnsUnknownWhenAutoRegisterDisabled() throws Exception {
+        IngestCredential credential = createCredential(-2001L);
+
+        String body = "{\"devices\":[{\"deviceCode\":\"IT-INV-2\",\"pointCodes\":[\"temperature\"]}]}";
+        MvcResult result = mockMvc.perform(post("/ingest/inventory")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Gateway " + credential.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(credential.getSecret(), body))
+                        .content(body))
+                .andExpect(status().isOk()).andReturn();
+
+        JsonNode data = dataOf(result);
+        assertThat(data.get("unknown").asInt()).isEqualTo(1);
+        assertThat(data.get("registered").asInt()).isZero();
+    }
+
+    @Test
+    void codeAvailableEndpointWorks() throws Exception {
+        mockMvc.perform(get("/devices/code-available")
+                        .param("code", "IT-DEV-A")
+                        .header("Authorization", "Bearer " + loginToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+        mockMvc.perform(get("/devices/code-available")
+                        .param("code", "IT-FRESH-CODE")
+                        .header("Authorization", "Bearer " + loginToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+    }
+
+    private String loginToken() throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"Admin123\"}"))
+                .andExpect(status().isOk()).andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsByteArray())
+                .get("data").get("token").asText();
     }
 
     // ===================== 辅助 =====================

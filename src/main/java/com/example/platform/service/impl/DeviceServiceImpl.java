@@ -149,6 +149,51 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
      * 返回数据:Device-查询到的设备对象
      * */
     @Override
+    public void markIngestSource(java.util.Collection<Integer> deviceIds, Long credentialId) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return;
+        }
+        update(new LambdaUpdateWrapper<Device>()
+                .in(Device::getId, deviceIds)
+                .set(Device::getLastIngestCredentialId, credentialId));
+    }
+
+    @Override
+    public Device findByCode(String deviceCode) {
+        return getOne(new LambdaQueryWrapper<Device>().eq(Device::getDeviceCode, deviceCode));
+    }
+
+    /*
+     * 方法功能:网关首包自动注册——系统建档并挂凭证机房（不依赖用户上下文）
+     * 参数:deviceCode-设备编码, cloudRoomId-凭证绑定机房, typeId-凭证默认类型, credentialId-来源凭证
+     * 返回数据:Device-新建的设备
+     * */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Device autoRegisterDevice(String deviceCode, Long cloudRoomId, Integer typeId, Long credentialId) {
+        DeviceType type = deviceTypeService.getTypeOrThrow(typeId);
+        if (!DevicePointMetricContract.isSupportedDeviceType(type.getTypeCode())) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "自动注册默认类型不受支持: " + type.getTypeCode());
+        }
+        CloudRoom room = cloudRoomService.getById(cloudRoomId);
+        if (room == null) {
+            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "凭证绑定机房不存在");
+        }
+        Device device = new Device();
+        device.setDeviceCode(deviceCode);
+        device.setDeviceName(deviceCode);
+        device.setTypeId(typeId);
+        device.setCloudRoomId(cloudRoomId);
+        device.setStatus(1);
+        device.setLocation("网关自动注册");
+        device.setLastOnlineTime(LocalDateTime.now());
+        device.setLastIngestCredentialId(credentialId);
+        save(device);
+        return device;
+    }
+
+    @Override
     public Device getDeviceOrThrow(Integer id) {
         Device device = getById(id);
         if (device == null) {

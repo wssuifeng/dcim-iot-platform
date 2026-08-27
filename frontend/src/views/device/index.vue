@@ -27,6 +27,7 @@
       :can-delete="isOrgAdmin"
       :type-names="typeNames"
       :room-names="roomNames"
+      :gateway-names="gatewayNames"
       @edit="handleEdit"
       @delete="handleDelete"
       @status-change="handleStatusChange"
@@ -78,6 +79,7 @@ import {
 import { getDeviceTypes } from '@/api/deviceType'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getCloudRoomPage } from '@/api/cloudRoom'
+import { getCredentialPage } from '@/api/ingestCredential'
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
 import DeviceEditorDialog from './DeviceEditorDialog.vue'
 import DeviceManagementTable from './DeviceManagementTable.vue'
@@ -119,6 +121,15 @@ const typeNames = computed(() =>
 const roomNames = computed(() =>
   Object.fromEntries(rooms.value.map((item) => [item.id, item.roomName])),
 )
+const gateways = ref([])
+const gatewayNames = computed(() =>
+  Object.fromEntries(gateways.value.map((item) => [item.id, item.gatewayName])),
+)
+
+async function fetchGateways() {
+  const result = await getCredentialPage({ current: 1, size: 100 })
+  gateways.value = result.data?.records || []
+}
 
 async function fetchReferences() {
   const [typeResult, roomResult, metricResult] = await Promise.all([
@@ -273,6 +284,7 @@ function formatDate(date) {
 onMounted(async () => {
   await fetchReferences()
   await fetchDeviceList()
+  await fetchGateways()
 })
 </script>
 

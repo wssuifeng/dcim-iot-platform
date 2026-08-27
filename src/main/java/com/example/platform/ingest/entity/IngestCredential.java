@@ -53,6 +53,14 @@ public class IngestCredential implements Serializable {
     @TableField("simulated")
     private Integer simulated;
 
+    @Schema(description = "首包自动注册：1=收到未知 deviceCode 自动建档", example = "0")
+    @TableField("auto_register")
+    private Integer autoRegister;
+
+    @Schema(description = "自动注册设备默认类型ID（auto_register=1 时必填）", example = "4")
+    @TableField("default_type_id")
+    private Integer defaultTypeId;
+
     @Schema(description = "状态：0-启用，1-停用", example = "0")
     private Integer status;
 

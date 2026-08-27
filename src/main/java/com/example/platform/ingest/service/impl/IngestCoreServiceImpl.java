@@ -15,6 +15,7 @@ import com.example.platform.ingest.mapper.IngestDedupMapper;
 import com.example.platform.ingest.service.IngestCoreService;
 import com.example.platform.ingest.service.IngestCredentialService;
 import com.example.platform.ingest.util.GatewaySignUtils;
+import com.example.platform.service.DevicePointBindingService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
@@ -43,6 +44,7 @@ import java.util.Map;
 public class IngestCoreServiceImpl implements IngestCoreService {
 
     private final DeviceService deviceService;
+    private final DevicePointBindingService devicePointBindingService;
     private final PointDefinitionService pointDefinitionService;
     private final MetricSampleService metricSampleService;
     private final IngestCredentialService ingestCredentialService;
@@ -63,7 +65,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         for (int i = 0; i < items.size(); i++) {
             IngestSampleItemDTO item = items.get(i);
             try {
-                Device device = resolveDevice(item.getDeviceCode(), deviceCache);
+                Device device = resolveDevice(item.getDeviceCode(), deviceCache, credential);
                 PointDefinition point = resolvePoint(item.getPointCode(), pointCache);
                 if (device.getCloudRoomId() == null
                         || !device.getCloudRoomId().equals(credential.getCloudRoomId())) {
@@ -99,6 +101,11 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         result.setDuplicated(duplicated);
         result.setFailed(failures.size());
         result.setFailures(failures);
+        // 接入视角：批级一次回写"最后上报所经网关"（含自动注册档案未写的场景）
+        if (accepted > 0 || duplicated > 0) {
+            deviceService.markIngestSource(
+                    deviceCache.values().stream().map(Device::getId).toList(), credential.getId());
+        }
         ingestCredentialService.refreshLastSeen(credential.getId());
         log.info("网关上报处理完成 accessKey={} accepted={} duplicated={} failed={}",
                 credential.getAccessKey(), accepted, duplicated, failures.size());
@@ -126,18 +133,44 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         return false;
     }
 
-    private Device resolveDevice(String deviceCode, Map<String, Device> cache) {
+    private Device resolveDevice(String deviceCode, Map<String, Device> cache,
+                                 IngestCredential credential) {
         Device cached = cache.get(deviceCode);
         if (cached != null) {
             return cached;
         }
-        Device device = deviceService.getOne(new LambdaQueryWrapper<Device>()
-                .eq(Device::getDeviceCode, deviceCode));
+        Device device = deviceService.findByCode(deviceCode);
+        if (device == null) {
+            device = tryAutoRegister(deviceCode, credential);
+        }
         if (device == null) {
             throw new BusinessException(ResultCode.DEVICE_NOT_FOUND, "设备不存在: " + deviceCode);
         }
         cache.put(deviceCode, device);
         return device;
+    }
+
+    // 首包自动注册：凭证开启且配置了默认类型才走；失败降级为 DEVICE_NOT_FOUND（由调用方捕获）
+    private Device tryAutoRegister(String deviceCode, IngestCredential credential) {
+        if (credential.getAutoRegister() == null || credential.getAutoRegister() != 1
+                || credential.getDefaultTypeId() == null) {
+            return null;
+        }
+        try {
+            Device device = deviceService.autoRegisterDevice(
+                    deviceCode, credential.getCloudRoomId(),
+                    credential.getDefaultTypeId(), credential.getId());
+            // 模板点位绑定：自动注册设备开箱即可收数（currentUserId 传凭证ID 供审计）
+            devicePointBindingService.initBindingsFromTemplate(
+                    device.getId(), credential.getDefaultTypeId(), credential.getId());
+            log.info("首包自动注册 deviceCode={} roomId={} typeId={} credentialId={}",
+                    deviceCode, credential.getCloudRoomId(),
+                    credential.getDefaultTypeId(), credential.getId());
+            return device;
+        } catch (Exception ex) {
+            log.warn("首包自动注册失败 deviceCode={} error={}", deviceCode, ex.getMessage());
+            return null;
+        }
     }
 
     private PointDefinition resolvePoint(String pointCode, Map<String, PointDefinition> cache) {

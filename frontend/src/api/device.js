@@ -55,3 +55,7 @@ export function downloadDeviceImportTemplate() {
 export function exportDevices(params) {
   return requestBlob({ method: 'get', url: '/devices/export', params })
 }
+
+export function checkDeviceCodeAvailable(code) {
+  return request.get('/devices/code-available', { params: { code } })
+}

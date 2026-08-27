@@ -64,6 +64,10 @@ public class Device implements Serializable {
     @TableField("last_online_time")
     private LocalDateTime lastOnlineTime;
 
+    @Schema(description = "最后上报所经网关凭证ID（接入视角）", accessMode = Schema.AccessMode.READ_ONLY)
+    @TableField("last_ingest_credential_id")
+    private Long lastIngestCredentialId;
+
     @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

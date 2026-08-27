@@ -46,6 +46,8 @@ class IngestCoreServiceImplTest {
     @Mock
     private MetricSampleService metricSampleService;
     @Mock
+    private com.example.platform.service.DevicePointBindingService devicePointBindingService;
+    @Mock
     private IngestCredentialService ingestCredentialService;
     @Mock
     private IngestDedupMapper ingestDedupMapper;
@@ -92,7 +94,8 @@ class IngestCoreServiceImplTest {
     @Test
     void unknownDeviceRejectedWithoutBlockingOthers() {
         stubTransactionPassThrough();
-        when(deviceService.getOne(any(Wrapper.class))).thenReturn(device("DEV-1", 11, 5L), (Device) null);
+        when(deviceService.findByCode("DEV-1")).thenReturn(device("DEV-1", 11, 5L));
+        when(deviceService.findByCode("DEV-X")).thenReturn(null);
         stubPoint("temperature", 1L);
         IngestCredential credential = credential(100L, 5L);
 
@@ -151,10 +154,65 @@ class IngestCoreServiceImplTest {
                 item("DEV-1", "temperature", 23.0, 2L),
                 item("DEV-1", "temperature", 23.5, 3L)));
 
-        verify(deviceService, org.mockito.Mockito.times(1)).getOne(any(Wrapper.class));
+        verify(deviceService, org.mockito.Mockito.times(1)).findByCode("DEV-1");
         verify(pointDefinitionService, org.mockito.Mockito.times(1)).getOne(any(Wrapper.class));
         verify(metricSampleService, org.mockito.Mockito.times(3))
                 .saveSample(any(), anyLong(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void autoRegisterCreatesDeviceWhenCredentialEnabled() {
+        stubTransactionPassThrough();
+        when(deviceService.findByCode("DEV-NEW")).thenReturn(null);
+        Device created = device("DEV-NEW", 77, 5L);
+        when(deviceService.autoRegisterDevice("DEV-NEW", 5L, 4, 100L)).thenReturn(created);
+        stubPoint("temperature", 1L);
+        IngestCredential credential = credential(100L, 5L);
+        credential.setAutoRegister(1);
+        credential.setDefaultTypeId(4);
+
+        IngestResultVO result = coreService.processSamples(credential,
+                batch(item("DEV-NEW", "temperature", 22.5, 1L)));
+
+        assertThat(result.getAccepted()).isEqualTo(1);
+        verify(deviceService).autoRegisterDevice("DEV-NEW", 5L, 4, 100L);
+        verify(devicePointBindingService).initBindingsFromTemplate(77, 4, 100L);
+        verify(deviceService).markIngestSource(java.util.List.of(77), 100L);
+    }
+
+    @Test
+    void autoRegisterDisabledFallsBackToDeviceNotFound() {
+        when(deviceService.findByCode("DEV-NEW")).thenReturn(null);
+        IngestCredential credential = credential(100L, 5L);
+
+        IngestResultVO result = coreService.processSamples(credential,
+                batch(item("DEV-NEW", "temperature", 22.5, 1L)));
+
+        assertThat(result.getFailed()).isEqualTo(1);
+        assertThat(result.getFailures().get(0).getErrorCode()).isEqualTo(ResultCode.DEVICE_NOT_FOUND);
+        verify(deviceService, org.mockito.Mockito.never()).autoRegisterDevice(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void autoRegisterFailureFallsBackWithoutBlockingBatch() {
+        stubTransactionPassThrough();
+        when(deviceService.findByCode("DEV-BAD")).thenReturn(null);
+        when(deviceService.autoRegisterDevice("DEV-BAD", 5L, 4, 100L))
+                .thenThrow(new BusinessException(ResultCode.INVALID_PARAMETER, "类型不受支持"));
+        when(deviceService.findByCode("DEV-OK")).thenReturn(device("DEV-OK", 12, 5L));
+        stubPoint("temperature", 1L);
+        IngestCredential credential = credential(100L, 5L);
+        credential.setAutoRegister(1);
+        credential.setDefaultTypeId(4);
+
+        IngestResultVO result = coreService.processSamples(credential, batch(
+                item("DEV-BAD", "temperature", 30.0, 1L),
+                item("DEV-OK", "temperature", 22.5, 2L)));
+
+        assertThat(result.getAccepted()).isEqualTo(1);
+        assertThat(result.getFailed()).isEqualTo(1);
     }
 
     @Test
@@ -172,7 +230,7 @@ class IngestCoreServiceImplTest {
     }
 
     private void stubDeviceAndPoint(String deviceCode, Integer deviceId, String pointCode, Long pointId) {
-        when(deviceService.getOne(any(Wrapper.class))).thenReturn(device(deviceCode, deviceId, 5L));
+        when(deviceService.findByCode(deviceCode)).thenReturn(device(deviceCode, deviceId, 5L));
         stubPoint(pointCode, pointId);
     }
 

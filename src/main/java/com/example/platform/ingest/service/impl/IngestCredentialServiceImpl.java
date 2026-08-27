@@ -36,7 +36,12 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         implements IngestCredentialService {
 
     private final CloudRoomService cloudRoomService;
+    private final com.example.platform.service.AlarmEventService alarmEventService;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    // 网关离线判定阈值（与 IngestGatewayOfflineMonitorTask 同源配置）
+    @org.springframework.beans.factory.annotation.Value("${task.gateway-offline-threshold-seconds:300}")
+    private int gatewayOfflineThresholdSeconds;
 
     // accessKey: gw- + 16位十六进制（碰撞空间 2^64，重试 3 次足够）
     private static final String ACCESS_KEY_PREFIX = "gw-";
@@ -62,6 +67,13 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         credential.setGatewayName(createDTO.getGatewayName());
         credential.setCloudRoomId(createDTO.getCloudRoomId());
         credential.setSimulated(createDTO.getSimulated() == null ? 0 : createDTO.getSimulated());
+        int autoRegister = createDTO.getAutoRegister() == null ? 0 : createDTO.getAutoRegister();
+        if (autoRegister == 1 && createDTO.getDefaultTypeId() == null) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER,
+                    "开启首包自动注册必须配置默认设备类型");
+        }
+        credential.setAutoRegister(autoRegister);
+        credential.setDefaultTypeId(createDTO.getDefaultTypeId());
         credential.setStatus(0);
         credential.setExpireAt(createDTO.getExpireAt());
         save(credential);
@@ -155,10 +167,25 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
 
     @Override
     public void refreshLastSeen(Long credentialId) {
-        IngestCredential credential = new IngestCredential();
-        credential.setId(credentialId);
-        credential.setLastSeenAt(LocalDateTime.now());
-        updateById(credential);
+        IngestCredential credential = getById(credentialId);
+        if (credential == null) {
+            return;
+        }
+        // 心跳/上报成功即网关存活：存在活动 GATEWAY_OFFLINE 告警则自动恢复
+        boolean wasStale = credential.getLastSeenAt() != null
+                && credential.getLastSeenAt().isBefore(LocalDateTime.now().minusSeconds(gatewayOfflineThresholdSeconds));
+        IngestCredential update = new IngestCredential();
+        update.setId(credentialId);
+        update.setLastSeenAt(LocalDateTime.now());
+        updateById(update);
+        if (wasStale) {
+            try {
+                alarmEventService.autoRecover(null, null, "GATEWAY_OFFLINE");
+                log.info("网关恢复在线，GATEWAY_OFFLINE 告警自动恢复 credentialId={}", credentialId);
+            } catch (Exception ex) {
+                log.warn("网关恢复告警自动恢复失败 credentialId={} error={}", credentialId, ex.getMessage());
+            }
+        }
     }
 
     private IngestCredential getCredentialOrThrow(Long id) {
@@ -207,6 +234,8 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         vo.setGatewayName(credential.getGatewayName());
         vo.setCloudRoomId(credential.getCloudRoomId());
         vo.setSimulated(credential.getSimulated());
+        vo.setAutoRegister(credential.getAutoRegister());
+        vo.setDefaultTypeId(credential.getDefaultTypeId());
         vo.setStatus(credential.getStatus());
         vo.setLastSeenAt(credential.getLastSeenAt());
         vo.setExpireAt(credential.getExpireAt());

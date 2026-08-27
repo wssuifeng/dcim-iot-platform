@@ -56,6 +56,7 @@ public class IngestMqttListener {
     private final IngestCoreService ingestCoreService;
     private final IngestCredentialService ingestCredentialService;
     private final SysAuditLogService sysAuditLogService;
+    private final com.example.platform.service.AlarmEventService alarmEventService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
@@ -72,6 +73,7 @@ public class IngestMqttListener {
     public IngestMqttListener(IngestCoreService ingestCoreService,
                               IngestCredentialService ingestCredentialService,
                               SysAuditLogService sysAuditLogService,
+                              com.example.platform.service.AlarmEventService alarmEventService,
                               Validator validator,
                               ObjectMapper objectMapper,
                               @Value("${ingest.mqtt.broker-url:tcp://localhost:1883}") String brokerUrl,
@@ -83,6 +85,7 @@ public class IngestMqttListener {
         this.ingestCoreService = ingestCoreService;
         this.ingestCredentialService = ingestCredentialService;
         this.sysAuditLogService = sysAuditLogService;
+        this.alarmEventService = alarmEventService;
         this.validator = validator;
         this.objectMapper = objectMapper;
         this.brokerUrl = brokerUrl;
@@ -200,6 +203,26 @@ public class IngestMqttListener {
                 "INGEST_GATEWAY_LWT", "MQTT_GATEWAY", accessKey, "FAILURE",
                 String.valueOf(ResultCode.INGEST_UNAUTHORIZED), "mqtt", null,
                 "网关 MQTT 断连遗嘱触发，last_seen_at 停滞将呈现离线");
+        // LWT 立即产出 GATEWAY_OFFLINE 告警（不等 5 分钟轮询扫描）
+        triggerGatewayOffline(accessKey);
+    }
+
+    // 遗嘱触发即告警：凭证存在且启用时产出设备级（device_id 为空）离线告警
+    private void triggerGatewayOffline(String accessKey) {
+        try {
+            IngestCredential credential = ingestCredentialService.authenticate(accessKey);
+            alarmEventService.trigger(com.example.platform.dto.AlarmTriggerContext.builder()
+                    .deviceId(null)
+                    .pointId(null)
+                    .alarmType("GATEWAY_OFFLINE")
+                    .alarmLevel(2)
+                    .alarmMessage("网关离线：MQTT 遗嘱触发（" + credential.getGatewayName() + " 断连）")
+                    .cloudRoomId(credential.getCloudRoomId())
+                    .build());
+        } catch (Exception ex) {
+            // 凭证无效/停用的遗嘱无从归属，仅保留审计日志
+            log.debug("LWT 告警未产出 accessKey={} error={}", accessKey, ex.getMessage());
+        }
     }
 
     private void connectAndSubscribe() throws MqttException {

@@ -32,6 +32,12 @@ public class IngestCredentialCreateDTO implements Serializable {
     @Schema(description = "仿真网关标记：0-真实网关，1=机房仿真服务专用凭证", example = "0")
     private Integer simulated = 0;
 
+    @Schema(description = "首包自动注册：1=收到未知 deviceCode 自动建档", example = "0")
+    private Integer autoRegister = 0;
+
+    @Schema(description = "自动注册设备默认类型ID（auto_register=1 时必填）", example = "4")
+    private Integer defaultTypeId;
+
     @Schema(description = "凭证过期时间（可空=永久）", example = "2027-01-01T00:00:00")
     private LocalDateTime expireAt;
 
