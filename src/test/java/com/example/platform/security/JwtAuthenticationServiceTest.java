@@ -33,14 +33,14 @@ class JwtAuthenticationServiceTest {
     private JwtAuthenticationService authenticationService;
 
     @Test
-    void authenticateBuildsSharedAuthentication() {
+    void authenticateBuildsSharedAuthenticationWithRoleAuthority() {
         Date issuedAt = new Date();
         when(jwtUtil.parseToken("valid-token")).thenReturn(claims);
         when(claims.getId()).thenReturn("token-id");
         when(claims.getSubject()).thenReturn("42");
         when(claims.getIssuedAt()).thenReturn(issuedAt);
         when(claims.get("username", String.class)).thenReturn("operator");
-        when(claims.get("platformRole", String.class)).thenReturn(null);
+        when(jwtUtil.getRoleFromToken("valid-token")).thenReturn("OPERATOR");
         when(tokenBlacklistService.isTokenBlacklisted("token-id")).thenReturn(false);
         when(tokenBlacklistService.isUserBlacklistedAndTokenBefore("42", issuedAt))
                 .thenReturn(false);
@@ -53,7 +53,7 @@ class JwtAuthenticationServiceTest {
         assertThat(authentication.getName()).isEqualTo("42");
         assertThat(authentication.getAuthorities())
                 .extracting("authority")
-                .containsExactly("ROLE_AUTHENTICATED_USER");
+                .containsExactly("ROLE_AUTHENTICATED_USER", "ROLE_OPERATOR");
     }
 
     @Test
@@ -68,14 +68,14 @@ class JwtAuthenticationServiceTest {
     }
 
     @Test
-    void authenticateRejectsUnknownRole() {
-        when(jwtUtil.parseToken("invalid-role-token")).thenReturn(claims);
+    void authenticateRejectsTokenWithoutRole() {
+        when(jwtUtil.parseToken("no-role-token")).thenReturn(claims);
         when(claims.getSubject()).thenReturn("42");
         when(claims.get("username", String.class)).thenReturn("operator");
-        when(claims.get("platformRole", String.class)).thenReturn("ROOT");
+        when(jwtUtil.getRoleFromToken("no-role-token")).thenReturn(null);
 
-        assertThatThrownBy(() -> authenticationService.authenticate("invalid-role-token"))
+        assertThatThrownBy(() -> authenticationService.authenticate("no-role-token"))
                 .isInstanceOf(BadCredentialsException.class)
-                .hasMessageContaining("有效用户信息");
+                .hasMessageContaining("缺少角色信息");
     }
 }

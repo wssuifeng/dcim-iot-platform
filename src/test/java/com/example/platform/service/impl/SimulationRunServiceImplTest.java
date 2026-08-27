@@ -3,17 +3,13 @@ package com.example.platform.service.impl;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.SimulationGeneratedDataRefVO;
 import com.example.platform.dto.SimulationRunStartDTO;
 import com.example.platform.dto.SimulationRunVO;
 import com.example.platform.entity.Device;
-import com.example.platform.entity.MetricSample;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.entity.SimulationGeneratedDataRef;
 import com.example.platform.entity.SimulationRunRecord;
@@ -22,9 +18,8 @@ import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationGeneratedDataRefMapper;
 import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
-import com.example.platform.service.DataScopeService;
+import com.example.platform.service.CloudRoomService;
 import com.example.platform.service.DeviceScopeHelper;
-import com.example.platform.service.MetricSampleService;
 import com.example.platform.service.PointDefinitionService;
 import com.example.platform.service.SimulationRunExecutionService;
 import com.example.platform.service.SimulationSceneService;
@@ -43,15 +38,12 @@ import tools.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,7 +51,7 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:SimulationRunServiceImpl 单元测试
- * 覆盖 BIZ-TRAE-01：生产门控阻断、范围拒绝、生成数据可追溯、SLEEP 步骤跳过写入、取消运行
+ * 覆盖 BIZ-TRAE-01：生产门控阻断、生成数据可追溯、SLEEP 步骤跳过写入、取消运行
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SimulationRunService 单元测试")
@@ -74,24 +66,21 @@ class SimulationRunServiceImplTest {
     @Mock
     private SimulationRunRecordMapper simulationRunRecordMapper;
     @Mock
-    private DataScopeService dataScopeService;
-    @Mock
     private DeviceScopeHelper deviceScopeHelper;
-    @Mock
-    private MetricSampleService metricSampleService;
     @Mock
     private PointDefinitionService pointDefinitionService;
     @Mock
     private ObjectMapper objectMapper;
     @Mock
     private SimulationRunExecutionService runExecutionService;
+    @Mock
+    private CloudRoomService cloudRoomService;
 
     @InjectMocks
     private SimulationRunServiceImpl simulationRunService;
 
     private static final Long CURRENT_USER_ID = 30L;
-    private static final Long ORG_ID = 1L;
-    private static final Long OTHER_ORG_ID = 999L;
+    private static final Long CLOUD_ROOM_ID = 1L;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -122,21 +111,12 @@ class SimulationRunServiceImplTest {
         TableInfoHelper.initTableInfo(assistant, SimulationSceneStep.class);
     }
 
-    private DataScopeContext orgAdminContext(Long orgId) {
-        return DataScopeContext.builder()
-                .userId(CURRENT_USER_ID)
-                .role("ORG_ADMIN")
-                .organizationIds(Set.of(orgId))
-                .scopeType("ORG_ALL")
-                .build();
-    }
-
-    private SimulationScene buildEnabledScene(Long id, Long orgId) {
+    private SimulationScene buildEnabledScene(Long id) {
         SimulationScene scene = new SimulationScene();
         scene.setId(id);
         scene.setSceneCode("SCENE_" + id);
         scene.setSceneName("场景" + id);
-        scene.setOrganizationId(orgId);
+        scene.setCloudRoomId(CLOUD_ROOM_ID);
         scene.setStatus(0);
         return scene;
     }
@@ -174,14 +154,14 @@ class SimulationRunServiceImplTest {
     }
 
     @Nested
-    @DisplayName("startRun - 范围与执行")
+    @DisplayName("startRun - 场景与执行")
     class StartRunExecute {
 
         @Test
         @DisplayName("场景已停用拒绝启动")
         void should_reject_when_sceneDisabled() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
-            SimulationScene scene = buildEnabledScene(1L, ORG_ID);
+            SimulationScene scene = buildEnabledScene(1L);
             scene.setStatus(1);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID)).thenReturn(scene);
 
@@ -199,9 +179,7 @@ class SimulationRunServiceImplTest {
         void should_reject_when_noSteps() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID))
-                    .thenReturn(buildEnabledScene(1L, ORG_ID));
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+                    .thenReturn(buildEnabledScene(1L));
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of());
 
@@ -217,22 +195,23 @@ class SimulationRunServiceImplTest {
         @DisplayName("创建运行后立即返回 PENDING 并调度 WRITE_SAMPLE")
         void should_scheduleWriteRunAndReturnPending() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
-            SimulationScene scene = buildEnabledScene(1L, ORG_ID);
+            SimulationScene scene = buildEnabledScene(1L);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID)).thenReturn(scene);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+            when(cloudRoomService.getCloudRoomOrThrow(CLOUD_ROOM_ID, CURRENT_USER_ID))
+                    .thenReturn(new com.example.platform.entity.CloudRoom());
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of(buildWriteStep(10L, 1L, 5, 100L)));
 
             Device device = new Device();
             device.setId(5);
-            device.setOrganizationId(ORG_ID);
+            device.setTypeId(4);
             when(deviceScopeHelper.ensureDeviceAccess(5, CURRENT_USER_ID)).thenReturn(device);
             when(simulationRunRecordMapper.insert((SimulationRunRecord) any())).thenAnswer(inv -> {
                 SimulationRunRecord run = inv.getArgument(0);
                 run.setId(7L);
                 return 1;
             });
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
             SimulationRunStartDTO dto = new SimulationRunStartDTO();
             dto.setSceneId(1L);
@@ -242,17 +221,17 @@ class SimulationRunServiceImplTest {
 
             assertThat(vo.getStatus()).isEqualTo("PENDING");
             assertThat(vo.getSuccessSteps()).isZero();
-            verify(runExecutionService).executeAsync(7L, 5, CURRENT_USER_ID, ORG_ID);
+            verify(runExecutionService).executeAsync(7L, 5, CURRENT_USER_ID);
         }
 
         @Test
         @DisplayName("SLEEP 运行无需目标设备也可以进入后台队列")
         void should_scheduleSleepWithoutTargetDevice() {
             ReflectionTestUtils.setField(simulationRunService, "writeEnabled", true);
-            SimulationScene scene = buildEnabledScene(1L, ORG_ID);
+            SimulationScene scene = buildEnabledScene(1L);
             when(simulationSceneService.getSceneOrThrow(1L, CURRENT_USER_ID)).thenReturn(scene);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+            when(cloudRoomService.getCloudRoomOrThrow(CLOUD_ROOM_ID, CURRENT_USER_ID))
+                    .thenReturn(new com.example.platform.entity.CloudRoom());
 
             SimulationSceneStep sleepStep = new SimulationSceneStep();
             sleepStep.setId(11L);
@@ -268,6 +247,7 @@ class SimulationRunServiceImplTest {
                 run.setId(8L);
                 return 1;
             });
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
             SimulationRunStartDTO dto = new SimulationRunStartDTO();
             dto.setSceneId(1L);
@@ -275,22 +255,7 @@ class SimulationRunServiceImplTest {
             SimulationRunVO vo = simulationRunService.startRun(dto, CURRENT_USER_ID);
 
             assertThat(vo.getStatus()).isEqualTo("PENDING");
-            verify(runExecutionService).executeAsync(8L, null, CURRENT_USER_ID, ORG_ID);
-            verify(metricSampleService, never()).saveSample(any(MetricSampleDTO.class), anyLong(), anyBoolean());
-        }
-
-        @Test
-        @DisplayName("越权访问其他组织的运行记录拒绝")
-        void should_reject_when_runOutOfScope() {
-            SimulationRunRecord run = new SimulationRunRecord();
-            run.setId(20L);
-            run.setOrganizationId(OTHER_ORG_ID);
-            when(simulationRunRecordMapper.selectById(20L)).thenReturn(run);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
-            assertThatThrownBy(() -> simulationRunService.getRunDetail(20L, CURRENT_USER_ID))
-                    .isInstanceOf(DataScopeViolationException.class);
+            verify(runExecutionService).executeAsync(8L, null, CURRENT_USER_ID);
         }
     }
 
@@ -303,14 +268,8 @@ class SimulationRunServiceImplTest {
         void should_reject_when_alreadyFinished() {
             SimulationRunRecord run = new SimulationRunRecord();
             run.setId(30L);
-            run.setOrganizationId(ORG_ID);
             run.setStatus("SUCCESS");
             when(simulationRunRecordMapper.selectById(30L)).thenReturn(run);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
-            SimulationRunStartDTO dto = new SimulationRunStartDTO();
-            dto.setSceneId(1L);
 
             assertThatThrownBy(() -> simulationRunService.cancelRun(30L, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class)
@@ -322,11 +281,8 @@ class SimulationRunServiceImplTest {
         void should_cancelRunning() {
             SimulationRunRecord run = new SimulationRunRecord();
             run.setId(31L);
-            run.setOrganizationId(ORG_ID);
             run.setStatus("RUNNING");
             when(simulationRunRecordMapper.selectById(31L)).thenReturn(run);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(simulationRunRecordMapper.update(any(), any())).thenReturn(1);
 
             SimulationRunVO vo = simulationRunService.cancelRun(31L, CURRENT_USER_ID);
@@ -344,10 +300,7 @@ class SimulationRunServiceImplTest {
         void should_returnEventsWithPointCode() {
             SimulationRunRecord run = new SimulationRunRecord();
             run.setId(40L);
-            run.setOrganizationId(ORG_ID);
             when(simulationRunRecordMapper.selectById(40L)).thenReturn(run);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
 
             SimulationGeneratedDataRef ref = new SimulationGeneratedDataRef();
             ref.setId(1L);

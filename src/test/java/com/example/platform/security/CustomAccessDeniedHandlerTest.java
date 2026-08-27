@@ -38,8 +38,8 @@ class CustomAccessDeniedHandlerTest {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 9L,
                 null,
-                PlatformRole.authoritiesFor(PlatformRole.PLATFORM_ADMIN));
-        authentication.setDetails("platform_admin");
+                PlatformRole.authoritiesFor(PlatformRole.VIEWER));
+        authentication.setDetails("viewer_user");
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         handler.handle(request, response, new AccessDeniedException("Forbidden"));
@@ -50,13 +50,13 @@ class CustomAccessDeniedHandlerTest {
         ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
         verify(sysAuditLogService).log(
                 eq(9L),
-                eq("platform_admin"),
+                eq("viewer_user"),
                 eq("ACCESS_DENIED"),
                 eq("10.0.0.1"),
                 detailCaptor.capture());
         assertThat(detailCaptor.getValue())
                 .contains("拒绝访问: GET /devices")
-                .contains("ROLE_PLATFORM_ADMIN")
+                .contains("ROLE_VIEWER")
                 .contains("Forbidden");
     }
 

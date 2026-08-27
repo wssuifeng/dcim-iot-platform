@@ -76,7 +76,6 @@ class AlarmDispatchServiceImplTest {
         event.setAlarmType("METRIC");
         event.setAlarmMessage("高温警告");
         event.setState("TRIGGERED");
-        event.setOrganizationId(1L);
         event.setCloudRoomId(10L);
         return event;
     }
@@ -102,7 +101,7 @@ class AlarmDispatchServiceImplTest {
         @DisplayName("在线用户走 WS、离线用户走邮件（D23 逐人兜底）")
         void should_pushWs_online_andEmail_offline() {
             ReflectionTestUtils.setField(dispatchService, "mailEnabled", true);
-            when(alarmRecipientResolver.resolveRecipientUserIds(1L, 10L))
+            when(alarmRecipientResolver.resolveRecipientUserIds())
                     .thenReturn(Set.of(20L, 30L));
             when(simpUserRegistry.getUser("20")).thenReturn(new org.springframework.messaging.simp.user.SimpUser() {
                 @Override public String getName() { return "20"; }
@@ -126,7 +125,7 @@ class AlarmDispatchServiceImplTest {
         @DisplayName("邮件开关关闭时记失败日志（不静默）且不调用发送器")
         void should_logFailed_whenMailDisabled() {
             ReflectionTestUtils.setField(dispatchService, "mailEnabled", false);
-            when(alarmRecipientResolver.resolveRecipientUserIds(1L, 10L)).thenReturn(Set.of(30L));
+            when(alarmRecipientResolver.resolveRecipientUserIds()).thenReturn(Set.of(30L));
             when(sysUserMapper.selectBatchIds(anyCollection()))
                     .thenReturn(List.of(user(30L, "offline@demo.local")));
 
@@ -143,7 +142,7 @@ class AlarmDispatchServiceImplTest {
         @Test
         @DisplayName("WS 单人推送失败仅记日志，不影响其余通道与人")
         void should_continue_whenOneWsPushFails() {
-            when(alarmRecipientResolver.resolveRecipientUserIds(1L, 10L)).thenReturn(Set.of(20L));
+            when(alarmRecipientResolver.resolveRecipientUserIds()).thenReturn(Set.of(20L));
             when(simpUserRegistry.getUser("20")).thenReturn(null);
             when(sysUserMapper.selectBatchIds(anyCollection())).thenReturn(List.of());
 
@@ -156,7 +155,7 @@ class AlarmDispatchServiceImplTest {
         @Test
         @DisplayName("无收件人时仅记失败日志不发通知给空集")
         void should_handleEmptyRecipients() {
-            when(alarmRecipientResolver.resolveRecipientUserIds(1L, 10L)).thenReturn(Set.of());
+            when(alarmRecipientResolver.resolveRecipientUserIds()).thenReturn(Set.of());
 
             dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
 
@@ -168,7 +167,7 @@ class AlarmDispatchServiceImplTest {
         @Test
         @DisplayName("分发整体异常不外抛（T3 容错）")
         void should_swallowAnyException() {
-            when(alarmRecipientResolver.resolveRecipientUserIds(1L, 10L))
+            when(alarmRecipientResolver.resolveRecipientUserIds())
                     .thenThrow(new IllegalStateException("resolver down"));
 
             dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));

@@ -7,13 +7,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.dto.DevicePointBindingDTO;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DevicePointBinding;
 import com.example.platform.entity.DeviceTypePointTemplate;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.mapper.DevicePointBindingMapper;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.DeviceTypePointTemplateService;
 import com.example.platform.service.PointDefinitionService;
@@ -35,7 +33,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -43,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:DevicePointBindingServiceImpl 单元测试
- * 覆盖 BIZ-OPEN-02：设备点位绑定 CRUD + 设备数据范围校验 + 模板拷贝初始化
+ * 覆盖 BIZ-OPEN-02：设备点位绑定 CRUD + 设备访问校验 + 模板拷贝初始化
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DevicePointBindingService 单元测试")
@@ -57,8 +54,6 @@ class DevicePointBindingServiceImplTest {
     private PointDefinitionService pointDefinitionService;
     @Mock
     private DeviceTypePointTemplateService deviceTypePointTemplateService;
-    @Mock
-    private DataScopeService dataScopeService;
 
     @InjectMocks
     private DevicePointBindingServiceImpl devicePointBindingService;
@@ -69,18 +64,6 @@ class DevicePointBindingServiceImplTest {
     void setUp() throws Exception {
         initBaseMapper();
         initLambdaCache();
-        lenient().when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                .thenReturn(writableOrgAdminContext());
-    }
-
-    private DataScopeContext writableOrgAdminContext() {
-        return DataScopeContext.builder()
-                .userId(CURRENT_USER_ID)
-                .role("ORG_ADMIN")
-                .scopeType("ORG_ALL")
-                .organizationIds(java.util.Set.of(1L))
-                .cloudRoomIds(java.util.Set.of())
-                .build();
     }
 
     private void initBaseMapper() throws Exception {
@@ -106,7 +89,6 @@ class DevicePointBindingServiceImplTest {
         Device device = new Device();
         device.setId(id);
         device.setTypeId(typeId);
-        device.setOrganizationId(1L);
         device.setCloudRoomId(100L);
         return device;
     }
@@ -218,7 +200,7 @@ class DevicePointBindingServiceImplTest {
             t1.setTypeId(1); t1.setPointId(10L); t1.setIsRequired(1);
             DeviceTypePointTemplate t2 = new DeviceTypePointTemplate();
             t2.setTypeId(1); t2.setPointId(20L); t2.setIsRequired(0);
-            when(deviceTypePointTemplateService.listEffectiveTemplates(1, 1L, CURRENT_USER_ID))
+            when(deviceTypePointTemplateService.listEffectiveTemplates(1, CURRENT_USER_ID))
                     .thenReturn(List.of(t1, t2));
 
             // 设备已绑定点位 10
@@ -246,7 +228,7 @@ class DevicePointBindingServiceImplTest {
         void should_returnEmpty_when_templateEmpty() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(buildDevice(1, 1));
-            when(deviceTypePointTemplateService.listEffectiveTemplates(1, 1L, CURRENT_USER_ID))
+            when(deviceTypePointTemplateService.listEffectiveTemplates(1, CURRENT_USER_ID))
                     .thenReturn(List.of());
 
             List<DevicePointBinding> result =

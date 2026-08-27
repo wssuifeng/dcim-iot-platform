@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.SysUser;
 import com.example.platform.mapper.SysUserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -18,12 +17,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,63 +57,27 @@ class SysUserServiceImplTest {
     }
 
     @Test
-    void platformAdminCanPageAllUsers() {
-        DataScopeContext scope = platformScope();
-        Page<SysUser> expected = pageWithUser(1L, "platform");
+    void pageUsersDelegatesToMapperWithKeyword() {
+        Page<SysUser> expected = pageWithUser(1L, "admin");
         when(sysUserMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
                 .thenReturn(expected);
 
-        Page<SysUser> result = sysUserService.pageUsers(1, 10, null, scope);
+        Page<SysUser> result = sysUserService.pageUsers(1, 10, "admin");
 
         assertThat(result).isSameAs(expected);
-        verify(sysUserMapper, never()).selectPageByOrganizationScope(
-                any(Page.class), any(), any());
+        verify(sysUserMapper).selectPage(any(Page.class), any(LambdaQueryWrapper.class));
     }
 
     @Test
-    void organizationAdminPagesOnlyUsersAssignedToOwnedOrganizations() {
-        Set<Long> organizationIds = Set.of(10L, 20L);
-        DataScopeContext scope = orgScope(organizationIds);
+    void pageUsersWithoutKeywordReturnsAllUsers() {
         Page<SysUser> expected = pageWithUser(2L, "operator");
-        when(sysUserMapper.selectPageByOrganizationScope(
-                any(Page.class), eq("operator"), eq(organizationIds)))
+        when(sysUserMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
                 .thenReturn(expected);
 
-        Page<SysUser> result = sysUserService.pageUsers(1, 10, " operator ", scope);
+        Page<SysUser> result = sysUserService.pageUsers(1, 10, null);
 
         assertThat(result).isSameAs(expected);
-        verify(sysUserMapper).selectPageByOrganizationScope(
-                any(Page.class), eq("operator"), eq(organizationIds));
-    }
-
-    @Test
-    void emptyOrganizationScopeReturnsEmptyPageWithoutQueryingUsers() {
-        Page<SysUser> result = sysUserService.pageUsers(2, 20, null, orgScope(Set.of()));
-
-        assertThat(result.getCurrent()).isEqualTo(2);
-        assertThat(result.getSize()).isEqualTo(20);
-        assertThat(result.getRecords()).isEmpty();
-        verify(sysUserMapper, never()).selectPage(any(Page.class), any(LambdaQueryWrapper.class));
-        verify(sysUserMapper, never()).selectPageByOrganizationScope(
-                any(Page.class), any(), any());
-    }
-
-    private DataScopeContext platformScope() {
-        return DataScopeContext.builder()
-                .userId(1L)
-                .role("PLATFORM_ADMIN")
-                .scopeType("PLATFORM")
-                .organizationIds(Set.of())
-                .build();
-    }
-
-    private DataScopeContext orgScope(Set<Long> organizationIds) {
-        return DataScopeContext.builder()
-                .userId(5L)
-                .role("ORG_ADMIN")
-                .scopeType("ORG_ALL")
-                .organizationIds(organizationIds)
-                .build();
+        assertThat(result.getRecords()).hasSize(1);
     }
 
     private Page<SysUser> pageWithUser(Long id, String username) {

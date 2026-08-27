@@ -5,11 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.dto.SimulationSceneCreateDTO;
 import com.example.platform.dto.SimulationSceneStepDTO;
-import com.example.platform.dto.SimulationSceneUpdateDTO;
 import com.example.platform.dto.SimulationSceneVO;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.entity.PointDefinition;
@@ -18,9 +15,8 @@ import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationSceneMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
 import com.example.platform.service.CloudRoomService;
-import com.example.platform.service.DataScopeService;
+import com.example.platform.service.DeviceScopeHelper;
 import com.example.platform.service.PointDefinitionService;
-import com.example.platform.service.SimulationSceneService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,25 +26,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /*
  * 类功能:SimulationSceneServiceImpl 单元测试
- * 覆盖 BIZ-TRAE-01：场景范围校验、组织/机房越权拒绝、场景编码同组织唯一、五类设备类型校验
+ * 覆盖 BIZ-TRAE-01：场景机房存在性校验、场景编码全局唯一、五类设备类型校验、步骤值校验
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SimulationSceneService 单元测试")
@@ -59,9 +52,9 @@ class SimulationSceneServiceImplTest {
     @Mock
     private SimulationSceneStepMapper simulationSceneStepMapper;
     @Mock
-    private DataScopeService dataScopeService;
-    @Mock
     private CloudRoomService cloudRoomService;
+    @Mock
+    private DeviceScopeHelper deviceScopeHelper;
     @Mock
     private PointDefinitionService pointDefinitionService;
 
@@ -69,8 +62,7 @@ class SimulationSceneServiceImplTest {
     private SimulationSceneServiceImpl simulationSceneService;
 
     private static final Long CURRENT_USER_ID = 30L;
-    private static final Long ORG_ID = 1L;
-    private static final Long OTHER_ORG_ID = 999L;
+    private static final Long CLOUD_ROOM_ID = 21L;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -98,19 +90,10 @@ class SimulationSceneServiceImplTest {
         TableInfoHelper.initTableInfo(assistant, SimulationSceneStep.class);
     }
 
-    private DataScopeContext orgAdminContext(Long orgId) {
-        return DataScopeContext.builder()
-                .userId(CURRENT_USER_ID)
-                .role("ORG_ADMIN")
-                .organizationIds(Set.of(orgId))
-                .scopeType("ORG_ALL")
-                .build();
-    }
-
-    private CloudRoom buildCloudRoom(Long id, Long organizationId) {
+    private CloudRoom buildCloudRoom(Long id) {
         CloudRoom cloudRoom = new CloudRoom();
         cloudRoom.setId(id);
-        cloudRoom.setOrganizationId(organizationId);
+        cloudRoom.setRoomCode("ROOM-" + id);
         return cloudRoom;
     }
 
@@ -124,12 +107,11 @@ class SimulationSceneServiceImplTest {
         return p;
     }
 
-    private SimulationScene buildScene(Long id, Long orgId) {
+    private SimulationScene buildScene(Long id) {
         SimulationScene scene = new SimulationScene();
         scene.setId(id);
         scene.setSceneCode("SCENE_" + id);
         scene.setSceneName("场景" + id);
-        scene.setOrganizationId(orgId);
         scene.setStatus(0);
         return scene;
     }
@@ -139,33 +121,27 @@ class SimulationSceneServiceImplTest {
     class CreateScene {
 
         @Test
-        @DisplayName("越权组织拒绝创建")
-        void should_reject_when_orgAccessDenied() {
-            DataScopeContext context = DataScopeContext.builder()
-                    .userId(CURRENT_USER_ID).role("ORG_ADMIN")
-                    .organizationIds(Set.of(ORG_ID)).scopeType("ORG_ALL").build();
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID)).thenReturn(context);
+        @DisplayName("机房不存在时拒绝创建")
+        void should_reject_when_cloudRoomNotFound() {
+            when(cloudRoomService.getCloudRoomOrThrow(CLOUD_ROOM_ID, null))
+                    .thenThrow(new BusinessException("机房不存在"));
 
             SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
             dto.setSceneCode("SCENE_X");
             dto.setSceneName("场景X");
-            dto.setOrganizationId(OTHER_ORG_ID);
+            dto.setCloudRoomId(CLOUD_ROOM_ID);
 
             assertThatThrownBy(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
-                    .isInstanceOf(DataScopeViolationException.class);
+                    .isInstanceOf(BusinessException.class);
             verify(simulationSceneMapper, times(0)).insert((SimulationScene) any());
         }
 
         @Test
         @DisplayName("非五类设备类型编码拒绝创建")
         void should_reject_when_deviceTypeUnsupported() {
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
             SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
             dto.setSceneCode("SCENE_X");
             dto.setSceneName("场景X");
-            dto.setOrganizationId(ORG_ID);
             dto.setDeviceTypeCode("UNKNOWN_TYPE");
 
             assertThatThrownBy(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
@@ -177,8 +153,6 @@ class SimulationSceneServiceImplTest {
         @Test
         @DisplayName("成功创建场景并写入步骤")
         void should_createSceneWithSteps() {
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(simulationSceneMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
             when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "NUMBER"));
@@ -190,7 +164,7 @@ class SimulationSceneServiceImplTest {
             when(simulationSceneStepMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
             when(simulationSceneStepMapper.insert((SimulationSceneStep) any())).thenReturn(1);
             when(simulationSceneMapper.selectById(1L))
-                    .thenReturn(buildScene(1L, ORG_ID));
+                    .thenReturn(buildScene(1L));
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of());
 
@@ -203,31 +177,28 @@ class SimulationSceneServiceImplTest {
             SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
             dto.setSceneCode("UPS_LOAD");
             dto.setSceneName("UPS 负载测试");
-            dto.setOrganizationId(ORG_ID);
             dto.setDeviceTypeCode("UPS");
             dto.setSteps(List.of(stepDto));
 
             SimulationSceneVO vo = simulationSceneService.createScene(dto, CURRENT_USER_ID);
-            assertThat(vo.getOrganizationId()).isEqualTo(ORG_ID);
+            assertThat(vo.getSceneCode()).isEqualTo("SCENE_1");
             verify(simulationSceneMapper, times(1)).insert((SimulationScene) any());
             verify(simulationSceneStepMapper, times(1)).insert((SimulationSceneStep) any());
         }
 
         @Test
-        @DisplayName("ORG_ADMIN 无需显式机房授权即可在本组织机房创建场景")
-        void should_allowOrgAdminToCreateSceneInOrganizationRoom() {
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-            when(cloudRoomService.getCloudRoomOrThrow(21L, CURRENT_USER_ID))
-                    .thenReturn(buildCloudRoom(21L, ORG_ID));
+        @DisplayName("绑定机房创建场景成功")
+        void should_createSceneWithCloudRoom() {
+            when(cloudRoomService.getCloudRoomOrThrow(CLOUD_ROOM_ID, null))
+                    .thenReturn(buildCloudRoom(CLOUD_ROOM_ID));
             when(simulationSceneMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
             when(simulationSceneMapper.insert((SimulationScene) any())).thenAnswer(inv -> {
                 SimulationScene scene = inv.getArgument(0);
                 scene.setId(2L);
                 return 1;
             });
-            SimulationScene persisted = buildScene(2L, ORG_ID);
-            persisted.setCloudRoomId(21L);
+            SimulationScene persisted = buildScene(2L);
+            persisted.setCloudRoomId(CLOUD_ROOM_ID);
             when(simulationSceneMapper.selectById(2L)).thenReturn(persisted);
             when(simulationSceneStepMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of());
@@ -235,52 +206,19 @@ class SimulationSceneServiceImplTest {
             SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
             dto.setSceneCode("PDU_TEST");
             dto.setSceneName("PDU 电表测试");
-            dto.setOrganizationId(ORG_ID);
-            dto.setCloudRoomId(21L);
+            dto.setCloudRoomId(CLOUD_ROOM_ID);
             dto.setDeviceTypeCode("PDU_METER");
 
             assertThatCode(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
                     .doesNotThrowAnyException();
-            verify(cloudRoomService).getCloudRoomOrThrow(21L, CURRENT_USER_ID);
+            verify(cloudRoomService).getCloudRoomOrThrow(CLOUD_ROOM_ID, null);
             verify(simulationSceneMapper).insert((SimulationScene) any());
-        }
-
-        @Test
-        @DisplayName("机房不属于场景组织时拒绝创建")
-        void should_rejectWhenCloudRoomBelongsToAnotherOrganization() {
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-            when(cloudRoomService.getCloudRoomOrThrow(21L, CURRENT_USER_ID))
-                    .thenReturn(buildCloudRoom(21L, OTHER_ORG_ID));
-
-            SimulationSceneCreateDTO dto = new SimulationSceneCreateDTO();
-            dto.setSceneCode("PDU_TEST");
-            dto.setSceneName("PDU 电表测试");
-            dto.setOrganizationId(ORG_ID);
-            dto.setCloudRoomId(21L);
-
-            assertThatThrownBy(() -> simulationSceneService.createScene(dto, CURRENT_USER_ID))
-                    .isInstanceOf(DataScopeViolationException.class)
-                    .hasMessageContaining("CloudRoom");
-            verify(simulationSceneMapper, times(0)).insert((SimulationScene) any());
         }
     }
 
     @Nested
-    @DisplayName("getSceneOrThrow - 范围校验")
+    @DisplayName("getSceneOrThrow - 查询场景")
     class GetSceneOrThrow {
-
-        @Test
-        @DisplayName("越权组织拒绝访问场景")
-        void should_reject_when_orgNotInScope() {
-            when(simulationSceneMapper.selectById(5L))
-                    .thenReturn(buildScene(5L, OTHER_ORG_ID));
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
-            assertThatThrownBy(() -> simulationSceneService.getSceneOrThrow(5L, CURRENT_USER_ID))
-                    .isInstanceOf(DataScopeViolationException.class);
-        }
 
         @Test
         @DisplayName("场景不存在抛 SIMULATION_SCENE_NOT_FOUND")
@@ -290,41 +228,32 @@ class SimulationSceneServiceImplTest {
             assertThatThrownBy(() -> simulationSceneService.getSceneOrThrow(99L, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class);
         }
+
+        @Test
+        @DisplayName("任意已认证用户可访问存在的场景")
+        void should_return_when_exists() {
+            when(simulationSceneMapper.selectById(5L)).thenReturn(buildScene(5L));
+
+            SimulationScene result = simulationSceneService.getSceneOrThrow(5L, CURRENT_USER_ID);
+            assertThat(result.getId()).isEqualTo(5L);
+        }
     }
 
     @Nested
-    @DisplayName("pageScenes - 分页范围过滤")
+    @DisplayName("pageScenes - 分页查询")
     class PageScenes {
 
         @Test
-        @DisplayName("无组织授权返回空结果")
-        void should_returnEmpty_when_noOrgAssigned() {
-            DataScopeContext context = DataScopeContext.builder()
-                    .userId(CURRENT_USER_ID).role("VIEWER")
-                    .organizationIds(Set.of()).scopeType("READ_ONLY").build();
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID)).thenReturn(context);
-
-            Page<SimulationSceneVO> result = simulationSceneService.pageScenes(
-                    CURRENT_USER_ID, 1, 10, null, null, null, null);
-            assertThat(result.getRecords()).isEmpty();
-            assertThat(result.getTotal()).isZero();
-            verify(simulationSceneMapper, times(0))
-                    .selectPage(any(Page.class), any(LambdaQueryWrapper.class));
-        }
-
-        @Test
-        @DisplayName("非 PLATFORM_ADMIN 仅查授权组织")
-        void should_filterByOrgIds() {
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+        @DisplayName("分页返回场景列表")
+        void should_returnPagedScenes() {
             Page<SimulationScene> mockPage = new Page<>(1, 10);
-            mockPage.setRecords(List.of(buildScene(1L, ORG_ID)));
+            mockPage.setRecords(List.of(buildScene(1L)));
             mockPage.setTotal(1);
             when(simulationSceneMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
                     .thenReturn(mockPage);
 
             Page<SimulationSceneVO> result = simulationSceneService.pageScenes(
-                    CURRENT_USER_ID, 1, 10, null, null, null, null);
+                    CURRENT_USER_ID, 1, 10, null, null, null);
             assertThat(result.getRecords()).hasSize(1);
             assertThat(result.getTotal()).isEqualTo(1);
         }
@@ -338,9 +267,7 @@ class SimulationSceneServiceImplTest {
         @DisplayName("STRING 点位拒绝写入数值")
         void should_reject_when_stringPoint() {
             when(simulationSceneMapper.selectById(1L))
-                    .thenReturn(buildScene(1L, ORG_ID));
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+                    .thenReturn(buildScene(1L));
             when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "STRING"));
 
@@ -359,9 +286,7 @@ class SimulationSceneServiceImplTest {
         @DisplayName("BOOLEAN 点位仅允许 0 或 1")
         void should_reject_when_booleanInvalid() {
             when(simulationSceneMapper.selectById(1L))
-                    .thenReturn(buildScene(1L, ORG_ID));
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+                    .thenReturn(buildScene(1L));
             when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "BOOLEAN"));
 
@@ -379,9 +304,7 @@ class SimulationSceneServiceImplTest {
         @DisplayName("非法动作拒绝")
         void should_reject_when_invalidAction() {
             when(simulationSceneMapper.selectById(1L))
-                    .thenReturn(buildScene(1L, ORG_ID));
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
+                    .thenReturn(buildScene(1L));
             when(pointDefinitionService.getPointDefinitionOrThrow(10L, CURRENT_USER_ID))
                     .thenReturn(buildPoint(10L, "NUMBER"));
 

@@ -47,8 +47,6 @@ class DeviceTypePointTemplateServiceImplTest {
     private DeviceTypeMapper deviceTypeMapper;
     @Mock
     private PointDefinitionService pointDefinitionService;
-    @Mock
-    private com.example.platform.security.CurrentOrganizationContext currentOrganizationContext;
 
     @InjectMocks
     private DeviceTypePointTemplateServiceImpl deviceTypePointTemplateService;
@@ -57,9 +55,6 @@ class DeviceTypePointTemplateServiceImplTest {
     void setUp() throws Exception {
         initBaseMapper();
         initLambdaCache();
-        // 双层解析默认无组织上下文 → 平台级（组织级用例按需覆写）
-        org.mockito.Mockito.lenient().when(currentOrganizationContext.currentOrganizationId())
-                .thenReturn(java.util.Optional.empty());
     }
 
     private void initBaseMapper() throws Exception {
@@ -102,35 +97,16 @@ class DeviceTypePointTemplateServiceImplTest {
         }
 
         @Test
-        @DisplayName("正常返回模板列表（按 sortOrder 升序，双层降级平台级）")
+        @DisplayName("正常返回模板列表（按 sortOrder 升序）")
         void should_returnTemplates() {
             when(deviceTypeMapper.selectById(1)).thenReturn(buildType(1));
             DeviceTypePointTemplate t1 = new DeviceTypePointTemplate();
             t1.setTypeId(1); t1.setPointId(10L); t1.setSortOrder(0);
-            t1.setOrganizationId(0L);
             when(deviceTypePointTemplateMapper.selectList(any(LambdaQueryWrapper.class)))
                     .thenReturn(List.of(t1));
 
             List<DeviceTypePointTemplate> result = deviceTypePointTemplateService.listTemplates(1);
             assertThat(result).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("组织级模板存在时优先返回组织级")
-        void should_preferOrgTemplates_whenPresent() {
-            when(deviceTypeMapper.selectById(1)).thenReturn(buildType(1));
-            when(currentOrganizationContext.currentOrganizationId())
-                    .thenReturn(java.util.Optional.of(7L));
-            // 第一次查组织级返回非空 → 不再降级平台级
-            DeviceTypePointTemplate orgTemplate = new DeviceTypePointTemplate();
-            orgTemplate.setTypeId(1); orgTemplate.setPointId(10L); orgTemplate.setOrganizationId(7L);
-            when(deviceTypePointTemplateMapper.selectList(any(LambdaQueryWrapper.class)))
-                    .thenReturn(List.of(orgTemplate));
-
-            List<DeviceTypePointTemplate> result = deviceTypePointTemplateService.listTemplates(1);
-
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getOrganizationId()).isEqualTo(7L);
         }
     }
 

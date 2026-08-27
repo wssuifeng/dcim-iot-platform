@@ -72,7 +72,7 @@ class WebSocketAuthenticationInterceptorTest {
     @Test
     void subscribeRejectsLegacyGlobalTopic() {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
-        accessor.setUser(authentication(42L, PlatformRole.ORG_ADMIN));
+        accessor.setUser(authentication(42L, PlatformRole.ADMIN));
         accessor.setDestination("/topic/alerts");
 
         assertThatThrownBy(() -> interceptor.preSend(message(accessor), channel))

@@ -156,7 +156,7 @@ class AuthServiceImplTest {
     }
 
     /*
-     * 场景14：登录成功，清除失败状态Key、重置DB计数、签发Token
+     * 场景14：登录成功，清除失败状态Key、重置DB计数、按用户角色签发Token
      * */
     @Test
     @DisplayName("loginSuccess - 清除失败计数并签发Token")
@@ -164,7 +164,7 @@ class AuthServiceImplTest {
         // Given
         when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(1L, "admin", null)).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(1L, "admin", "ADMIN")).thenReturn("jwt-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
@@ -174,7 +174,7 @@ class AuthServiceImplTest {
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getUserId()).isEqualTo(1L);
-        assertThat(response.getRole()).isEqualTo(PlatformRole.AUTHENTICATED_USER);
+        assertThat(response.getRole()).isEqualTo(PlatformRole.ADMIN);
 
         verify(cacheService).delete("auth:fail:state:127.0.0.1");
         verify(sysUserService).resetLoginFailCount(1L);
@@ -183,57 +183,56 @@ class AuthServiceImplTest {
     }
 
     /*
-     * 场景14.1：旧 ADMIN 只作为兼容账号登录，不再写入组织角色到 JWT
+     * 场景14.1：Token 的 role claim 与登录响应角色均为用户角色（ADMIN）
      * */
     @Test
-    @DisplayName("loginSuccess - 旧ADMIN不写入组织角色")
-    void loginSuccess_LegacyAdminRoleNormalized() {
+    @DisplayName("loginSuccess - Token与响应均携带用户角色ADMIN")
+    void loginSuccess_AdminRoleInTokenAndResponse() {
         // Given
         when(sysUserService.findByLoginIdentifier("admin")).thenReturn(activeUser);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(1L, "admin", null)).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(1L, "admin", PlatformRole.ADMIN)).thenReturn("jwt-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
         LoginResponseDTO response = authService.login(loginDTO, "127.0.0.1");
 
         // Then
-        assertThat(response.getRole()).isEqualTo(PlatformRole.AUTHENTICATED_USER);
-        verify(jwtUtil).generateToken(1L, "admin", null);
+        assertThat(response.getRole()).isEqualTo(PlatformRole.ADMIN);
+        verify(jwtUtil).generateToken(1L, "admin", PlatformRole.ADMIN);
     }
 
     /*
-     * 场景14.2：新 PLATFORM_ADMIN 角色可登录且不被降级为组织管理员
+     * 场景14.2：OPERATOR 角色登录，Token 与响应均携带 OPERATOR
      * */
     @Test
-    @DisplayName("loginSuccess - PLATFORM_ADMIN角色可登录")
-    void loginSuccess_PlatformAdminRoleSupported() {
+    @DisplayName("loginSuccess - OPERATOR角色登录")
+    void loginSuccess_OperatorRoleSupported() {
         // Given
-        SysUser platformAdmin = new SysUser();
-        platformAdmin.setId(3L);
-        platformAdmin.setUsername("platform_admin");
-        platformAdmin.setPassword("$2a$10$encoded");
-        platformAdmin.setRole(PlatformRole.PLATFORM_ADMIN);
-        platformAdmin.setPlatformRole(PlatformRole.PLATFORM_ADMIN);
-        platformAdmin.setStatus(0);
-        platformAdmin.setNickname("平台管理员");
+        SysUser operator = new SysUser();
+        operator.setId(3L);
+        operator.setUsername("operator");
+        operator.setPassword("$2a$10$encoded");
+        operator.setRole(PlatformRole.OPERATOR);
+        operator.setStatus(0);
+        operator.setNickname("运维");
 
-        LoginDTO platformLogin = new LoginDTO();
-        platformLogin.setUsername("platform_admin");
-        platformLogin.setPassword("Admin123");
+        LoginDTO operatorLogin = new LoginDTO();
+        operatorLogin.setUsername("operator");
+        operatorLogin.setPassword("Admin123");
 
-        when(sysUserService.findByLoginIdentifier("platform_admin")).thenReturn(platformAdmin);
+        when(sysUserService.findByLoginIdentifier("operator")).thenReturn(operator);
         when(passwordEncoder.matches("Admin123", "$2a$10$encoded")).thenReturn(true);
-        when(jwtUtil.generateToken(3L, "platform_admin", PlatformRole.PLATFORM_ADMIN)).thenReturn("platform-token");
+        when(jwtUtil.generateToken(3L, "operator", PlatformRole.OPERATOR)).thenReturn("operator-token");
         when(jwtUtil.getExpiration()).thenReturn(3600L);
 
         // When
-        LoginResponseDTO response = authService.login(platformLogin, "127.0.0.1");
+        LoginResponseDTO response = authService.login(operatorLogin, "127.0.0.1");
 
         // Then
-        assertThat(response.getToken()).isEqualTo("platform-token");
-        assertThat(response.getRole()).isEqualTo(PlatformRole.PLATFORM_ADMIN);
-        verify(jwtUtil).generateToken(3L, "platform_admin", PlatformRole.PLATFORM_ADMIN);
+        assertThat(response.getToken()).isEqualTo("operator-token");
+        assertThat(response.getRole()).isEqualTo(PlatformRole.OPERATOR);
+        verify(jwtUtil).generateToken(3L, "operator", PlatformRole.OPERATOR);
     }
 
     /*

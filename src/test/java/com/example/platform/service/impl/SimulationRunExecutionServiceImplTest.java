@@ -7,7 +7,6 @@ import com.example.platform.entity.SimulationRunRecord;
 import com.example.platform.entity.SimulationSceneStep;
 import com.example.platform.mapper.SimulationRunRecordMapper;
 import com.example.platform.mapper.SimulationSceneStepMapper;
-import com.example.platform.security.CurrentOrganizationContext;
 import com.example.platform.service.SimulationStepExecutionService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,10 +33,10 @@ class SimulationRunExecutionServiceImplTest {
     private SimulationSceneStepMapper stepMapper;
     @Mock
     private SimulationStepExecutionService stepExecutionService;
-    @Mock
-    private CurrentOrganizationContext organizationContext;
     @InjectMocks
     private SimulationRunExecutionServiceImpl service;
+
+    private static final Long USER_ID = 30L;
 
     @BeforeEach
     void initLambdaCache() {
@@ -49,17 +48,16 @@ class SimulationRunExecutionServiceImplTest {
         stepAssistant.setCurrentNamespace(SimulationSceneStepMapper.class.getName());
         TableInfoHelper.initTableInfo(stepAssistant, SimulationSceneStep.class);
     }
+
     @Test
     void cancelledRunMustNotStart() {
         SimulationRunRecord cancelled = run("CANCELLED");
         when(runMapper.selectById(7L)).thenReturn(cancelled);
 
-        service.executeAsync(7L, null, 30L, 1L);
+        service.executeAsync(7L, null, USER_ID);
 
         verify(stepMapper, never()).selectList(any(LambdaQueryWrapper.class));
         verify(stepExecutionService, never()).executeStep(any(), any(), any(), any());
-        verify(organizationContext).setOrganizationId(1L);
-        verify(organizationContext).clear();
     }
 
     @Test
@@ -73,11 +71,10 @@ class SimulationRunExecutionServiceImplTest {
         SimulationSceneStep second = step(2);
         when(stepMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(first, second));
 
-        service.executeAsync(7L, null, 30L, 1L);
+        service.executeAsync(7L, null, USER_ID);
 
-        verify(stepExecutionService, times(1)).executeStep(initial, first, null, 30L);
-        verify(stepExecutionService, never()).executeStep(initial, second, null, 30L);
-        verify(organizationContext).clear();
+        verify(stepExecutionService, times(1)).executeStep(initial, first, null, USER_ID);
+        verify(stepExecutionService, never()).executeStep(initial, second, null, USER_ID);
     }
 
     @Test
@@ -89,16 +86,16 @@ class SimulationRunExecutionServiceImplTest {
         when(stepMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(step(1), step(2)));
 
-        service.executeAsync(7L, null, 30L, 1L);
+        service.executeAsync(7L, null, USER_ID);
 
         verify(stepExecutionService, times(2)).executeStep(any(), any(), any(), any());
         verify(runMapper, times(4)).update(any(), any());
-        verify(organizationContext).clear();
     }
+
     private SimulationRunRecord run(String status) {
         SimulationRunRecord run = new SimulationRunRecord();
         run.setId(7L);
-        run.setOrganizationId(1L);
+        run.setSceneId(1L);
         run.setStatus(status);
         run.setTotalSteps(2);
         run.setSuccessSteps(0);

@@ -1,27 +1,17 @@
 package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.exception.DataScopeViolationException;
-import com.example.platform.dto.AlarmEventVO;
-import com.example.platform.dto.DataScopeContext;
 import com.example.platform.entity.AlarmEvent;
 import com.example.platform.entity.AlarmHandlingRecord;
 import com.example.platform.entity.AlarmStateTransition;
 import com.example.platform.mapper.AlarmEventMapper;
 import com.example.platform.mapper.AlarmHandlingRecordMapper;
 import com.example.platform.mapper.AlarmStateTransitionMapper;
-import com.example.platform.security.UserScopedWebSocketPublisher;
-import com.example.platform.security.WebSocketSummary;
-import com.example.platform.service.AlarmEventService;
 import com.example.platform.service.AlarmRecipientResolver;
-import com.example.platform.service.DataScopeService;
 import com.example.platform.service.InAppNotificationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,16 +30,14 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /*
  * 类功能:AlarmEventServiceImpl 单元测试
- * 覆盖 BIZ-TRAE-02：状态机合法/非法流转、重复关闭、范围越权拒绝、空组织授权返回空、更新失败回滚
+ * 覆盖 BIZ-TRAE-02：状态机合法/非法流转、重复关闭、更新失败回滚、站内通知收件人解析
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AlarmEventService 单元测试")
@@ -62,11 +50,7 @@ class AlarmEventServiceImplTest {
     @Mock
     private AlarmHandlingRecordMapper alarmHandlingRecordMapper;
     @Mock
-    private DataScopeService dataScopeService;
-    @Mock
     private InAppNotificationService inAppNotificationService;
-    @Mock
-    private UserScopedWebSocketPublisher webSocketPublisher;
     @Mock
     private AlarmRecipientResolver alarmRecipientResolver;
     @Mock
@@ -80,8 +64,6 @@ class AlarmEventServiceImplTest {
     private AlarmEventServiceImpl alarmEventService;
 
     private static final Long CURRENT_USER_ID = 40L;
-    private static final Long ORG_ID = 1L;
-    private static final Long OTHER_ORG_ID = 999L;
     private static final Long CLOUD_ROOM_ID = 10L;
 
     @BeforeEach
@@ -111,16 +93,7 @@ class AlarmEventServiceImplTest {
         TableInfoHelper.initTableInfo(assistant, AlarmHandlingRecord.class);
     }
 
-    private DataScopeContext orgAdminContext(Long orgId) {
-        return DataScopeContext.builder()
-                .userId(CURRENT_USER_ID)
-                .role("ORG_ADMIN")
-                .organizationIds(Set.of(orgId))
-                .scopeType("ORG_ALL")
-                .build();
-    }
-
-    private AlarmEvent buildEvent(Long id, Long orgId, String state) {
+    private AlarmEvent buildEvent(Long id, String state) {
         AlarmEvent event = new AlarmEvent();
         event.setId(id);
         event.setDeviceId(5);
@@ -128,7 +101,6 @@ class AlarmEventServiceImplTest {
         event.setAlarmLevel(2);
         event.setAlarmMessage("温度超过阈值");
         event.setState(state);
-        event.setOrganizationId(orgId);
         event.setTriggeredTime(LocalDateTime.now().minusHours(1));
         return event;
     }
@@ -140,10 +112,8 @@ class AlarmEventServiceImplTest {
         @Test
         @DisplayName("TRIGGERED → ACKED 合法")
         void should_transition_triggered_to_acked() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+            AlarmEvent event = buildEvent(1L, "TRIGGERED");
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
             when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
@@ -157,10 +127,8 @@ class AlarmEventServiceImplTest {
         @Test
         @DisplayName("ACKED → HANDLING 合法")
         void should_transition_acked_to_handling() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "ACKED");
+            AlarmEvent event = buildEvent(1L, "ACKED");
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
             when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
@@ -172,11 +140,9 @@ class AlarmEventServiceImplTest {
         @Test
         @DisplayName("RECOVERED → CLOSED 合法")
         void should_transition_recovered_to_closed() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "RECOVERED");
+            AlarmEvent event = buildEvent(1L, "RECOVERED");
             event.setRecoveredTime(LocalDateTime.now().minusMinutes(1));
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
             when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
@@ -187,39 +153,33 @@ class AlarmEventServiceImplTest {
         }
 
         @Test
-        @DisplayName("人工流转站内通知使用精确机房收件人（WS推送职责已移交分发服务）")
-        void should_dispatch_to_exact_room_recipients() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+        @DisplayName("人工流转站内通知发给解析出的启用运维角色收件人（WS推送职责已移交分发服务）")
+        void should_dispatch_to_resolved_recipients() {
+            AlarmEvent event = buildEvent(1L, "TRIGGERED");
             event.setCloudRoomId(CLOUD_ROOM_ID);
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
             when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
-            when(alarmRecipientResolver.resolveRecipientUserIds(ORG_ID, CLOUD_ROOM_ID))
+            when(alarmRecipientResolver.resolveRecipientUserIds())
                     .thenReturn(Set.of(20L, 30L));
 
             alarmEventService.acknowledge(1L, CURRENT_USER_ID, null);
 
             verify(inAppNotificationService).notifyAlarmEvent(
                     eq(1L), eq(Set.of(20L, 30L)), any(String.class), any(String.class));
-            // D13/D17：人工流转不再直推 WS（自动链路三事件才推），状态机无 WS 交互
-            verify(webSocketPublisher, never()).sendSummary(any(), any(WebSocketSummary.class));
         }
 
         @Test
         @DisplayName("站内通知发送异常不阻断状态流转")
         void should_continue_after_notification_failure() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+            AlarmEvent event = buildEvent(1L, "TRIGGERED");
             event.setCloudRoomId(CLOUD_ROOM_ID);
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
             when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
             when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
             when(alarmHandlingRecordMapper.insert((AlarmHandlingRecord) any())).thenReturn(1);
-            when(alarmRecipientResolver.resolveRecipientUserIds(ORG_ID, CLOUD_ROOM_ID))
+            when(alarmRecipientResolver.resolveRecipientUserIds())
                     .thenReturn(new java.util.LinkedHashSet<>(List.of(20L, 30L)));
             org.mockito.Mockito.doThrow(new IllegalStateException("notify down"))
                     .when(inAppNotificationService)
@@ -238,88 +198,37 @@ class AlarmEventServiceImplTest {
         @Test
         @DisplayName("CLOSED → ACKED 非法流转拒绝")
         void should_reject_closed_to_acked() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "CLOSED");
+            AlarmEvent event = buildEvent(1L, "CLOSED");
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
 
             assertThatThrownBy(() -> alarmEventService.acknowledge(1L, CURRENT_USER_ID, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("code").isEqualTo(ResultCode.ALARM_STATE_INVALID_TRANSITION);
-            verify(alarmEventMapper, never()).updateById((AlarmEvent) any());
-            verify(alarmStateTransitionMapper, never()).insert((AlarmStateTransition) any());
+            verify(alarmEventMapper, org.mockito.Mockito.never()).updateById((AlarmEvent) any());
+            verify(alarmStateTransitionMapper, org.mockito.Mockito.never()).insert((AlarmStateTransition) any());
         }
 
         @Test
         @DisplayName("重复关闭抛状态冲突")
         void should_reject_duplicate_close() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "CLOSED");
+            AlarmEvent event = buildEvent(1L, "CLOSED");
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
 
             assertThatThrownBy(() -> alarmEventService.close(1L, CURRENT_USER_ID, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("code").isEqualTo(ResultCode.ALARM_STATE_CONFLICT);
-            verify(alarmEventMapper, never()).updateById((AlarmEvent) any());
+            verify(alarmEventMapper, org.mockito.Mockito.never()).updateById((AlarmEvent) any());
         }
 
         @Test
         @DisplayName("TRIGGERED → HANDLING 跳跃流转拒绝")
         void should_reject_skip_transition() {
-            AlarmEvent event = buildEvent(1L, ORG_ID, "TRIGGERED");
+            AlarmEvent event = buildEvent(1L, "TRIGGERED");
             when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
 
             assertThatThrownBy(() -> alarmEventService.startHandling(1L, CURRENT_USER_ID, null))
                     .isInstanceOf(BusinessException.class)
                     .extracting("code").isEqualTo(ResultCode.ALARM_STATE_INVALID_TRANSITION);
-        }
-    }
-
-    @Nested
-    @DisplayName("范围校验")
-    class ScopeChecks {
-
-        @Test
-        @DisplayName("越权访问其他组织告警拒绝")
-        void should_reject_when_orgNotInScope() {
-            AlarmEvent event = buildEvent(1L, OTHER_ORG_ID, "TRIGGERED");
-            when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
-            assertThatThrownBy(() -> alarmEventService.acknowledge(1L, CURRENT_USER_ID, null))
-                    .isInstanceOf(DataScopeViolationException.class);
-        }
-
-        @Test
-        @DisplayName("查询越权组织告警事件拒绝")
-        void should_reject_when_getDetailOutOfScope() {
-            AlarmEvent event = buildEvent(1L, OTHER_ORG_ID, "TRIGGERED");
-            when(alarmEventMapper.selectById(1L)).thenReturn(event);
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID))
-                    .thenReturn(orgAdminContext(ORG_ID));
-
-            assertThatThrownBy(() -> alarmEventService.getDetail(1L, CURRENT_USER_ID))
-                    .isInstanceOf(DataScopeViolationException.class);
-        }
-
-        @Test
-        @DisplayName("无组织授权分页返回空结果")
-        void should_returnEmpty_when_noOrgAssigned() {
-            DataScopeContext context = DataScopeContext.builder()
-                    .userId(CURRENT_USER_ID).role("VIEWER")
-                    .organizationIds(Set.of()).scopeType("READ_ONLY").build();
-            when(dataScopeService.resolveDataScope(CURRENT_USER_ID)).thenReturn(context);
-
-            Page<AlarmEventVO> result = alarmEventService.pageEvents(
-                    CURRENT_USER_ID, 1, 10, null, null, null, null, null);
-            assertThat(result.getRecords()).isEmpty();
-            assertThat(result.getTotal()).isZero();
-            verify(alarmEventMapper, never())
-                    .selectPage(any(Page.class), any(LambdaQueryWrapper.class));
         }
     }
 

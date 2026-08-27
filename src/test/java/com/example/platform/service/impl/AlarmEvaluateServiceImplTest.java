@@ -73,7 +73,6 @@ class AlarmEvaluateServiceImplTest {
     private Device device() {
         Device device = new Device();
         device.setId(DEVICE_ID);
-        device.setOrganizationId(1L);
         device.setCloudRoomId(10L);
         return device;
     }
@@ -112,7 +111,6 @@ class AlarmEvaluateServiceImplTest {
             ArgumentCaptor<AlarmTriggerContext> captor = ArgumentCaptor.forClass(AlarmTriggerContext.class);
             verify(alarmEventService).trigger(captor.capture());
             assertThat(captor.getValue().getAlarmLevel()).isEqualTo(1);
-            assertThat(captor.getValue().getOrganizationId()).isEqualTo(1L);
             assertThat(captor.getValue().getCloudRoomId()).isEqualTo(10L);
             assertThat(captor.getValue().getAlarmType()).isEqualTo("METRIC");
         }

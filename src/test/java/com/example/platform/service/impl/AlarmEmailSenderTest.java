@@ -49,7 +49,6 @@ class AlarmEmailSenderTest {
         event.setAlarmType("METRIC");
         event.setAlarmMessage("高温警告：温度=41℃（规则 GT 40，级别1）");
         event.setState("TRIGGERED");
-        event.setOrganizationId(1L);
         return event;
     }
 
