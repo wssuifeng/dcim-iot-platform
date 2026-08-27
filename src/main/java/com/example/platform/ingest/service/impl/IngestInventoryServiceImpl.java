@@ -40,9 +40,9 @@ public class IngestInventoryServiceImpl implements IngestInventoryService {
                                                    IngestInventoryDTO inventory) {
         IngestInventoryResultVO result = new IngestInventoryResultVO();
         List<IngestInventoryResultVO.ItemResult> results = new ArrayList<>();
+        // 类型解析三级：清单类型码 > 点位推断 > 凭证默认（均可空，解析失败逐台报错）
         boolean importEnabled = credential.getAutoRegister() != null
-                && credential.getAutoRegister() == 1
-                && credential.getDefaultTypeId() != null;
+                && credential.getAutoRegister() == 1;
 
         for (IngestInventoryDTO.DeviceItem item : inventory.getDevices()) {
             IngestInventoryResultVO.ItemResult itemResult = new IngestInventoryResultVO.ItemResult();

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.platform.common.Result;
 import com.example.platform.common.annotation.AuditLog;
 import com.example.platform.dto.CloudRoomCreateDTO;
+import com.example.platform.dto.CloudRoomCreatedVO;
 import com.example.platform.dto.CloudRoomUpdateDTO;
 import com.example.platform.entity.CloudRoom;
 import com.example.platform.security.CurrentUser;
@@ -34,11 +35,14 @@ import org.springframework.web.bind.annotation.*;
 public class CloudRoomController {
 
     private final CloudRoomService cloudRoomService;
+    private final com.example.platform.ingest.service.IngestCredentialService ingestCredentialService;
     private final CurrentUserContext currentUserContext;
 
     public CloudRoomController(CloudRoomService cloudRoomService,
+                               com.example.platform.ingest.service.IngestCredentialService ingestCredentialService,
                                CurrentUserContext currentUserContext) {
         this.cloudRoomService = cloudRoomService;
+        this.ingestCredentialService = ingestCredentialService;
         this.currentUserContext = currentUserContext;
     }
 
@@ -62,13 +66,44 @@ public class CloudRoomController {
         return Result.success(cloudRoomService.getCloudRoomOrThrow(id, user.userId()));
     }
 
-    @Operation(summary = "创建机房", description = "ADMIN 专用；roomCode 全局唯一")
+    @Operation(summary = "创建机房",
+            description = "ADMIN 专用；roomCode 全局唯一。同事务初始化该机房网关接入凭证，"
+                    + "AccessKey/SecretKey 仅本次返回（合一模型：机房即接入主体）")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "CREATE_CLOUD_ROOM", detail = "机房编码:#createDTO.roomCode")
-    public Result<CloudRoom> create(@Valid @RequestBody CloudRoomCreateDTO createDTO) {
+    public Result<CloudRoomCreatedVO> create(@Valid @RequestBody CloudRoomCreateDTO createDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(cloudRoomService.createCloudRoom(createDTO, user.userId()));
+    }
+
+    @Operation(summary = "查询机房接入凭证", description = "凭证视图（AccessKey/状态/最近活跃/自动注册），SecretKey 永不返回")
+    @GetMapping("/{id}/credential")
+    public Result<com.example.platform.ingest.dto.IngestCredentialVO> getCredential(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id) {
+        return Result.success(ingestCredentialService.getCredentialByRoomVO(id));
+    }
+
+    @Operation(summary = "更新机房凭证自动注册配置", description = "ADMIN 专用；自动注册开关与默认设备类型（兜底）")
+    @PutMapping("/{id}/credential")
+    @PreAuthorize("hasRole('ADMIN')")
+    @AuditLog(operation = "UPDATE_ROOM_CREDENTIAL", detail = "机房ID:#id")
+    public Result<com.example.platform.ingest.dto.IngestCredentialVO> updateCredential(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id,
+            @RequestBody com.example.platform.ingest.dto.RoomCredentialUpdateDTO updateDTO) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(ingestCredentialService.updateAutoRegister(
+                id, updateDTO.getAutoRegister(), updateDTO.getDefaultTypeId(), user.userId()));
+    }
+
+    @Operation(summary = "重置机房接入密钥", description = "ADMIN 专用；旧 SecretKey 立即失效，新密钥仅本次返回")
+    @PutMapping("/{id}/secret")
+    @PreAuthorize("hasRole('ADMIN')")
+    @AuditLog(operation = "RESET_ROOM_SECRET", detail = "机房ID:#id")
+    public Result<com.example.platform.ingest.dto.IngestCredentialCreatedVO> resetSecret(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(ingestCredentialService.resetSecretByRoom(id, user.userId()));
     }
 
     @Operation(summary = "更新机房信息", description = "ADMIN 专用；不允许修改 roomCode")

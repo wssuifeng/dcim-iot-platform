@@ -16,28 +16,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /*
- * 类功能:云机房服务实现类，负责机房顶层资源的 CRUD 与编码唯一性校验
+ * 类功能:云机房服务实现类——机房顶层资源与其配套网关凭证（1:1）的生命周期所有者
  *
- * 【业务约束】
- *   - roomCode 全局唯一
- *   - status 仅允许 0(正常)/1(停用)
+ * 【合一模型】创建机房即建凭证（AK 自动生成、auto_register 默认开）；停用机房联动停
+ *   凭证（网关上报全拒）；删除机房级联删凭证（机房下有设备时拒绝删除）。
+ * 【业务约束】roomCode 全局唯一；status 仅允许 0(正常)/1(停用)
  * */
 @Slf4j
 @Service
 public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom> implements CloudRoomService {
 
     private final com.example.platform.mapper.DeviceMapper deviceMapper;
-    private final com.example.platform.ingest.mapper.IngestCredentialMapper ingestCredentialMapper;
+    private final com.example.platform.ingest.service.IngestCredentialService ingestCredentialService;
 
     public CloudRoomServiceImpl(com.example.platform.mapper.DeviceMapper deviceMapper,
-                                com.example.platform.ingest.mapper.IngestCredentialMapper ingestCredentialMapper) {
+                                com.example.platform.ingest.service.IngestCredentialService ingestCredentialService) {
         this.deviceMapper = deviceMapper;
-        this.ingestCredentialMapper = ingestCredentialMapper;
+        this.ingestCredentialService = ingestCredentialService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public CloudRoom createCloudRoom(CloudRoomCreateDTO createDTO, Long currentUserId) {
+    public com.example.platform.dto.CloudRoomCreatedVO createCloudRoom(CloudRoomCreateDTO createDTO,
+                                                                       Long currentUserId) {
         checkRoomCodeUnique(createDTO.getRoomCode());
 
         CloudRoom cloudRoom = new CloudRoom();
@@ -48,9 +49,12 @@ public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom
         if (!save(cloudRoom)) {
             throw new BusinessException("创建机房失败，请稍后重试");
         }
-        log.info("机房创建成功 roomCode={} roomName={}",
-                cloudRoom.getRoomCode(), cloudRoom.getRoomName());
-        return cloudRoom;
+        // 合一模型：同事务初始化该机房网关凭证（secret 仅本次返回）
+        com.example.platform.ingest.dto.IngestCredentialCreatedVO credential =
+                ingestCredentialService.createCredentialForRoom(cloudRoom.getId(), currentUserId);
+        log.info("机房创建成功（含接入凭证）roomCode={} roomName={} accessKey={}",
+                cloudRoom.getRoomCode(), cloudRoom.getRoomName(), credential.getAccessKey());
+        return com.example.platform.dto.CloudRoomCreatedVO.of(cloudRoom, credential);
     }
 
     @Override
@@ -85,6 +89,8 @@ public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom
         if (!updateById(cloudRoom)) {
             throw new BusinessException("更新机房状态失败");
         }
+        // 联动凭证：停用机房 = 网关上报全拒；启用恢复
+        ingestCredentialService.updateStatusByRoom(id, status, currentUserId);
         return cloudRoom;
     }
 
@@ -139,9 +145,9 @@ public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom
     }
 
     /*
-     * 方法功能:删除机房（物理删除，须机房下无设备且无绑定网关凭证）
+     * 方法功能:删除机房（物理删除，级联删除配套凭证；机房下有设备时拒绝）
      * 参数:id-机房ID, currentUserId-操作用户
-     * 返回数据:无（存在设备或凭证时抛业务异常）
+     * 返回数据:无（存在设备时抛业务异常）
      * */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -157,14 +163,9 @@ public class CloudRoomServiceImpl extends ServiceImpl<CloudRoomMapper, CloudRoom
             throw new BusinessException(ResultCode.ROOM_IN_USE_BY_DEVICE,
                     "机房下仍有 " + deviceCount + " 台设备，须先删除或迁移设备");
         }
-        Long credentialCount = ingestCredentialMapper.selectCount(
-                new LambdaQueryWrapper<com.example.platform.ingest.entity.IngestCredential>()
-                        .eq(com.example.platform.ingest.entity.IngestCredential::getCloudRoomId, id));
-        if (credentialCount != null && credentialCount > 0) {
-            throw new BusinessException(ResultCode.ROOM_IN_USE_BY_DEVICE,
-                    "机房仍绑定 " + credentialCount + " 个网关凭证，须先删除凭证");
-        }
+        // 合一模型：级联删除配套凭证（无设备才走到这里）
+        ingestCredentialService.deleteCredentialByRoom(id, currentUserId);
         removeById(id);
-        log.info("机房删除 roomId={} roomCode={} operator={}", id, room.getRoomCode(), currentUserId);
+        log.info("机房删除（凭证级联）roomId={} roomCode={} operator={}", id, room.getRoomCode(), currentUserId);
     }
 }

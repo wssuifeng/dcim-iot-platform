@@ -57,6 +57,7 @@ public class IngestMqttListener {
     private final IngestCredentialService ingestCredentialService;
     private final SysAuditLogService sysAuditLogService;
     private final com.example.platform.service.AlarmEventService alarmEventService;
+    private final com.example.platform.service.CloudRoomService cloudRoomService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
@@ -74,6 +75,7 @@ public class IngestMqttListener {
                               IngestCredentialService ingestCredentialService,
                               SysAuditLogService sysAuditLogService,
                               com.example.platform.service.AlarmEventService alarmEventService,
+                              com.example.platform.service.CloudRoomService cloudRoomService,
                               Validator validator,
                               ObjectMapper objectMapper,
                               @Value("${ingest.mqtt.broker-url:tcp://localhost:1883}") String brokerUrl,
@@ -86,6 +88,7 @@ public class IngestMqttListener {
         this.ingestCredentialService = ingestCredentialService;
         this.sysAuditLogService = sysAuditLogService;
         this.alarmEventService = alarmEventService;
+        this.cloudRoomService = cloudRoomService;
         this.validator = validator;
         this.objectMapper = objectMapper;
         this.brokerUrl = brokerUrl;
@@ -207,6 +210,11 @@ public class IngestMqttListener {
         triggerGatewayOffline(accessKey);
     }
 
+    private String roomNameOf(Long roomId) {
+        return cloudRoomService.getById(roomId) != null
+                ? cloudRoomService.getById(roomId).getRoomName() : String.valueOf(roomId);
+    }
+
     // 遗嘱触发即告警：凭证存在且启用时产出设备级（device_id 为空）离线告警
     private void triggerGatewayOffline(String accessKey) {
         try {
@@ -216,7 +224,8 @@ public class IngestMqttListener {
                     .pointId(null)
                     .alarmType("GATEWAY_OFFLINE")
                     .alarmLevel(2)
-                    .alarmMessage("网关离线：MQTT 遗嘱触发（" + credential.getGatewayName() + " 断连）")
+                    .alarmMessage("网关离线：MQTT 遗嘱触发（机房["
+                            + roomNameOf(credential.getCloudRoomId()) + "] 网关断连）")
                     .cloudRoomId(credential.getCloudRoomId())
                     .build());
         } catch (Exception ex) {

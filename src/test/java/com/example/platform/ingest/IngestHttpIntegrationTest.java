@@ -1,6 +1,5 @@
 package com.example.platform.ingest;
 
-import com.example.platform.ingest.dto.IngestCredentialCreateDTO;
 import com.example.platform.ingest.dto.IngestCredentialCreatedVO;
 import com.example.platform.ingest.entity.IngestCredential;
 import com.example.platform.ingest.service.IngestCredentialService;
@@ -41,6 +40,8 @@ class IngestHttpIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private IngestCredentialService credentialService;
+    @Autowired
+    private com.example.platform.service.CloudRoomService cloudRoomService;
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -101,6 +102,8 @@ class IngestHttpIntegrationTest {
     @Test
     void unknownDeviceAndUnboundPointFailWithoutBlockingOthers() throws Exception {
         IngestCredential credential = createCredential(-2001L);
+        // 本用例验证未知设备失败路径：显式关闭自动注册
+        credentialService.updateAutoRegister(credential.getCloudRoomId(), 0, null, 1L);
 
         MvcResult result = postSamples(credential, 200,
                 item("IT-UNKNOWN", 22.5, LocalDateTime.now(), 1L),
@@ -163,29 +166,28 @@ class IngestHttpIntegrationTest {
     @Test
     void disabledCredentialRejected() throws Exception {
         IngestCredential credential = createCredential(-2001L);
-        credentialService.updateStatus(credential.getId(), 1, 1L);
+        credentialService.updateStatusByRoom(credential.getCloudRoomId(), 1, 1L);
 
         postSamples(credential, 401, item("IT-DEV-A", 22.5, LocalDateTime.now(), 1L));
     }
 
     @Test
     void expiredCredentialRejected() throws Exception {
-        IngestCredentialCreateDTO createDTO = new IngestCredentialCreateDTO();
-        createDTO.setGatewayName("过期网关");
-        createDTO.setCloudRoomId(-2001L);
-        createDTO.setExpireAt(LocalDateTime.now().minusMinutes(1));
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+        // 合一模型：建机房得凭证，再置过期
+        IngestCredential credential = createCredential(-2001L);
+        credential.setExpireAt(LocalDateTime.now().minusMinutes(1));
+        credentialService.updateById(credential);
 
         org.assertj.core.api.Assertions.assertThatCode(() ->
-                        credentialService.authenticate(created.getAccessKey()))
+                        credentialService.authenticate(credential.getAccessKey()))
                 .isInstanceOf(com.example.platform.common.exception.BusinessException.class);
 
         // 过期凭证发真实请求 → 401
         String body = bodyOf(item("IT-DEV-A", 22.5, LocalDateTime.now(), 1L));
-        String signature = GatewaySignUtils.signature(created.getSecret(), body);
+        String signature = GatewaySignUtils.signature(credential.getSecret(), body);
         mockMvc.perform(post("/ingest/samples")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", "Gateway " + created.getAccessKey() + ":" + signature)
+                        .header("Authorization", "Gateway " + credential.getAccessKey() + ":" + signature)
                         .content(body))
                 .andExpect(status().isUnauthorized());
     }
@@ -233,19 +235,14 @@ class IngestHttpIntegrationTest {
 
     @Test
     void autoRegisterCredentialRegistersUnknownDevice() throws Exception {
-        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
-                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
-        createDTO.setGatewayName("auto-reg-gw");
-        createDTO.setCloudRoomId(-2001L);
-        createDTO.setAutoRegister(1);
-        createDTO.setDefaultTypeId(4);
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+        // 合一模型：机房 -2001 的凭证（auto_register 默认开启，defaultTypeId 4）
+        IngestCredential credential = createCredential(-2001L);
 
         String body = bodyOf(item("IT-AUTO-NEW", 25.0, LocalDateTime.now(), 1L));
         MvcResult result = mockMvc.perform(post("/ingest/samples")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
-                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .header("Authorization", "Gateway " + credential.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(credential.getSecret(), body))
                         .content(body))
                 .andExpect(status().isOk()).andReturn();
 
@@ -259,20 +256,15 @@ class IngestHttpIntegrationTest {
 
     @Test
     void autoRegisterWithoutCredentialDefaultTypeInfersFromPointCode() throws Exception {
-        // 凭证未配默认类型：首包按点位编码推断（temperature → TEMP_HUMIDITY）
-        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
-                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
-        createDTO.setGatewayName("infer-gw");
-        createDTO.setCloudRoomId(-2001L);
-        createDTO.setAutoRegister(1);
-        createDTO.setDefaultTypeId(null);
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+        // 凭证未配默认类型：首包按点位编码推断（IT_TEST_TEMP 含 temp → TEMP_HUMIDITY）
+        IngestCredential credential = createCredential(-2001L);
+        credentialService.updateAutoRegister(credential.getCloudRoomId(), 1, null, 1L);
 
         String body = bodyOf(item("IT-INFER-NEW", 22.0, LocalDateTime.now(), 1L));
         MvcResult result = mockMvc.perform(post("/ingest/samples")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
-                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .header("Authorization", "Gateway " + credential.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(credential.getSecret(), body))
                         .content(body))
                 .andExpect(status().isOk()).andReturn();
 
@@ -287,21 +279,16 @@ class IngestHttpIntegrationTest {
 
     @Test
     void inventoryRegistersDevicesWhenAutoRegisterEnabled() throws Exception {
-        com.example.platform.ingest.dto.IngestCredentialCreateDTO createDTO =
-                new com.example.platform.ingest.dto.IngestCredentialCreateDTO();
-        createDTO.setGatewayName("inv-gw");
-        createDTO.setCloudRoomId(-2001L);
-        createDTO.setAutoRegister(1);
-        createDTO.setDefaultTypeId(4);
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+        IngestCredential credential = createCredential(-2001L);
+        credentialService.updateAutoRegister(credential.getCloudRoomId(), 1, null, 1L);
 
         String body = "{\"devices\":["
                 + "{\"deviceCode\":\"IT-INV-1\",\"deviceName\":\"inv1\",\"pointCodes\":[\"temperature\"]},"
                 + "{\"deviceCode\":\"IT-DEV-A\",\"pointCodes\":[\"temperature\"]}]}";
         MvcResult result = mockMvc.perform(post("/ingest/inventory")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", "Gateway " + created.getAccessKey() + ":"
-                                + GatewaySignUtils.signature(created.getSecret(), body))
+                        .header("Authorization", "Gateway " + credential.getAccessKey() + ":"
+                                + GatewaySignUtils.signature(credential.getSecret(), body))
                         .content(body))
                 .andExpect(status().isOk()).andReturn();
 
@@ -314,6 +301,8 @@ class IngestHttpIntegrationTest {
     @Test
     void inventoryReturnsUnknownWhenAutoRegisterDisabled() throws Exception {
         IngestCredential credential = createCredential(-2001L);
+        // 合一模型默认开启自动注册：本用例验证关闭态的 unknown 比对路径
+        credentialService.updateAutoRegister(credential.getCloudRoomId(), 0, null, 1L);
 
         String body = "{\"devices\":[{\"deviceCode\":\"IT-INV-2\",\"pointCodes\":[\"temperature\"]}]}";
         MvcResult result = mockMvc.perform(post("/ingest/inventory")
@@ -353,11 +342,14 @@ class IngestHttpIntegrationTest {
 
     // ===================== 辅助 =====================
 
+    // 合一模型：测试数据机房（-2001/-2002）由 V9 直建、无凭证——直接为其补建配套凭证
     private IngestCredential createCredential(Long cloudRoomId) {
-        IngestCredentialCreateDTO createDTO = new IngestCredentialCreateDTO();
-        createDTO.setGatewayName("集成测试网关");
-        createDTO.setCloudRoomId(cloudRoomId);
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO, 1L);
+        IngestCredential existing = credentialService.findCredentialByRoom(cloudRoomId);
+        if (existing != null) {
+            return existing;
+        }
+        com.example.platform.ingest.dto.IngestCredentialCreatedVO created =
+                credentialService.createCredentialForRoom(cloudRoomId, 1L);
 
         IngestCredential credential = new IngestCredential();
         credential.setId(created.getId());

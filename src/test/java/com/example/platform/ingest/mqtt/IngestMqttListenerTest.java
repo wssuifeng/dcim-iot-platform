@@ -43,6 +43,8 @@ class IngestMqttListenerTest {
     private SysAuditLogService sysAuditLogService;
     @Mock
     private com.example.platform.service.AlarmEventService alarmEventService;
+    @Mock
+    private com.example.platform.service.CloudRoomService cloudRoomService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -51,7 +53,7 @@ class IngestMqttListenerTest {
     @BeforeEach
     void setUp() {
         listener = new IngestMqttListener(ingestCoreService, ingestCredentialService,
-                sysAuditLogService, alarmEventService,
+                sysAuditLogService, alarmEventService, cloudRoomService,
                 Validation.buildDefaultValidatorFactory().getValidator(),
                 objectMapper, "tcp://localhost:1883", "test-ingest", "", "", 30, false);
     }

@@ -142,7 +142,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { getCredentialPage } from '@/api/ingestCredential'
+
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -337,12 +337,19 @@ function roomLabel(id) {
 }
 
 async function loadGateways() {
-  const [credResult, roomResult] = await Promise.all([
-    getCredentialPage({ current: 1, size: 100 }),
-    import('@/api/cloudRoom').then((m) => m.getCloudRoomPage({ current: 1, size: 100 })),
-  ])
-  gateways.value = credResult.data?.records || []
-  rooms.value = roomResult.data?.records || []
+  const roomResult = await import('@/api/cloudRoom').then((m) => m.getCloudRoomPage({ current: 1, size: 100 }))
+  const roomList = roomResult.data?.records || []
+  rooms.value = roomList
+  // 机房凭证视图（合一模型：机房即网关接入主体）
+  const credResults = await Promise.all(roomList.map((r) =>
+    import('@/api/cloudRoom').then((m) => m.getRoomCredential(r.id).catch(() => null))))
+  gateways.value = roomList
+    .map((room, i) => {
+      const cred = credResults[i]?.data
+      if (!cred) return null
+      return { ...cred, gatewayName: room.roomName }
+    })
+    .filter(Boolean)
 }
 
 onMounted(loadReferenceData)

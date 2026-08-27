@@ -33,15 +33,18 @@ public class IngestGatewayOfflineMonitorTask {
 
     private final IngestCredentialMapper ingestCredentialMapper;
     private final AlarmEventService alarmEventService;
+    private final com.example.platform.service.CloudRoomService cloudRoomService;
 
     // 网关离线判定阈值（秒），默认 5 分钟
     @Value("${task.gateway-offline-threshold-seconds:300}")
     private int offlineThresholdSeconds;
 
     public IngestGatewayOfflineMonitorTask(IngestCredentialMapper ingestCredentialMapper,
-                                           AlarmEventService alarmEventService) {
+                                           AlarmEventService alarmEventService,
+                                           com.example.platform.service.CloudRoomService cloudRoomService) {
         this.ingestCredentialMapper = ingestCredentialMapper;
         this.alarmEventService = alarmEventService;
+        this.cloudRoomService = cloudRoomService;
     }
 
     /*
@@ -77,6 +80,11 @@ public class IngestGatewayOfflineMonitorTask {
         }
     }
 
+    private String roomNameOf(IngestCredential credential) {
+        com.example.platform.entity.CloudRoom room = cloudRoomService.getById(credential.getCloudRoomId());
+        return room != null ? room.getRoomName() : String.valueOf(credential.getCloudRoomId());
+    }
+
     private void triggerNeverOnline(IngestCredential credential) {
         long minutes = java.time.Duration.between(credential.getCreateTime(), LocalDateTime.now()).toMinutes();
         AlarmTriggerContext context = AlarmTriggerContext.builder()
@@ -84,14 +92,14 @@ public class IngestGatewayOfflineMonitorTask {
                 .pointId(null)
                 .alarmType(ALARM_TYPE_GATEWAY_OFFLINE)
                 .alarmLevel(3)
-                .alarmMessage(String.format("网关从未上线：%s 签发超过%d分钟无任何心跳/上报，请检查网关配置",
-                        credential.getGatewayName(), Math.max(minutes, 1)))
+                .alarmMessage(String.format("网关从未上线：机房[%s]签发超过%d分钟无任何心跳/上报，请检查网关配置",
+                        roomNameOf(credential), Math.max(minutes, 1)))
                 .cloudRoomId(credential.getCloudRoomId())
                 .build();
         var result = alarmEventService.trigger(context);
         if (result.isNotifiable()) {
-            log.warn("网关从未上线告警已触发 gateway={} credentialId={}",
-                    credential.getGatewayName(), credential.getId());
+            log.warn("网关从未上线告警已触发 roomId={} credentialId={}",
+                    credential.getCloudRoomId(), credential.getId());
         }
     }
 
@@ -102,14 +110,14 @@ public class IngestGatewayOfflineMonitorTask {
                 .pointId(null)
                 .alarmType(ALARM_TYPE_GATEWAY_OFFLINE)
                 .alarmLevel(2)
-                .alarmMessage(String.format("网关离线：%s 超过%d分钟无心跳/上报",
-                        credential.getGatewayName(), Math.max(minutes, 1)))
+                .alarmMessage(String.format("网关离线：机房[%s]超过%d分钟无心跳/上报",
+                        roomNameOf(credential), Math.max(minutes, 1)))
                 .cloudRoomId(credential.getCloudRoomId())
                 .build();
         var result = alarmEventService.trigger(context);
         if (result.isNotifiable()) {
-            log.warn("网关离线告警已触发 gateway={} credentialId={}",
-                    credential.getGatewayName(), credential.getId());
+            log.warn("网关离线告警已触发 roomId={} credentialId={}",
+                    credential.getCloudRoomId(), credential.getId());
         }
     }
 }

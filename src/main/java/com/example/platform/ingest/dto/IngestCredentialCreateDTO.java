@@ -20,17 +20,9 @@ public class IngestCredentialCreateDTO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "网关显示名", example = "机房A-动环主机01", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "网关名称不能为空")
-    @Size(max = 100, message = "网关名称最长100个字符")
-    private String gatewayName;
-
     @Schema(description = "绑定机房ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "绑定机房不能为空")
     private Long cloudRoomId;
-
-    @Schema(description = "仿真网关标记：0-真实网关，1=机房仿真服务专用凭证", example = "0")
-    private Integer simulated = 0;
 
     @Schema(description = "首包自动注册：1=收到未知 deviceCode 自动建档", example = "0")
     private Integer autoRegister = 0;

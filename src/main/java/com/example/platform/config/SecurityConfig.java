@@ -129,8 +129,6 @@ public class SecurityConfig {
                         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
                         // 数据接收门：网关机器鉴权（GatewayAuthenticationFilter 验签，无效 401）
                         auth.requestMatchers("/ingest/**").permitAll();
-                        // 接入管理面：网关凭证 CRUD 全部 ADMIN（@PreAuthorize 兜底）
-                        auth.requestMatchers("/ingest-credentials/**").hasAnyRole(ADMIN_ONLY_ROLES);
                         if (swaggerUiEnabled) {
                             auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll();
                         }

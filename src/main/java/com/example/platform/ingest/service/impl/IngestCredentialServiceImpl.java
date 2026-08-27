@@ -1,19 +1,14 @@
 package com.example.platform.ingest.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.common.util.PaginationUtils;
-import com.example.platform.ingest.dto.IngestCredentialCreateDTO;
 import com.example.platform.ingest.dto.IngestCredentialCreatedVO;
-import com.example.platform.ingest.dto.IngestCredentialUpdateDTO;
 import com.example.platform.ingest.dto.IngestCredentialVO;
 import com.example.platform.ingest.entity.IngestCredential;
 import com.example.platform.ingest.mapper.IngestCredentialMapper;
 import com.example.platform.ingest.service.IngestCredentialService;
-import com.example.platform.service.CloudRoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,11 +16,12 @@ import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /*
- * 类功能:网关接入凭证服务实现（accessKey/secret 生成、CRUD、鉴权解析、存活刷新）
+ * 类功能:网关接入凭证服务实现——机房配套凭证的生成、鉴权解析、存活刷新
  *
+ * 【合一模型】凭证与机房 1:1（uk_ingest_room），生命周期由 CloudRoomService 驱动：
+ *   创建机房即建凭证、删除机房级联删凭证、停用机房联动停凭证。
  * 【密钥生成】SecureRandom 十六进制随机串；accessKey 唯一冲突时生成侧重试。
  * 【鉴权校验】状态非0启用或已过期一律抛 INGEST_UNAUTHORIZED（不区分细节，防探测）。
  * */
@@ -35,8 +31,10 @@ import java.util.List;
 public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMapper, IngestCredential>
         implements IngestCredentialService {
 
-    private final CloudRoomService cloudRoomService;
-    private final com.example.platform.service.AlarmEventService alarmEventService;
+    // 懒获取：refreshLastSeen 的告警自动恢复需要 AlarmEventService，而其依赖链
+    // （AlarmEvent→Device→CloudRoom→IngestCredential）与本服务构成构造器环，
+    // 用 ObjectProvider 延迟解析打破启动期循环依赖
+    private final org.springframework.beans.factory.ObjectProvider<com.example.platform.service.AlarmEventService> alarmEventServiceProvider;
     private final SecureRandom secureRandom = new SecureRandom();
 
     // 网关离线判定阈值（与 IngestGatewayOfflineMonitorTask 同源配置）
@@ -51,95 +49,87 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
     private static final int SECRET_RANDOM_HEX = 32;
 
     @Override
-    public IngestCredentialCreatedVO createCredential(IngestCredentialCreateDTO createDTO, Long currentUserId) {
-        if (cloudRoomService.getById(createDTO.getCloudRoomId()) == null) {
-            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "绑定机房不存在");
+    public IngestCredentialCreatedVO createCredentialForRoom(Long cloudRoomId, Long currentUserId) {
+        // 机房 1:1：已存在即拒绝（由机房服务保证，此处兜底防并发）
+        Long existing = lambdaQuery().eq(IngestCredential::getCloudRoomId, cloudRoomId).count();
+        if (existing != null && existing > 0) {
+            throw new BusinessException(ResultCode.INGEST_ACCESS_KEY_EXISTS, "该机房已存在接入凭证");
         }
-
         IngestCredential credential = new IngestCredential();
-        if (StringUtils.hasText(createDTO.getAccessKey())) {
-            ensureAccessKeyAbsent(createDTO.getAccessKey());
-            credential.setAccessKey(createDTO.getAccessKey());
-        } else {
-            credential.setAccessKey(generateUniqueAccessKey());
-        }
+        credential.setAccessKey(generateUniqueAccessKey());
         credential.setSecret(generateSecret());
-        credential.setGatewayName(createDTO.getGatewayName());
-        credential.setCloudRoomId(createDTO.getCloudRoomId());
-        credential.setSimulated(createDTO.getSimulated() == null ? 0 : createDTO.getSimulated());
-        int autoRegister = createDTO.getAutoRegister() == null ? 0 : createDTO.getAutoRegister();
-        credential.setAutoRegister(autoRegister);
-        credential.setDefaultTypeId(createDTO.getDefaultTypeId());
+        credential.setCloudRoomId(cloudRoomId);
+        credential.setAutoRegister(1);
         credential.setStatus(0);
-        credential.setExpireAt(createDTO.getExpireAt());
         save(credential);
-        log.info("网关凭证创建 credentialId={} accessKey={} roomId={} operator={}",
-                credential.getId(), credential.getAccessKey(), credential.getCloudRoomId(), currentUserId);
+        log.info("机房配套凭证创建 credentialId={} accessKey={} roomId={} operator={}",
+                credential.getId(), credential.getAccessKey(), cloudRoomId, currentUserId);
         return toCreatedVO(credential);
     }
 
     @Override
-    public IngestCredentialVO updateCredential(Long id, IngestCredentialUpdateDTO updateDTO, Long currentUserId) {
-        IngestCredential credential = getCredentialOrThrow(id);
-        credential.setGatewayName(updateDTO.getGatewayName());
-        credential.setExpireAt(updateDTO.getExpireAt());
+    public IngestCredentialVO updateAutoRegister(Long roomId, Integer autoRegister, Integer defaultTypeId,
+                                                 Long currentUserId) {
+        IngestCredential credential = getCredentialByRoom(roomId);
+        if (autoRegister != null) {
+            credential.setAutoRegister(autoRegister);
+        }
+        if (defaultTypeId != null) {
+            credential.setDefaultTypeId(defaultTypeId);
+        }
         updateById(credential);
+        log.info("机房凭证自动注册配置变更 roomId={} autoRegister={} defaultTypeId={} operator={}",
+                roomId, credential.getAutoRegister(), credential.getDefaultTypeId(), currentUserId);
         return IngestCredentialVO.fromEntity(credential);
     }
 
     @Override
-    public IngestCredentialVO updateStatus(Long id, Integer status, Long currentUserId) {
-        if (status == null || (status != 0 && status != 1)) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER, "状态值只能为0或1");
-        }
-        IngestCredential credential = getCredentialOrThrow(id);
+    public IngestCredentialVO updateStatusByRoom(Long roomId, Integer status, Long currentUserId) {
+        IngestCredential credential = getCredentialByRoom(roomId);
         credential.setStatus(status);
         updateById(credential);
-        log.info("网关凭证状态变更 credentialId={} status={} operator={}", id, status, currentUserId);
+        log.info("机房凭证状态联动变更 roomId={} status={} operator={}", roomId, status, currentUserId);
         return IngestCredentialVO.fromEntity(credential);
     }
 
     @Override
-    public IngestCredentialCreatedVO resetSecret(Long id, Long currentUserId) {
-        IngestCredential credential = getCredentialOrThrow(id);
+    public IngestCredentialCreatedVO resetSecretByRoom(Long roomId, Long currentUserId) {
+        IngestCredential credential = getCredentialByRoom(roomId);
         credential.setSecret(generateSecret());
         updateById(credential);
-        log.info("网关凭证密钥重置 credentialId={} operator={}", id, currentUserId);
+        log.info("机房凭证密钥重置 roomId={} operator={}", roomId, currentUserId);
         return toCreatedVO(credential);
     }
 
     @Override
-    public void deleteCredential(Long id, Long currentUserId) {
-        getCredentialOrThrow(id);
-        removeById(id);
-        log.info("网关凭证删除 credentialId={} operator={}", id, currentUserId);
-    }
-
-    @Override
-    public Page<IngestCredentialVO> pageCredentials(Integer current, Integer size,
-                                                    String keyword, Integer status, Integer simulated) {
-        int[] params = PaginationUtils.validate(current, size);
-        LambdaQueryWrapper<IngestCredential> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.hasText(keyword)) {
-            String kw = keyword.trim();
-            wrapper.and(w -> w.like(IngestCredential::getGatewayName, kw)
-                    .or().like(IngestCredential::getAccessKey, kw));
+    public void deleteCredentialByRoom(Long roomId, Long currentUserId) {
+        IngestCredential credential = findCredentialByRoom(roomId);
+        if (credential != null) {
+            removeById(credential.getId());
+            log.info("机房凭证级联删除 roomId={} credentialId={} operator={}",
+                    roomId, credential.getId(), currentUserId);
         }
-        wrapper.eq(status != null, IngestCredential::getStatus, status);
-        wrapper.eq(simulated != null, IngestCredential::getSimulated, simulated);
-        wrapper.orderByDesc(IngestCredential::getId);
-
-        Page<IngestCredential> page = page(new Page<>(params[0], params[1]), wrapper);
-        Page<IngestCredentialVO> result = new Page<>(params[0], params[1], page.getTotal());
-        List<IngestCredentialVO> records = page.getRecords().stream()
-                .map(IngestCredentialVO::fromEntity).toList();
-        result.setRecords(records);
-        return result;
     }
 
     @Override
-    public IngestCredentialVO getCredential(Long id) {
-        return IngestCredentialVO.fromEntity(getCredentialOrThrow(id));
+    public IngestCredentialVO getCredentialByRoomVO(Long roomId) {
+        return IngestCredentialVO.fromEntity(getCredentialByRoom(roomId));
+    }
+
+    @Override
+    public IngestCredential getCredentialByRoom(Long roomId) {
+        IngestCredential credential = findCredentialByRoom(roomId);
+        if (credential == null) {
+            throw new BusinessException(ResultCode.INGEST_CREDENTIAL_NOT_FOUND,
+                    "机房未初始化接入凭证: " + roomId);
+        }
+        return credential;
+    }
+
+    @Override
+    public IngestCredential findCredentialByRoom(Long roomId) {
+        return getOne(new LambdaQueryWrapper<IngestCredential>()
+                .eq(IngestCredential::getCloudRoomId, roomId));
     }
 
     @Override
@@ -169,14 +159,15 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         }
         // 心跳/上报成功即网关存活：存在活动 GATEWAY_OFFLINE 告警则自动恢复
         boolean wasStale = credential.getLastSeenAt() != null
-                && credential.getLastSeenAt().isBefore(LocalDateTime.now().minusSeconds(gatewayOfflineThresholdSeconds));
+                && credential.getLastSeenAt().isBefore(
+                        LocalDateTime.now().minusSeconds(gatewayOfflineThresholdSeconds));
         IngestCredential update = new IngestCredential();
         update.setId(credentialId);
         update.setLastSeenAt(LocalDateTime.now());
         updateById(update);
         if (wasStale) {
             try {
-                alarmEventService.autoRecover(null, null, "GATEWAY_OFFLINE");
+                alarmEventServiceProvider.getObject().autoRecover(null, null, "GATEWAY_OFFLINE");
                 log.info("网关恢复在线，GATEWAY_OFFLINE 告警自动恢复 credentialId={}", credentialId);
             } catch (Exception ex) {
                 log.warn("网关恢复告警自动恢复失败 credentialId={} error={}", credentialId, ex.getMessage());
@@ -190,13 +181,6 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
             throw new BusinessException(ResultCode.INGEST_CREDENTIAL_NOT_FOUND, "网关凭证不存在");
         }
         return credential;
-    }
-
-    private void ensureAccessKeyAbsent(String accessKey) {
-        Long count = lambdaQuery().eq(IngestCredential::getAccessKey, accessKey).count();
-        if (count != null && count > 0) {
-            throw new BusinessException(ResultCode.INGEST_ACCESS_KEY_EXISTS, "接入标识已存在");
-        }
     }
 
     private String generateUniqueAccessKey() {
@@ -227,9 +211,7 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         vo.setId(credential.getId());
         vo.setAccessKey(credential.getAccessKey());
         vo.setSecret(credential.getSecret());
-        vo.setGatewayName(credential.getGatewayName());
         vo.setCloudRoomId(credential.getCloudRoomId());
-        vo.setSimulated(credential.getSimulated());
         vo.setAutoRegister(credential.getAutoRegister());
         vo.setDefaultTypeId(credential.getDefaultTypeId());
         vo.setStatus(credential.getStatus());

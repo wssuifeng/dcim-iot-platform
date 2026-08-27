@@ -23,3 +23,15 @@ export function updateCloudRoomStatus(id, status) {
 export function deleteCloudRoom(id) {
   return request.delete(`/cloud-rooms/${id}`)
 }
+
+export function getRoomCredential(id) {
+  return request.get(`/cloud-rooms/${id}/credential`)
+}
+
+export function updateRoomCredential(id, data) {
+  return request.put(`/cloud-rooms/${id}/credential`, data)
+}
+
+export function resetRoomSecret(id) {
+  return request.put(`/cloud-rooms/${id}/secret`)
+}

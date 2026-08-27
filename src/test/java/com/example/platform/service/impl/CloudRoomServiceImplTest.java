@@ -40,6 +40,12 @@ class CloudRoomServiceImplTest {
     @Mock
     private CloudRoomMapper cloudRoomMapper;
 
+    @Mock
+    private com.example.platform.mapper.DeviceMapper deviceMapper;
+
+    @Mock
+    private com.example.platform.ingest.service.IngestCredentialService ingestCredentialService;
+
     @InjectMocks
     private CloudRoomServiceImpl cloudRoomService;
 
@@ -95,9 +101,14 @@ class CloudRoomServiceImplTest {
             dto.setRoomName("一号机房");
             dto.setRoomCode("ROOM-001");
             dto.setLocation("上海");
+            com.example.platform.ingest.dto.IngestCredentialCreatedVO cred =
+                    new com.example.platform.ingest.dto.IngestCredentialCreatedVO();
+            cred.setAccessKey("gw-test");
+            cred.setSecret("sk-test");
+            when(ingestCredentialService.createCredentialForRoom(any(), any()))
+                    .thenReturn(cred);
 
-            CloudRoom saved = cloudRoomService.createCloudRoom(dto, 10L);
-            assertThat(saved.getStatus()).isEqualTo(0);
+            com.example.platform.dto.CloudRoomCreatedVO saved = cloudRoomService.createCloudRoom(dto, 10L);
             assertThat(saved.getRoomCode()).isEqualTo("ROOM-001");
             verify(cloudRoomMapper, times(1)).insert((CloudRoom) any());
         }

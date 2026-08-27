@@ -1,71 +1,77 @@
 package com.example.platform.ingest.service;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.example.platform.ingest.dto.IngestCredentialCreateDTO;
 import com.example.platform.ingest.dto.IngestCredentialCreatedVO;
-import com.example.platform.ingest.dto.IngestCredentialUpdateDTO;
 import com.example.platform.ingest.dto.IngestCredentialVO;
 import com.example.platform.ingest.entity.IngestCredential;
 
 /*
- * 类功能:网关接入凭证服务接口（机器身份管理：CRUD、启停、重置密钥、鉴权解析）
+ * 类功能:网关接入凭证服务接口——机房配套凭证（1:1）的生命周期与机器鉴权
  *
+ * 【合一模型】凭证随机房生灭：创建机房即建凭证（auto_register 默认开启）、
+ *   删除机房级联删、停用机房联动停。本接口不再独立暴露 CRUD 管理面。
  * 【安全语义】secret 仅创建/重置时一次性返回；查询接口永不返回。
  * 【鉴权语义】authenticate 按 accessKey 解析凭证并校验启用/过期状态，
- *   无效凭证抛 INGEST_UNAUTHORIZED（HTTP 场景由网关鉴权过滤器转 401 响应）。
+ *   无效凭证抛 INGEST_UNAUTHORIZED。
  * */
 public interface IngestCredentialService extends IService<IngestCredential> {
 
     /*
-     * 方法功能:创建网关凭证（服务端生成 accessKey/secret，secret 仅本次返回）
-     * 参数:createDTO-创建请求, currentUserId-操作用户
+     * 方法功能:为机房创建配套凭证（机房创建时由 CloudRoomService 调用，同一事务）
+     * 参数:cloudRoomId-机房ID, currentUserId-操作用户
      * 返回数据:IngestCredentialCreatedVO-凭证视图与一次性 secret
      * */
-    IngestCredentialCreatedVO createCredential(IngestCredentialCreateDTO createDTO, Long currentUserId);
+    IngestCredentialCreatedVO createCredentialForRoom(Long cloudRoomId, Long currentUserId);
 
     /*
-     * 方法功能:更新网关显示名与过期时间（不允许改绑机房）
-     * 参数:id-凭证ID, updateDTO-更新请求, currentUserId-操作用户
-     * 返回数据:IngestCredentialVO-更新后的凭证视图
-     * */
-    IngestCredentialVO updateCredential(Long id, IngestCredentialUpdateDTO updateDTO, Long currentUserId);
-
-    /*
-     * 方法功能:启用/停用凭证（停用即切断该网关数据源）
-     * 参数:id-凭证ID, status-目标状态 0-启用 1-停用, currentUserId-操作用户
-     * 返回数据:IngestCredentialVO-更新后的凭证视图
-     * */
-    IngestCredentialVO updateStatus(Long id, Integer status, Long currentUserId);
-
-    /*
-     * 方法功能:重置签名密钥（旧 secret 立即失效，新 secret 仅本次返回）
-     * 参数:id-凭证ID, currentUserId-操作用户
-     * 返回数据:IngestCredentialCreatedVO-凭证视图与一次性新 secret
-     * */
-    IngestCredentialCreatedVO resetSecret(Long id, Long currentUserId);
-
-    /*
-     * 方法功能:删除凭证（物理删除；网关侧持有即失效）
-     * 参数:id-凭证ID, currentUserId-操作用户
-     * 返回数据:无
-     * */
-    void deleteCredential(Long id, Long currentUserId);
-
-    /*
-     * 方法功能:分页查询凭证（secret 不返回）
-     * 参数:current/size-分页, keyword-网关名/accessKey 模糊, status-状态筛选, simulated-仿真标记筛选
-     * 返回数据:Page<IngestCredentialVO>-凭证分页视图
-     * */
-    Page<IngestCredentialVO> pageCredentials(Integer current, Integer size,
-                                             String keyword, Integer status, Integer simulated);
-
-    /*
-     * 方法功能:查询凭证详情（secret 不返回）
-     * 参数:id-凭证ID
+     * 方法功能:更新机房凭证的自动注册配置
+     * 参数:roomId-机房ID, autoRegister-自动注册开关（可空不改）, defaultTypeId-默认类型（可空不改）, currentUserId-操作用户
      * 返回数据:IngestCredentialVO-凭证视图
      * */
-    IngestCredentialVO getCredential(Long id);
+    IngestCredentialVO updateAutoRegister(Long roomId, Integer autoRegister, Integer defaultTypeId,
+                                          Long currentUserId);
+
+    /*
+     * 方法功能:机房凭证状态联动变更（随机房启停）
+     * 参数:roomId-机房ID, status-目标状态 0-启用 1-停用, currentUserId-操作用户
+     * 返回数据:IngestCredentialVO-凭证视图
+     * */
+    IngestCredentialVO updateStatusByRoom(Long roomId, Integer status, Long currentUserId);
+
+    /*
+     * 方法功能:重置机房凭证密钥（旧 secret 立即失效，新 secret 仅本次返回）
+     * 参数:roomId-机房ID, currentUserId-操作用户
+     * 返回数据:IngestCredentialCreatedVO-凭证视图与一次性新 secret
+     * */
+    IngestCredentialCreatedVO resetSecretByRoom(Long roomId, Long currentUserId);
+
+    /*
+     * 方法功能:级联删除机房凭证（随机房删除）
+     * 参数:roomId-机房ID, currentUserId-操作用户
+     * 返回数据:无
+     * */
+    void deleteCredentialByRoom(Long roomId, Long currentUserId);
+
+    /*
+     * 方法功能:查询机房凭证视图（secret 不返回）
+     * 参数:roomId-机房ID
+     * 返回数据:IngestCredentialVO-凭证视图
+     * */
+    IngestCredentialVO getCredentialByRoomVO(Long roomId);
+
+    /*
+     * 方法功能:取机房凭证实体，不存在抛业务异常
+     * 参数:roomId-机房ID
+     * 返回数据:IngestCredential-凭证实体
+     * */
+    IngestCredential getCredentialByRoom(Long roomId);
+
+    /*
+     * 方法功能:取机房凭证实体，不存在返回 null
+     * 参数:roomId-机房ID
+     * 返回数据:IngestCredential-凭证实体或 null
+     * */
+    IngestCredential findCredentialByRoom(Long roomId);
 
     /*
      * 方法功能:按接入标识解析凭证并校验启用与过期状态（机器鉴权入口）

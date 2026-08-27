@@ -12,11 +12,12 @@ import com.example.platform.entity.CloudRoom;
 public interface CloudRoomService extends IService<CloudRoom> {
 
     /*
-     * 方法功能:创建机房（校验编码全局唯一）
+     * 方法功能:创建机房（同事务初始化配套网关凭证，secret 仅本次返回）
      * 参数:createDTO-机房创建请求, currentUserId-当前操作用户ID
-     * 返回数据:CloudRoom-创建后的机房
+     * 返回数据:CloudRoomCreatedVO-机房信息与一次性 AccessKey/SecretKey
      * */
-    CloudRoom createCloudRoom(CloudRoomCreateDTO createDTO, Long currentUserId);
+    com.example.platform.dto.CloudRoomCreatedVO createCloudRoom(CloudRoomCreateDTO createDTO,
+                                                                 Long currentUserId);
 
     /*
      * 方法功能:更新机房基本信息

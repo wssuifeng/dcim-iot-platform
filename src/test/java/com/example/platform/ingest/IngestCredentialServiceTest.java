@@ -2,12 +2,13 @@ package com.example.platform.ingest;
 
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
-import com.example.platform.ingest.dto.IngestCredentialCreateDTO;
+import com.example.platform.dto.CloudRoomCreateDTO;
+import com.example.platform.dto.CloudRoomCreatedVO;
 import com.example.platform.ingest.dto.IngestCredentialCreatedVO;
 import com.example.platform.ingest.dto.IngestCredentialVO;
 import com.example.platform.ingest.entity.IngestCredential;
 import com.example.platform.ingest.service.IngestCredentialService;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.platform.service.CloudRoomService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * 网关凭证服务集成测试（真实数据库，事务内回滚）
+ * 机房配套凭证（1:1 合一模型）集成测试：机房创建即建凭证、密钥重置、鉴权、级联删除
  */
 @SpringBootTest
 @Transactional
@@ -27,63 +28,51 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 class IngestCredentialServiceTest {
 
     @Autowired
+    private CloudRoomService cloudRoomService;
+    @Autowired
     private IngestCredentialService credentialService;
 
     @Test
-    void createGeneratesAccessKeyAndSecret() {
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO("测试网关1", -2001L), 1L);
+    void createRoomInitializesCredentialWithKeys() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一测试机房", "IT-UNIFY-ROOM"), 1L);
 
         assertThat(created.getAccessKey()).startsWith("gw-").hasSize(19);
         assertThat(created.getSecret()).startsWith("sk-").hasSize(35);
-        assertThat(created.getGatewayName()).isEqualTo("测试网关1");
-        assertThat(created.getCloudRoomId()).isEqualTo(-2001L);
-        assertThat(created.getStatus()).isZero();
+        // 凭证已挂机房且自动注册默认开启
+        IngestCredential credential = credentialService.findCredentialByRoom(created.getId());
+        assertThat(credential).isNotNull();
+        assertThat(credential.getAutoRegister()).isEqualTo(1);
     }
 
     @Test
-    void createWithDuplicateRoomRejected() {
-        IngestCredentialCreateDTO createDTO = createDTO("幽灵网关", -9999L);
+    void duplicateRoomCredentialRejected() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房甲", "IT-UNIFY-A"), 1L);
 
-        assertThatCode(() -> credentialService.createCredential(createDTO, 1L))
+        // 1:1 兜底：同一机房再建凭证被拒
+        assertThatCode(() -> credentialService.createCredentialForRoom(created.getId(), 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("机房不存在");
-    }
-
-    @Test
-    void createWithCustomAccessKeyConflictRejected() {
-        // 用自定义标识先建一个
-        IngestCredentialCreateDTO dto = new IngestCredentialCreateDTO();
-        dto.setGatewayName("网关甲");
-        dto.setCloudRoomId(-2001L);
-        dto.setAccessKey("gw-custom-key");
-        credentialService.createCredential(dto, 1L);
-
-        // 再用同一标识建 → 冲突
-        IngestCredentialCreateDTO dto2 = new IngestCredentialCreateDTO();
-        dto2.setGatewayName("网关乙");
-        dto2.setCloudRoomId(-2001L);
-        dto2.setAccessKey("gw-custom-key");
-        assertThatCode(() -> credentialService.createCredential(dto2, 1L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("接入标识已存在");
+                .hasMessageContaining("已存在接入凭证");
     }
 
     @Test
     void resetSecretInvalidatesOldSecret() {
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO("网关丙", -2001L), 1L);
-        String oldSecret = created.getSecret();
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房乙", "IT-UNIFY-B"), 1L);
 
-        IngestCredentialCreatedVO reset = credentialService.resetSecret(created.getId(), 1L);
+        IngestCredentialCreatedVO reset = credentialService.resetSecretByRoom(created.getId(), 1L);
 
-        assertThat(reset.getSecret()).startsWith("sk-").isNotEqualTo(oldSecret);
-        IngestCredential reloaded = credentialService.getById(created.getId());
+        assertThat(reset.getSecret()).startsWith("sk-").isNotEqualTo(created.getSecret());
+        IngestCredential reloaded = credentialService.findCredentialByRoom(created.getId());
         assertThat(reloaded.getSecret()).isEqualTo(reset.getSecret());
     }
 
     @Test
     void authenticateRejectsDisabledCredential() {
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO("网关丁", -2001L), 1L);
-        credentialService.updateStatus(created.getId(), 1, 1L);
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房丙", "IT-UNIFY-C"), 1L);
+        credentialService.updateStatusByRoom(created.getId(), 1, 1L);
 
         assertThatCode(() -> credentialService.authenticate(created.getAccessKey()))
                 .isInstanceOf(BusinessException.class)
@@ -98,34 +87,45 @@ class IngestCredentialServiceTest {
     }
 
     @Test
-    void pageCredentialsFiltersByKeyword() {
-        credentialService.createCredential(createDTO("检索目标网关", -2001L), 1L);
-        credentialService.createCredential(createDTO("另一台网关", -2002L), 1L);
+    void updateAutoRegisterViaRoom() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房丁", "IT-UNIFY-D"), 1L);
 
-        Page<IngestCredentialVO> page = credentialService.pageCredentials(1, 10, "检索目标", null, null);
+        IngestCredentialVO updated = credentialService.updateAutoRegister(
+                created.getId(), 0, 4, 1L);
 
-        assertThat(page.getRecords()).hasSize(1);
-        assertThat(page.getRecords().get(0).getGatewayName()).isEqualTo("检索目标网关");
+        assertThat(updated.getAutoRegister()).isZero();
+        assertThat(updated.getDefaultTypeId()).isEqualTo(4);
     }
 
     @Test
-    void updateCredentialCannotChangeRoom() {
-        IngestCredentialCreatedVO created = credentialService.createCredential(createDTO("网关戊", -2001L), 1L);
+    void deleteRoomCascadesCredential() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房戊", "IT-UNIFY-E"), 1L);
+        assertThat(credentialService.findCredentialByRoom(created.getId())).isNotNull();
 
-        com.example.platform.ingest.dto.IngestCredentialUpdateDTO updateDTO =
-                new com.example.platform.ingest.dto.IngestCredentialUpdateDTO();
-        updateDTO.setGatewayName("网关戊改名");
-        IngestCredentialVO updated = credentialService.updateCredential(created.getId(), updateDTO, 1L);
+        cloudRoomService.deleteCloudRoom(created.getId(), 1L);
 
-        assertThat(updated.getGatewayName()).isEqualTo("网关戊改名");
-        // 机房未变：更新 DTO 根本没有机房字段
-        assertThat(updated.getCloudRoomId()).isEqualTo(-2001L);
+        assertThat(credentialService.findCredentialByRoom(created.getId())).isNull();
     }
 
-    private IngestCredentialCreateDTO createDTO(String name, Long roomId) {
-        IngestCredentialCreateDTO createDTO = new IngestCredentialCreateDTO();
-        createDTO.setGatewayName(name);
-        createDTO.setCloudRoomId(roomId);
-        return createDTO;
+    @Test
+    void getCredentialByRoomVOHidesSecret() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房己", "IT-UNIFY-F"), 1L);
+
+        IngestCredentialVO vo = credentialService.getCredentialByRoomVO(created.getId());
+
+        assertThat(vo.getAccessKey()).isEqualTo(created.getAccessKey());
+        org.assertj.core.api.Assertions.assertThat(vo).hasNoNullFieldsOrPropertiesExcept(
+                "secret", "expireAt", "defaultTypeId", "lastSeenAt", "createTime");
+        // VO 无 secret 字段——类型系统保证不泄露
+    }
+
+    private CloudRoomCreateDTO room(String name, String code) {
+        CloudRoomCreateDTO dto = new CloudRoomCreateDTO();
+        dto.setRoomName(name);
+        dto.setRoomCode(code);
+        return dto;
     }
 }

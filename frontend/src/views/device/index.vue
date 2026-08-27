@@ -79,7 +79,7 @@ import {
 import { getDeviceTypes } from '@/api/deviceType'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getCloudRoomPage } from '@/api/cloudRoom'
-import { getCredentialPage } from '@/api/ingestCredential'
+
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
 import DeviceEditorDialog from './DeviceEditorDialog.vue'
 import DeviceManagementTable from './DeviceManagementTable.vue'
@@ -121,14 +121,21 @@ const typeNames = computed(() =>
 const roomNames = computed(() =>
   Object.fromEntries(rooms.value.map((item) => [item.id, item.roomName])),
 )
-const gateways = ref([])
+// 接入视角映射：凭证ID → 机房名（经机房凭证视图；凭证与机房 1:1）
+const roomCredentials = ref([])
 const gatewayNames = computed(() =>
-  Object.fromEntries(gateways.value.map((item) => [item.id, item.gatewayName])),
+  Object.fromEntries(roomCredentials.value.map((item) => [item.id,
+    rooms.value.find((r) => r.id === item.cloudRoomId)?.roomName || `机房 #${item.cloudRoomId}`])),
 )
 
 async function fetchGateways() {
-  const result = await getCredentialPage({ current: 1, size: 100 })
-  gateways.value = result.data?.records || []
+  const result = await import('@/api/cloudRoom').then((m) => m.getCloudRoomPage({ current: 1, size: 100 }))
+  const roomList = result.data?.records || []
+  const credResults = await Promise.all(roomList.map((r) =>
+    import('@/api/cloudRoom').then((m) => m.getRoomCredential(r.id).catch(() => null))))
+  roomCredentials.value = credResults
+    .map((r) => r?.data)
+    .filter(Boolean)
 }
 
 async function fetchReferences() {

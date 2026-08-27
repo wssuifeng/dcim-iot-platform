@@ -15,7 +15,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 网关接入凭证实体类，映射 ingest_credential 表，机器身份（通信主体）
+ * 网关接入凭证实体类，映射 ingest_credential 表，机器身份（与机房 1:1，随机房生命周期）
  */
 @Schema(description = "网关接入凭证")
 @Data
@@ -39,19 +39,9 @@ public class IngestCredential implements Serializable {
     @Size(max = 100, message = "签名密钥最长100个字符")
     private String secret;
 
-    @Schema(description = "网关显示名", example = "机房A-动环主机01", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "网关名称不能为空")
-    @Size(max = 100, message = "网关名称最长100个字符")
-    @TableField("gateway_name")
-    private String gatewayName;
-
     @Schema(description = "绑定机房ID（该凭证只能上报此机房设备）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     @TableField("cloud_room_id")
     private Long cloudRoomId;
-
-    @Schema(description = "仿真网关标记：0-真实网关，1=机房仿真服务专用凭证", example = "0")
-    @TableField("simulated")
-    private Integer simulated;
 
     @Schema(description = "首包自动注册：1=收到未知 deviceCode 自动建档", example = "0")
     @TableField("auto_register")
