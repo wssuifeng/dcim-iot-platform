@@ -130,7 +130,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useScopeStore } from '@/stores/scope'
+import { useAuthStore } from '@/stores/auth'
 import { getAllDevices } from '@/api/device'
 import { getDevicePointBindings } from '@/api/devicePoint'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
@@ -148,13 +148,10 @@ const RANGE_MILLISECONDS = Object.freeze({
   '7d': 7 * 24 * 60 * 60 * 1000,
   '30d': 30 * 24 * 60 * 60 * 1000,
 })
-const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role)
+const authStore = useAuthStore()
 const canWriteSample = computed(
   () =>
-    ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) &&
-    scopeStore.isReady &&
-    scopeStore.hasWritePermission,
+    ['ADMIN', 'OPERATOR'].includes(authStore.normalizedRole),
 )
 const devices = ref([])
 const pointDefinitions = ref([])

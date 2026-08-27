@@ -14,16 +14,6 @@
       <el-form-item label="场景名称" prop="sceneName">
         <el-input v-model="form.sceneName" maxlength="100" />
       </el-form-item>
-      <el-form-item v-if="mode === 'create'" label="所属组织" prop="organizationId">
-        <el-select v-model="form.organizationId" filterable class="full-width" @change="form.cloudRoomId = null">
-          <el-option
-            v-for="item in activeOrganizations"
-            :key="item.id"
-            :label="item.orgName"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
       <el-form-item label="所属机房" prop="cloudRoomId">
         <el-select v-model="form.cloudRoomId" clearable filterable class="full-width">
           <el-option
@@ -59,7 +49,6 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   mode: { type: String, default: 'create' },
   scene: { type: Object, default: null },
-  organizations: { type: Array, default: () => [] },
   rooms: { type: Array, default: () => [] },
   submitting: { type: Boolean, default: false },
 })
@@ -68,7 +57,6 @@ const formRef = ref(null)
 const form = reactive({
   sceneCode: '',
   sceneName: '',
-  organizationId: null,
   cloudRoomId: null,
   deviceTypeCode: '',
   description: '',
@@ -80,25 +68,18 @@ const deviceTypes = Object.freeze([
   { label: '温湿度', value: 'TEMP_HUMIDITY' },
   { label: '漏水检测', value: 'LEAK_DETECTOR' },
 ])
-const activeOrganizations = computed(() => props.organizations.filter((item) => item.status === 0))
-const availableRooms = computed(() =>
-  props.rooms.filter(
-    (item) => item.status === 0 && (!form.organizationId || item.organizationId === form.organizationId),
-  ),
-)
+const availableRooms = computed(() => props.rooms.filter((item) => item.status === 0))
 const rules = {
   sceneCode: [
     { required: true, message: '请输入场景编码', trigger: 'blur' },
     { pattern: /^[A-Za-z0-9_-]+$/, message: '仅支持字母、数字、下划线和短横线', trigger: 'blur' },
   ],
   sceneName: [{ required: true, message: '请输入场景名称', trigger: 'blur' }],
-  organizationId: [{ required: true, message: '请选择组织', trigger: 'change' }],
 }
 
 function initialize() {
   form.sceneCode = props.scene?.sceneCode || ''
   form.sceneName = props.scene?.sceneName || ''
-  form.organizationId = props.scene?.organizationId || activeOrganizations.value[0]?.id || null
   form.cloudRoomId = props.scene?.cloudRoomId || null
   form.deviceTypeCode = props.scene?.deviceTypeCode || ''
   form.description = props.scene?.description || ''
@@ -116,7 +97,6 @@ async function submit() {
   }
   if (props.mode === 'create') {
     payload.sceneCode = form.sceneCode
-    payload.organizationId = form.organizationId
   }
   emit('confirm', payload)
 }

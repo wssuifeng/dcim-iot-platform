@@ -26,7 +26,6 @@
       :can-write="canWrite"
       :can-delete="isOrgAdmin"
       :type-names="typeNames"
-      :organization-names="organizationNames"
       :room-names="roomNames"
       @edit="handleEdit"
       @delete="handleDelete"
@@ -50,7 +49,6 @@
       :mode="formMode"
       :device="currentDevice"
       :device-types="supportedDeviceTypes"
-      :organizations="organizations"
       :rooms="rooms"
       @confirm="handleFormConfirm"
     />
@@ -66,7 +64,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Download, Plus, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useScopeStore } from '@/stores/scope'
+import { useAuthStore } from '@/stores/auth'
 import {
   createDevice,
   deleteDevice,
@@ -79,7 +77,6 @@ import {
 } from '@/api/device'
 import { getDeviceTypes } from '@/api/deviceType'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
-import { getOrganizationPage } from '@/api/organization'
 import { getCloudRoomPage } from '@/api/cloudRoom'
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
 import DeviceEditorDialog from './DeviceEditorDialog.vue'
@@ -95,24 +92,15 @@ const SUPPORTED_TYPE_CODES = new Set([
   'TEMP_HUMIDITY',
   'LEAK_DETECTOR',
 ])
-const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role)
-const hasWriteScope = computed(() => scopeStore.isReady && scopeStore.hasWritePermission)
-const canWrite = computed(
-  () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
-)
-const canImport = computed(() => effectiveRole.value === 'ORG_ADMIN' && hasWriteScope.value)
-const canExport = computed(
-  () => ['ORG_ADMIN', 'OPERATOR'].includes(effectiveRole.value) && hasWriteScope.value,
-)
-const isOrgAdmin = computed(
-  () => effectiveRole.value === 'ORG_ADMIN' && hasWriteScope.value,
-)
+const authStore = useAuthStore()
+const canWrite = computed(() => ['ADMIN', 'OPERATOR'].includes(authStore.normalizedRole))
+const canImport = computed(() => authStore.isAdmin)
+const canExport = computed(() => canWrite.value)
+const isOrgAdmin = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const deviceList = ref([])
 const total = ref(0)
 const deviceTypes = ref([])
-const organizations = ref([])
 const rooms = ref([])
 const metrics = ref([])
 const pagination = reactive({ current: 1, size: 10 })
@@ -128,22 +116,17 @@ const supportedDeviceTypes = computed(() =>
 const typeNames = computed(() =>
   Object.fromEntries(deviceTypes.value.map((item) => [item.id, item.typeName])),
 )
-const organizationNames = computed(() =>
-  Object.fromEntries(organizations.value.map((item) => [item.id, item.orgName])),
-)
 const roomNames = computed(() =>
   Object.fromEntries(rooms.value.map((item) => [item.id, item.roomName])),
 )
 
 async function fetchReferences() {
-  const [typeResult, organizationResult, roomResult, metricResult] = await Promise.all([
+  const [typeResult, roomResult, metricResult] = await Promise.all([
     getDeviceTypes(),
-    getOrganizationPage({ current: 1, size: 100, status: 0 }),
     getCloudRoomPage({ current: 1, size: 100, status: 0 }),
     getPointDefinitionPage({ current: 1, size: 100 }),
   ])
   deviceTypes.value = typeResult.data || []
-  organizations.value = organizationResult.data?.records || []
   rooms.value = roomResult.data?.records || []
   metrics.value = metricResult.data?.records || []
 }

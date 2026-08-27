@@ -39,11 +39,6 @@ request.interceptors.request.use((config) => {
     config.headers = config.headers || {}
     config.headers.Authorization = `Bearer ${token}`
   }
-  const organizationId = localStorage.getItem('currentOrganizationId')
-  if (organizationId) {
-    config.headers = config.headers || {}
-    config.headers['X-Organization-Id'] = organizationId
-  }
   return config
 })
 

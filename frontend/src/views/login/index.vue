@@ -44,7 +44,6 @@
         </el-form-item>
         <div class="login-links">
           <router-link to="/register">注册账号</router-link>
-          <router-link to="/setup">首次初始化</router-link>
         </div>
         <el-form-item>
           <el-button

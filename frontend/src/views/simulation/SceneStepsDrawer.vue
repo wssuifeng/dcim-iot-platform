@@ -106,7 +106,6 @@ const form = reactive({
 const availableDevices = computed(() =>
   props.devices.filter(
     (item) =>
-      (!props.scene?.organizationId || item.organizationId === props.scene.organizationId) &&
       (!props.scene?.cloudRoomId || item.cloudRoomId === props.scene.cloudRoomId),
   ),
 )

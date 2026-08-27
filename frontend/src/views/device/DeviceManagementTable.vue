@@ -7,7 +7,6 @@
     </el-table-column>
     <el-table-column label="组织 / 机房" min-width="220">
       <template #default="{ row }">
-        <div>{{ organizationNames[row.organizationId] || `组织 #${row.organizationId}` }}</div>
         <div class="secondary">{{ roomNames[row.cloudRoomId] || `机房 #${row.cloudRoomId}` }}</div>
       </template>
     </el-table-column>
@@ -67,7 +66,6 @@ defineProps({
   canWrite: { type: Boolean, default: false },
   canDelete: { type: Boolean, default: false },
   typeNames: { type: Object, default: () => ({}) },
-  organizationNames: { type: Object, default: () => ({}) },
   roomNames: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['edit', 'delete', 'status-change', 'points'])

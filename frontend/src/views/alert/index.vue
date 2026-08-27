@@ -24,11 +24,6 @@
           <el-option v-for="item in devices" :key="item.id" :label="item.deviceName" :value="item.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="组织">
-        <el-select v-model="filters.organizationId" clearable filterable class="organization-select">
-          <el-option v-for="item in organizations" :key="item.id" :label="item.orgName" :value="item.id" />
-        </el-select>
-      </el-form-item>
       <el-form-item label="机房">
         <el-select v-model="filters.cloudRoomId" clearable filterable class="room-select">
           <el-option v-for="item in rooms" :key="item.id" :label="item.roomName" :value="item.id" />
@@ -53,8 +48,8 @@
       </el-table-column>
       <el-table-column prop="alarmType" label="告警类型" min-width="140" />
       <el-table-column prop="alarmMessage" label="告警描述" min-width="240" show-overflow-tooltip />
-      <el-table-column label="组织 / 机房" min-width="200">
-        <template #default="{ row }">{{ organizationName(row.organizationId) }} / {{ roomName(row.cloudRoomId) }}</template>
+      <el-table-column label="机房" min-width="160">
+        <template #default="{ row }">{{ roomName(row.cloudRoomId) }}</template>
       </el-table-column>
       <el-table-column prop="triggeredTime" label="触发时间" min-width="170" />
       <el-table-column label="操作" min-width="280">
@@ -96,7 +91,6 @@
       v-model:visible="detailVisible"
       :alarm-id="currentAlarm?.id"
       :devices="devices"
-      :organizations="organizations"
       :rooms="rooms"
     />
   </section>
@@ -107,8 +101,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { useScopeStore } from '@/stores/scope'
-import { getOrganizationPage } from '@/api/organization'
+import { useAuthStore } from '@/stores/auth'
 import { getCloudRoomPage } from '@/api/cloudRoom'
 import { getDevicePage } from '@/api/device'
 import {
@@ -126,23 +119,16 @@ defineOptions({ name: 'AlarmEventManagement' })
 
 const route = useRoute()
 const router = useRouter()
-const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role)
-const canHandle = computed(
-  () =>
-    ['ORG_ADMIN', 'OPERATOR'].includes(role.value) &&
-    scopeStore.isReady &&
-    scopeStore.hasWritePermission,
-)
+const authStore = useAuthStore()
+const canHandle = computed(() => ['ADMIN', 'OPERATOR'].includes(authStore.normalizedRole))
 const loading = ref(false)
 const submitting = ref(false)
 const alarms = ref([])
 const devices = ref([])
-const organizations = ref([])
 const rooms = ref([])
 const total = ref(0)
 const pagination = reactive({ current: 1, size: 10 })
-const filters = reactive({ state: '', alarmLevel: null, deviceId: null, organizationId: null, cloudRoomId: null })
+const filters = reactive({ state: '', alarmLevel: null, deviceId: null, cloudRoomId: null })
 const currentAlarm = ref(null)
 const currentAction = ref('ack')
 const actionVisible = ref(false)
@@ -183,13 +169,11 @@ const actionOptions = Object.freeze({
 })
 
 async function loadReferences() {
-  const [deviceResult, organizationResult, roomResult] = await Promise.all([
+  const [deviceResult, roomResult] = await Promise.all([
     getDevicePage({ current: 1, size: 100 }),
-    getOrganizationPage({ current: 1, size: 100 }),
     getCloudRoomPage({ current: 1, size: 100 }),
   ])
   devices.value = deviceResult.data?.records || []
-  organizations.value = organizationResult.data?.records || []
   rooms.value = roomResult.data?.records || []
 }
 
@@ -214,7 +198,7 @@ function search() {
 }
 
 function resetFilters() {
-  Object.assign(filters, { state: '', alarmLevel: null, deviceId: null, organizationId: null, cloudRoomId: null })
+  Object.assign(filters, { state: '', alarmLevel: null, deviceId: null, cloudRoomId: null })
   pagination.current = 1
   void fetchAlarms()
 }
@@ -284,17 +268,12 @@ function deviceName(id) {
   return devices.value.find((item) => item.id === id)?.deviceName || `设备 #${id}`
 }
 
-function organizationName(id) {
-  return organizations.value.find((item) => item.id === id)?.orgName || `组织 #${id}`
-}
-
 function roomName(id) {
   if (!id) return '全部机房'
   return rooms.value.find((item) => item.id === id)?.roomName || `机房 #${id}`
 }
 
 onMounted(async () => {
-  await scopeStore.ensureCurrentScope({ silent: true })
   await Promise.all([loadReferences(), fetchAlarms()])
   removeSummaryListener = onSummary(handleSummary)
   if (route.query.id) openDetail({ id: route.query.id })
@@ -342,7 +321,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 }
 
 .device-select,
-.organization-select,
+.room-select,
 .room-select {
   width: 190px;
 }

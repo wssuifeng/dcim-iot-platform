@@ -43,11 +43,8 @@
           <div class="secondary-cell">{{ roleLabel(row.role) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="范围" min-width="150">
-        <template #default="{ row }">
-          <div class="primary-cell">组织 {{ row.organizationId ?? '-' }}</div>
-          <div class="secondary-cell">机房 {{ row.cloudRoomId ?? '-' }}</div>
-        </template>
+      <el-table-column label="机房" min-width="110">
+        <template #default="{ row }">{{ row.cloudRoomId ?? '-' }}</template>
       </el-table-column>
       <el-table-column label="操作" min-width="200">
         <template #default="{ row }">
@@ -96,21 +93,13 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Delete, Refresh, Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { useScopeStore } from '@/stores/scope'
 import { getAuditLogPage } from '@/api/auditLog'
 import CleanupDialog from '@/components/audit-log/CleanupDialog.vue'
 
 defineOptions({ name: 'StructuredAuditLog' })
 
 const authStore = useAuthStore()
-const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role)
-const canCleanup = computed(
-  () =>
-    scopeStore.isReady &&
-    scopeStore.hasWritePermission &&
-    (authStore.isPlatformAdmin || role.value === 'ORG_ADMIN'),
-)
+const canCleanup = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const logs = ref([])
 const total = ref(0)
@@ -153,12 +142,7 @@ function handleCleanup() {
 }
 
 function roleLabel(value) {
-  return {
-    PLATFORM_ADMIN: '平台管理员',
-    ORG_ADMIN: '组织管理员',
-    OPERATOR: '运维人员',
-    VIEWER: '查看者',
-  }[value] || value || '-'
+  return { ADMIN: '管理员', OPERATOR: '运维人员', VIEWER: '查看者' }[value] || value || '-'
 }
 
 function resultLabel(result) {
@@ -169,9 +153,8 @@ function resultType(result) {
   return { SUCCESS: 'success', FAILURE: 'danger', REJECTED: 'warning' }[result] || 'info'
 }
 
-onMounted(async () => {
-  await scopeStore.ensureCurrentScope({ silent: true })
-  await fetchLogs()
+onMounted(() => {
+  void fetchLogs()
 })
 </script>
 

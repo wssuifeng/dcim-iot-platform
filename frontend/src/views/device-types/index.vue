@@ -64,7 +64,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Delete, Edit, Grid, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { useScopeStore } from '@/stores/scope'
 import {
   createDeviceType,
   deleteDeviceType,
@@ -78,16 +77,14 @@ import PointTemplateDialog from './PointTemplateDialog.vue'
 defineOptions({ name: 'DeviceTypeManagement' })
 
 const authStore = useAuthStore()
-const scopeStore = useScopeStore()
-const hasWriteScope = computed(() => scopeStore.isReady && scopeStore.hasWritePermission)
 // 设备类型目录 CRUD 仅平台管理员（后端已收紧为 PLATFORM_ADMIN）
-const canEditType = computed(() => authStore.isPlatformAdmin)
-const canDeleteType = computed(() => authStore.isPlatformAdmin)
+const canEditType = computed(() => authStore.isAdmin)
+const canDeleteType = computed(() => authStore.isAdmin)
 // 点位模板：平台管理员维护平台级模板，组织管理员维护本组织模板
 const canManageTemplate = computed(
-  () => authStore.isPlatformAdmin || (scopeStore.role === 'ORG_ADMIN' && hasWriteScope.value),
+  () => authStore.isAdmin,
 )
-const templateMode = computed(() => (authStore.isPlatformAdmin ? 'platform' : 'org'))
+const templateMode = computed(() => 'platform')
 const loading = ref(false)
 const typeList = ref([])
 const filter = reactive({ typeName: '', typeCode: '' })

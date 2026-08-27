@@ -43,16 +43,10 @@ const formRef = ref(null)
 const form = reactive({ targetDeviceId: null, cloudRoomId: null })
 const availableDevices = computed(() =>
   props.devices.filter(
-    (item) =>
-      (!props.scene?.organizationId || item.organizationId === props.scene.organizationId) &&
-      (!props.scene?.cloudRoomId || item.cloudRoomId === props.scene.cloudRoomId),
+    (item) => !props.scene?.cloudRoomId || item.cloudRoomId === props.scene.cloudRoomId,
   ),
 )
-const availableRooms = computed(() =>
-  props.rooms.filter(
-    (item) => !props.scene?.organizationId || item.organizationId === props.scene.organizationId,
-  ),
-)
+const availableRooms = computed(() => props.rooms.filter((item) => item.status === 0))
 const rules = {
   targetDeviceId: [{ required: true, message: '请选择目标设备', trigger: 'change' }],
 }

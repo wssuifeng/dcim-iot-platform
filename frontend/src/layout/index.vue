@@ -3,13 +3,9 @@
     <el-header class="layout-header">
       <div class="brand-area">
         <span class="system-title">IoT-Platform</span>
-        <el-tag v-if="scopeStore.isReady" size="small" effect="plain" type="info">
-          {{ scopeDisplay }}
-        </el-tag>
       </div>
 
       <div class="header-actions">
-        <OrganizationSwitcher />
         <el-tooltip :content="themeTooltip">
           <el-button circle :icon="themeIcon" aria-label="切换主题" @click="themeStore.toggle" />
         </el-tooltip>
@@ -74,16 +70,12 @@ import {
   onUnreadNotificationCountChange,
 } from '@/api/realtime'
 import { useAuthStore } from '@/stores/auth'
-import { useScopeStore } from '@/stores/scope'
-import { useOrganizationStore } from '@/stores/organization'
 import { useThemeStore, THEME_LIGHT } from '@/stores/theme'
-import OrganizationSwitcher from '@/components/OrganizationSwitcher.vue'
 
 defineOptions({ name: 'AppLayout' })
 
 const ROLE_LABELS = Object.freeze({
-  PLATFORM_ADMIN: '平台管理员',
-  ORG_ADMIN: '组织管理员',
+  ADMIN: '管理员',
   OPERATOR: '运维人员',
   VIEWER: '查看者',
 })
@@ -91,8 +83,6 @@ const ROLE_LABELS = Object.freeze({
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const scopeStore = useScopeStore()
-const organizationStore = useOrganizationStore()
 const themeStore = useThemeStore()
 const unreadCount = ref(0)
 const realtimeConnected = ref(false)
@@ -101,11 +91,7 @@ let removeConnectionListener = null
 let removeUnreadCountListener = null
 
 const activeMenu = computed(() => route.path)
-const effectiveRole = computed(() => scopeStore.role)
-const roleLabel = computed(() => {
-  if (authStore.isPlatformAdmin) return ROLE_LABELS.PLATFORM_ADMIN
-  return ROLE_LABELS[effectiveRole.value] || effectiveRole.value
-})
+const roleLabel = computed(() => ROLE_LABELS[authStore.normalizedRole] || authStore.normalizedRole)
 const themeIcon = computed(() => (themeStore.theme === THEME_LIGHT ? Moon : Sunny))
 const themeTooltip = computed(() => (themeStore.theme === THEME_LIGHT ? '切换夜间模式' : '切换日间模式'))
 const menuBg = computed(() => (themeStore.theme === THEME_LIGHT ? '#ffffff' : '#0f172a'))
@@ -116,29 +102,13 @@ const navigationItems = computed(() =>
     .getRoutes()
     .filter((item) => item.meta.navigation)
     .filter((item) => {
-      const platformRoles = item.meta.platformRoles || []
-      const scopeRoles = item.meta.scopeRoles || []
-      if (platformRoles.length === 0 && scopeRoles.length === 0) return true
-      return (
-        platformRoles.includes(authStore.platformRole) ||
-        (scopeStore.isReady && scopeRoles.includes(effectiveRole.value))
-      )
+      const allowed = item.meta.roles || []
+      return allowed.length === 0 || allowed.includes(authStore.normalizedRole)
     })
     .sort((left, right) => left.meta.navigationOrder - right.meta.navigationOrder),
 )
-const scopeDisplay = computed(() => {
-  if (scopeStore.scopeType === 'ROOMS') {
-    return `${scopeStore.scopeLabel} · ${scopeStore.cloudRoomIds.length}`
-  }
-  if (scopeStore.scopeType === 'ORG_ALL') {
-    return `${scopeStore.scopeLabel} · ${scopeStore.organizationIds.length}`
-  }
-  return scopeStore.scopeLabel
-})
 
 onMounted(async () => {
-  await organizationStore.loadMemberships().catch(() => [])
-  void scopeStore.ensureCurrentScope({ silent: true })
   await refreshUnreadCount()
   removeSummaryListener = onSummary(handleSummary)
   removeConnectionListener = onSummaryConnectionChange((connected) => {
@@ -175,9 +145,7 @@ async function handleSummary(summary) {
 function handleCommand(command) {
   if (command === 'logout') {
     void disconnectSummarySocket()
-    scopeStore.resetCurrentScope()
     authStore.logout()
-    organizationStore.reset()
     router.push('/login')
   }
 }

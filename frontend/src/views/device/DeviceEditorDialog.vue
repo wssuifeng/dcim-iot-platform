@@ -15,21 +15,6 @@
         <el-form-item label="设备编码" prop="deviceCode">
           <el-input v-model="form.deviceCode" :disabled="mode === 'edit'" />
         </el-form-item>
-        <el-form-item label="所属组织" prop="organizationId">
-          <el-select
-            v-model="form.organizationId"
-            filterable
-            class="full-width"
-            @change="form.cloudRoomId = null"
-          >
-            <el-option
-              v-for="item in activeOrganizations"
-              :key="item.id"
-              :label="item.orgName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="所属机房" prop="cloudRoomId">
           <el-select v-model="form.cloudRoomId" filterable class="full-width">
             <el-option
@@ -82,7 +67,6 @@ const props = defineProps({
   mode: { type: String, default: 'create' },
   device: { type: Object, default: null },
   deviceTypes: { type: Array, default: () => [] },
-  organizations: { type: Array, default: () => [] },
   rooms: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:visible', 'confirm'])
@@ -91,25 +75,18 @@ const form = reactive({
   deviceName: '',
   deviceCode: '',
   typeId: null,
-  organizationId: null,
   cloudRoomId: null,
   status: 0,
   location: '',
   ipAddress: '',
 })
-const activeOrganizations = computed(() => props.organizations.filter((item) => item.status === 0))
-const availableRooms = computed(() =>
-  props.rooms.filter(
-    (item) => item.status === 0 && item.organizationId === form.organizationId,
-  ),
-)
+const availableRooms = computed(() => props.rooms.filter((item) => item.status === 0))
 const rules = {
   deviceName: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
   deviceCode: [
     { required: true, message: '请输入设备编码', trigger: 'blur' },
     { pattern: /^[A-Za-z0-9_-]+$/, message: '设备编码格式不正确', trigger: 'blur' },
   ],
-  organizationId: [{ required: true, message: '请选择组织', trigger: 'change' }],
   cloudRoomId: [{ required: true, message: '请选择机房', trigger: 'change' }],
   typeId: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
@@ -121,7 +98,6 @@ function initializeForm() {
   form.deviceName = source.deviceName || ''
   form.deviceCode = source.deviceCode || ''
   form.typeId = source.typeId || null
-  form.organizationId = source.organizationId || activeOrganizations.value[0]?.id || null
   form.cloudRoomId = source.cloudRoomId || null
   form.status = source.status ?? 0
   form.location = source.location || ''

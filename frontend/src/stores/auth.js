@@ -3,8 +3,7 @@
  *
  * 【状态字段】
  * - token:   JWT Token 字符串（同时存储在 localStorage）
- * - role:    JWT 中的平台角色，仅保留 PLATFORM_ADMIN
- * - normalizedRole: 归一化后的平台角色；组织角色由 scope store 提供
+ * - role:    JWT 中的角色（ADMIN/OPERATOR/VIEWER）
  * - username: 用户名，从 Token Payload 的 username 字段解析
  * - userId: 用户 ID，从 Token Payload 的 sub 字段解析
  *
@@ -12,7 +11,7 @@
  *   login() 成功 → localStorage.setItem('token')
  *                → authStore.parseToken()
  *                → jwtDecode(token)
- *                → payload.platformRole → role
+ *                → payload.role → role（历史 token 的 platformRole 归一化为 ADMIN）
  *                → payload.username → username
  *                → payload.sub → userId
  */
@@ -20,17 +19,20 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { jwtDecode } from 'jwt-decode'
 
-export const PLATFORM_ROLES = Object.freeze({
-  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
-  ORG_ADMIN: 'ORG_ADMIN',
+export const ROLES = Object.freeze({
+  ADMIN: 'ADMIN',
   OPERATOR: 'OPERATOR',
   VIEWER: 'VIEWER',
 })
 
+const ADMIN_ALIASES = ['ADMIN', 'ORG_ADMIN', 'PLATFORM_ADMIN']
+
 function normalizeRole(role) {
   if (typeof role !== 'string') return ''
   const normalized = role.trim().toUpperCase()
-  return normalized === PLATFORM_ROLES.PLATFORM_ADMIN ? normalized : ''
+  if (ADMIN_ALIASES.includes(normalized)) return ROLES.ADMIN
+  if (Object.values(ROLES).includes(normalized)) return normalized
+  return ''
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -39,7 +41,6 @@ export const useAuthStore = defineStore('auth', () => {
   const username = ref('')
   const userId = ref(null)
   const normalizedRole = computed(() => normalizeRole(role.value))
-  const platformRole = computed(() => normalizedRole.value)
 
   /*
    * 方法功能:解析 JWT Token，提取角色和用户名
@@ -57,7 +58,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
     try {
       const payload = jwtDecode(token.value)
-      role.value = normalizeRole(payload.platformRole)
+      // 新 token 用 role 声明；历史多组织 token 的 platformRole 声明归一化为 ADMIN
+      role.value = normalizeRole(payload.role || payload.platformRole)
       username.value = payload.username || ''
       userId.value = payload.sub || null
     } catch {
@@ -115,8 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     username,
     userId,
     normalizedRole,
-    platformRole,
-    isPlatformAdmin: computed(() => normalizedRole.value === PLATFORM_ROLES.PLATFORM_ADMIN),
+    isAdmin: computed(() => normalizedRole.value === ROLES.ADMIN),
     parseToken,
     syncFromStorage,
     hasAnyRole,

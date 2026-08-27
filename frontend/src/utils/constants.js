@@ -31,9 +31,7 @@ export const HANDLE_STATUS = {
 }
 
 export const USER_ROLE = {
-  PLATFORM_ADMIN: { label: '平台管理员', color: 'var(--color-danger)' },
-  ORG_ADMIN: { label: '组织管理员', color: 'var(--color-warning)' },
-  ADMIN: { label: '管理员', color: 'var(--color-warning)' },
+  ADMIN: { label: '管理员', color: 'var(--color-danger)' },
   OPERATOR: { label: '运维人员', color: 'var(--color-success)' },
   VIEWER: { label: '查看者', color: 'var(--color-info)' },
 }

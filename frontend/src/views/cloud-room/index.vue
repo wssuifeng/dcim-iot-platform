@@ -3,7 +3,7 @@
     <header class="page-header">
       <div>
         <h1>机房管理</h1>
-        <p>当前授权范围内的机房及运行状态</p>
+        <p>机房资源与运行状态</p>
       </div>
       <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">
         新增机房
@@ -11,22 +11,6 @@
     </header>
 
     <el-form :inline="true" :model="filters" class="filter-bar">
-      <el-form-item label="组织">
-        <el-select
-          v-model="filters.organizationId"
-          placeholder="全部组织"
-          clearable
-          filterable
-          class="organization-select"
-        >
-          <el-option
-            v-for="item in organizations"
-            :key="item.id"
-            :label="item.orgName"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
       <el-form-item label="关键字">
         <el-input v-model="filters.keyword" placeholder="机房名称" clearable @keyup.enter="handleSearch" />
       </el-form-item>
@@ -45,9 +29,6 @@
     <el-table v-loading="loading" :data="rooms" row-key="id">
       <el-table-column prop="roomName" label="机房名称" min-width="170" />
       <el-table-column prop="roomCode" label="机房编码" min-width="140" />
-      <el-table-column label="所属组织" min-width="170">
-        <template #default="{ row }">{{ organizationName(row.organizationId) }}</template>
-      </el-table-column>
       <el-table-column prop="location" label="位置" min-width="180" show-overflow-tooltip />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
@@ -91,21 +72,6 @@
       @closed="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="所属组织" prop="organizationId">
-          <el-select
-            v-model="form.organizationId"
-            filterable
-            class="full-width"
-            :disabled="dialogMode === 'edit'"
-          >
-            <el-option
-              v-for="item in activeOrganizations"
-              :key="item.id"
-              :label="item.orgName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="机房名称" prop="roomName">
           <el-input v-model="form.roomName" maxlength="100" />
         </el-form-item>
@@ -128,8 +94,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Edit, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useScopeStore } from '@/stores/scope'
-import { getOrganizationPage } from '@/api/organization'
+import { useAuthStore } from '@/stores/auth'
 import {
   createCloudRoom,
   getCloudRoomPage,
@@ -139,26 +104,20 @@ import {
 
 defineOptions({ name: 'CloudRoomManagement' })
 
-const scopeStore = useScopeStore()
-const effectiveRole = computed(() => scopeStore.role)
-const canManage = computed(
-  () => effectiveRole.value === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
-)
+const authStore = useAuthStore()
+const canManage = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const submitting = ref(false)
 const rooms = ref([])
-const organizations = ref([])
 const total = ref(0)
-const filters = reactive({ organizationId: null, keyword: '', status: null })
+const filters = reactive({ keyword: '', status: null })
 const pagination = reactive({ current: 1, size: 10 })
 const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const formRef = ref(null)
-const form = reactive({ organizationId: null, roomName: '', roomCode: '', location: '' })
-const activeOrganizations = computed(() => organizations.value.filter((item) => item.status === 0))
+const form = reactive({ roomName: '', roomCode: '', location: '' })
 const rules = {
-  organizationId: [{ required: true, message: '请选择组织', trigger: 'change' }],
   roomName: [{ required: true, message: '请输入机房名称', trigger: 'blur' }],
   roomCode: [
     { required: true, message: '请输入机房编码', trigger: 'blur' },
@@ -166,16 +125,10 @@ const rules = {
   ],
 }
 
-async function fetchOrganizations() {
-  const result = await getOrganizationPage({ current: 1, size: 100 })
-  organizations.value = result.data?.records || []
-}
-
 async function fetchRooms() {
   loading.value = true
   try {
     const params = { current: pagination.current, size: pagination.size }
-    if (filters.organizationId) params.organizationId = filters.organizationId
     if (filters.keyword.trim()) params.keyword = filters.keyword.trim()
     if (filters.status !== null && filters.status !== '') params.status = filters.status
     const result = await getCloudRoomPage(params)
@@ -186,17 +139,12 @@ async function fetchRooms() {
   }
 }
 
-function organizationName(id) {
-  return organizations.value.find((item) => item.id === id)?.orgName || `组织 #${id}`
-}
-
 function handleSearch() {
   pagination.current = 1
   void fetchRooms()
 }
 
 function handleReset() {
-  filters.organizationId = null
   filters.keyword = ''
   filters.status = null
   pagination.current = 1
@@ -207,16 +155,12 @@ function openCreate() {
   dialogMode.value = 'create'
   editingId.value = null
   resetForm()
-  if (activeOrganizations.value.length === 1) {
-    form.organizationId = activeOrganizations.value[0].id
-  }
   dialogVisible.value = true
 }
 
 function openEdit(row) {
   dialogMode.value = 'edit'
   editingId.value = row.id
-  form.organizationId = row.organizationId
   form.roomName = row.roomName || ''
   form.roomCode = row.roomCode || ''
   form.location = row.location || ''
@@ -224,7 +168,6 @@ function openEdit(row) {
 }
 
 function resetForm() {
-  form.organizationId = null
   form.roomName = ''
   form.roomCode = ''
   form.location = ''
@@ -269,9 +212,8 @@ async function toggleStatus(row) {
   await fetchRooms()
 }
 
-onMounted(async () => {
-  await fetchOrganizations()
-  await fetchRooms()
+onMounted(() => {
+  void fetchRooms()
 })
 </script>
 
@@ -305,10 +247,6 @@ onMounted(async () => {
   margin-bottom: 16px;
   border: 1px solid #ebeef5;
   background: var(--color-surface);
-}
-
-.organization-select {
-  width: 220px;
 }
 
 .status-select {

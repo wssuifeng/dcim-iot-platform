@@ -16,11 +16,6 @@
           <el-form-item label="关键字">
             <el-input v-model="sceneFilters.keyword" placeholder="场景编码或名称" clearable @keyup.enter="searchScenes" />
           </el-form-item>
-          <el-form-item label="组织">
-            <el-select v-model="sceneFilters.organizationId" clearable filterable class="organization-select">
-              <el-option v-for="item in organizations" :key="item.id" :label="item.orgName" :value="item.id" />
-            </el-select>
-          </el-form-item>
           <el-form-item label="机房">
             <el-select v-model="sceneFilters.cloudRoomId" clearable filterable class="room-select">
               <el-option v-for="item in rooms" :key="item.id" :label="item.roomName" :value="item.id" />
@@ -41,8 +36,8 @@
         <el-table v-loading="sceneLoading" :data="scenes" row-key="id">
           <el-table-column prop="sceneName" label="场景名称" min-width="180" />
           <el-table-column prop="sceneCode" label="场景编码" min-width="150" />
-          <el-table-column label="组织 / 机房" min-width="210">
-            <template #default="{ row }">{{ organizationName(row.organizationId) }} / {{ roomName(row.cloudRoomId) }}</template>
+          <el-table-column label="机房" min-width="160">
+            <template #default="{ row }">{{ roomName(row.cloudRoomId) }}</template>
           </el-table-column>
           <el-table-column prop="deviceTypeCode" label="设备类型" width="140" />
           <el-table-column label="状态" width="90">
@@ -132,7 +127,6 @@
       v-model:visible="sceneDialogVisible"
       :mode="sceneDialogMode"
       :scene="currentScene"
-      :organizations="organizations"
       :rooms="rooms"
       :submitting="submitting"
       @confirm="saveScene"
@@ -171,8 +165,7 @@ import {
   View,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useScopeStore } from '@/stores/scope'
-import { getOrganizationPage } from '@/api/organization'
+import { useAuthStore } from '@/stores/auth'
 import { getCloudRoomPage } from '@/api/cloudRoom'
 import { getDevicePage } from '@/api/device'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
@@ -193,24 +186,15 @@ import SceneStepsDrawer from './SceneStepsDrawer.vue'
 
 defineOptions({ name: 'SimulationWorkspace' })
 
-const scopeStore = useScopeStore()
-const role = computed(() => scopeStore.role)
-const canManageScenes = computed(
-  () => role.value === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
-)
-const canRun = computed(
-  () =>
-    ['ORG_ADMIN', 'OPERATOR'].includes(role.value) &&
-    scopeStore.isReady &&
-    scopeStore.hasWritePermission,
-)
+const authStore = useAuthStore()
+const canManageScenes = computed(() => authStore.isAdmin)
+const canRun = computed(() => ['ADMIN', 'OPERATOR'].includes(authStore.normalizedRole))
 const activeTab = ref('scenes')
 const sceneLoading = ref(false)
 const runLoading = ref(false)
 const submitting = ref(false)
 const scenes = ref([])
 const runs = ref([])
-const organizations = ref([])
 const rooms = ref([])
 const devices = ref([])
 const points = ref([])
@@ -218,7 +202,7 @@ const sceneTotal = ref(0)
 const runTotal = ref(0)
 const scenePage = reactive({ current: 1, size: 10 })
 const runPage = reactive({ current: 1, size: 10 })
-const sceneFilters = reactive({ keyword: '', organizationId: null, cloudRoomId: null, status: null })
+const sceneFilters = reactive({ keyword: '', cloudRoomId: null, status: null })
 const runFilters = reactive({ sceneId: null, status: '' })
 const currentScene = ref(null)
 const currentRun = ref(null)
@@ -236,13 +220,11 @@ const runStatuses = Object.freeze([
 ])
 
 async function loadReferences() {
-  const [organizationResult, roomResult, deviceResult, pointResult] = await Promise.all([
-    getOrganizationPage({ current: 1, size: 100 }),
+  const [roomResult, deviceResult, pointResult] = await Promise.all([
     getCloudRoomPage({ current: 1, size: 100 }),
     getDevicePage({ current: 1, size: 100 }),
     getPointDefinitionPage({ current: 1, size: 100 }),
   ])
-  organizations.value = organizationResult.data?.records || []
   rooms.value = roomResult.data?.records || []
   devices.value = deviceResult.data?.records || []
   points.value = pointResult.data?.records || []
@@ -253,7 +235,6 @@ async function fetchScenes() {
   try {
     const params = { current: scenePage.current, size: scenePage.size }
     if (sceneFilters.keyword.trim()) params.keyword = sceneFilters.keyword.trim()
-    if (sceneFilters.organizationId) params.organizationId = sceneFilters.organizationId
     if (sceneFilters.cloudRoomId) params.cloudRoomId = sceneFilters.cloudRoomId
     if (sceneFilters.status !== null && sceneFilters.status !== '') params.status = sceneFilters.status
     const result = await getSimulationScenePage(params)
@@ -284,7 +265,7 @@ function searchScenes() {
 }
 
 function resetSceneFilters() {
-  Object.assign(sceneFilters, { keyword: '', organizationId: null, cloudRoomId: null, status: null })
+  Object.assign(sceneFilters, { keyword: '', cloudRoomId: null, status: null })
   scenePage.current = 1
   void fetchScenes()
 }
@@ -388,10 +369,6 @@ async function cancelRun(row) {
   await fetchRuns()
 }
 
-function organizationName(id) {
-  return organizations.value.find((item) => item.id === id)?.orgName || `组织 #${id}`
-}
-
 function roomName(id) {
   if (!id) return '全部机房'
   return rooms.value.find((item) => item.id === id)?.roomName || `机房 #${id}`
@@ -410,7 +387,6 @@ function runStatusType(status) {
 }
 
 onMounted(async () => {
-  await scopeStore.ensureCurrentScope({ silent: true })
   await Promise.all([loadReferences(), fetchScenes()])
 })
 </script>
@@ -447,7 +423,7 @@ onMounted(async () => {
   background: var(--color-surface);
 }
 
-.organization-select,
+.room-select,
 .scene-select {
   width: 210px;
 }

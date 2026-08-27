@@ -16,8 +16,8 @@
         <el-descriptions-item label="设备">{{ deviceLabel(detail.deviceId) }}</el-descriptions-item>
         <el-descriptions-item label="点位ID">{{ detail.pointId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="告警类型">{{ detail.alarmType || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="组织 / 机房">
-          {{ organizationLabel(detail.organizationId) }} / {{ roomLabel(detail.cloudRoomId) }}
+        <el-descriptions-item label="机房">
+          {{ roomLabel(detail.cloudRoomId) }}
         </el-descriptions-item>
         <el-descriptions-item label="告警描述" :span="2">{{ detail.alarmMessage || '-' }}</el-descriptions-item>
         <el-descriptions-item label="触发时间">{{ detail.triggeredTime || '-' }}</el-descriptions-item>
@@ -66,7 +66,6 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   alarmId: { type: [Number, String], default: null },
   devices: { type: Array, default: () => [] },
-  organizations: { type: Array, default: () => [] },
   rooms: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:visible'])
@@ -107,10 +106,6 @@ function levelLabel(level) {
 
 function deviceLabel(id) {
   return props.devices.find((item) => item.id === id)?.deviceName || `设备 #${id}`
-}
-
-function organizationLabel(id) {
-  return props.organizations.find((item) => item.id === id)?.orgName || `组织 #${id}`
 }
 
 function roomLabel(id) {

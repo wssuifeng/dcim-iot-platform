@@ -5,6 +5,10 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import legacy from '@vitejs/plugin-legacy'
 
+// 端口可经环境变量覆盖（多项目并行开发时避免冲突），缺省保持 5173/8080
+const devPort = Number(process.env.DEV_PORT) || 5173
+const apiTarget = process.env.API_TARGET || 'http://localhost:8080'
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -19,10 +23,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: devPort,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

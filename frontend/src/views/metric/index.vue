@@ -115,7 +115,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Delete, Edit, Plus, Refresh, Search, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { useScopeStore } from '@/stores/scope'
 import {
   createPointDefinition,
   deletePointDefinition,
@@ -129,17 +128,16 @@ import RetentionPolicyDialog from './RetentionPolicyDialog.vue'
 defineOptions({ name: 'MetricPointManagement' })
 
 const authStore = useAuthStore()
-const scopeStore = useScopeStore()
 // 组织级点位为组织共享资源，新增/编辑仅 ORG_ADMIN（OPERATOR 不可修改共享配置）
 const canManagePoints = computed(
-  () => scopeStore.role === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
+  () => authStore.isAdmin,
 )
 // 删除点位仅 ORG_ADMIN
 const canDeletePoint = computed(
-  () => scopeStore.role === 'ORG_ADMIN' && scopeStore.isReady && scopeStore.hasWritePermission,
+  () => authStore.isAdmin,
 )
 // 保留策略为平台级全局配置，仅 PLATFORM_ADMIN 可管理
-const canManageRetention = computed(() => authStore.isPlatformAdmin)
+const canManageRetention = computed(() => authStore.isAdmin)
 const activeTab = ref('points')
 const pointLoading = ref(false)
 const points = ref([])

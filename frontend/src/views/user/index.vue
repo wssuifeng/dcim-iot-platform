@@ -2,11 +2,11 @@
   <section class="page-shell">
     <header class="page-header">
       <div>
-        <h1>用户与数据范围</h1>
-        <p>用户角色、账号状态及后端授权范围</p>
+        <h1>用户管理</h1>
+        <p>用户角色与账号状态</p>
       </div>
       <el-button
-        v-if="authStore.isPlatformAdmin && scopeStore.isReady && scopeStore.hasWritePermission"
+        v-if="authStore.isAdmin"
         type="primary"
         :icon="Plus"
         @click="openCreate"
@@ -43,9 +43,6 @@
         <template #default="{ row }">
           <template v-if="canManageTarget(row)">
             <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="success" :icon="Connection" @click="openScopes(row)">
-              数据范围
-            </el-button>
             <el-button link type="warning" :icon="Key" @click="openPassword(row)">
               重置密码
             </el-button>
@@ -88,18 +85,12 @@
       :user="currentUser"
       @confirm="savePassword"
     />
-    <data-scope-dialog
-      v-model:visible="scopeVisible"
-      :user="currentUser"
-      :caller-role="callerRole"
-    />
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  Connection,
   Edit,
   Key,
   MoreFilled,
@@ -109,7 +100,6 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { useScopeStore } from '@/stores/scope'
 import {
   createUser,
   deleteUser,
@@ -119,24 +109,18 @@ import {
   updateUserStatus,
 } from '@/api/user'
 import PasswordResetDialog from '@/components/user/PasswordResetDialog.vue'
-import DataScopeDialog from './DataScopeDialog.vue'
 import UserEditorDialog from './UserEditorDialog.vue'
 
 defineOptions({ name: 'UserScopeManagement' })
 
 const ROLE_META = Object.freeze({
-  PLATFORM_ADMIN: { label: '平台管理员', type: 'danger' },
-  ORG_ADMIN: { label: '组织管理员', type: 'warning' },
-  ADMIN: { label: '组织管理员', type: 'warning' },
+  ADMIN: { label: '管理员', type: 'danger' },
   OPERATOR: { label: '运维人员', type: 'primary' },
   VIEWER: { label: '查看者', type: 'info' },
 })
 const authStore = useAuthStore()
-const scopeStore = useScopeStore()
-const callerRole = computed(() => authStore.platformRole)
-// 平台管理员只能通过初始化流程创建，通用用户创建/编辑接口仅提供组织角色
 const roleOptions = computed(() =>
-  ['ORG_ADMIN', 'OPERATOR', 'VIEWER'].map((value) => ({
+  ['ADMIN', 'OPERATOR', 'VIEWER'].map((value) => ({
     value,
     label: ROLE_META[value].label,
   })),
@@ -149,12 +133,7 @@ const pagination = reactive({ current: 1, size: 10 })
 const editorVisible = ref(false)
 const editorMode = ref('create')
 const passwordVisible = ref(false)
-const scopeVisible = ref(false)
 const currentUser = ref(null)
-
-function normalizeRole(role) {
-  return role === 'ADMIN' ? 'ORG_ADMIN' : role
-}
 
 function roleLabel(role) {
   return ROLE_META[role]?.label || role
@@ -164,13 +143,8 @@ function roleType(role) {
   return ROLE_META[role]?.type || 'info'
 }
 
-function canManageTarget(user) {
-  return (
-    callerRole.value === 'PLATFORM_ADMIN' &&
-    scopeStore.isReady &&
-    scopeStore.hasWritePermission &&
-    normalizeRole(user.role) !== ''
-  )
+function canManageTarget() {
+  return authStore.isAdmin
 }
 
 async function fetchUsers() {
@@ -205,18 +179,13 @@ function openCreate() {
 
 function openEdit(row) {
   editorMode.value = 'edit'
-  currentUser.value = { ...row, role: normalizeRole(row.role) }
+  currentUser.value = { ...row }
   editorVisible.value = true
 }
 
 function openPassword(row) {
   currentUser.value = row
   passwordVisible.value = true
-}
-
-function openScopes(row) {
-  currentUser.value = row
-  scopeVisible.value = true
 }
 
 async function saveUser(payload) {
