@@ -120,9 +120,10 @@ public interface DeviceService extends IService<Device> {
     List<Device> findOnlineDevicesScoped(Long currentUserId);
 
     Page<Device> pageByConditionScoped(Integer current, Integer size, Integer status,
-                                       String name, Long currentUserId);
+                                       String name, Long cloudRoomId, Long currentUserId);
 
-    List<Device> listByConditionScoped(Integer status, String name, Long currentUserId);
+    List<Device> listByConditionScoped(Integer status, String name, Long cloudRoomId,
+                                       Long currentUserId);
 
     void createScoped(Device device, Long currentUserId);
 

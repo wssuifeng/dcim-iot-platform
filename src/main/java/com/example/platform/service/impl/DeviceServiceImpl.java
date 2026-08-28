@@ -250,12 +250,19 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
     }
 
     private LambdaQueryWrapper<Device> buildConditionWrapper(Integer status, String name) {
+        return buildConditionWrapper(status, name, null);
+    }
+
+    private LambdaQueryWrapper<Device> buildConditionWrapper(Integer status, String name, Long cloudRoomId) {
         LambdaQueryWrapper<Device> wrapper = new LambdaQueryWrapper<>();
         if (status != null) {
             wrapper.eq(Device::getStatus, status);
         }
         if (name != null && !name.trim().isEmpty()) {
             wrapper.like(Device::getDeviceName, name);
+        }
+        if (cloudRoomId != null) {
+            wrapper.eq(Device::getCloudRoomId, cloudRoomId);
         }
         wrapper.orderByDesc(Device::getUpdateTime);
         return wrapper;
@@ -314,13 +321,14 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, Device> impleme
 
     @Override
     public Page<Device> pageByConditionScoped(Integer current, Integer size, Integer status,
-                                               String name, Long currentUserId) {
-        return page(new Page<>(current, size), buildConditionWrapper(status, name));
+                                               String name, Long cloudRoomId, Long currentUserId) {
+        return page(new Page<>(current, size), buildConditionWrapper(status, name, cloudRoomId));
     }
 
     @Override
-    public List<Device> listByConditionScoped(Integer status, String name, Long currentUserId) {
-        return list(buildConditionWrapper(status, name));
+    public List<Device> listByConditionScoped(Integer status, String name, Long cloudRoomId,
+                                              Long currentUserId) {
+        return list(buildConditionWrapper(status, name, cloudRoomId));
     }
 
     @Override

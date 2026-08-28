@@ -7,7 +7,7 @@
       </div>
     </header>
 
-    <device-filter :filter="filter" @search="handleSearch" @reset="handleReset" />
+    <device-filter :filter="filter" :rooms="rooms" @search="handleSearch" @reset="handleReset" />
     <div class="toolbar">
       <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleCreate">
         新增设备
@@ -65,6 +65,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Download, Plus, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -109,7 +110,7 @@ const deviceTypes = ref([])
 const rooms = ref([])
 const metrics = ref([])
 const pagination = reactive({ current: 1, size: 10 })
-const filter = reactive({ status: null, name: '' })
+const filter = reactive({ status: null, name: '', cloudRoomId: null })
 const formVisible = ref(false)
 const formMode = ref('create')
 const currentDevice = ref(null)
@@ -180,6 +181,7 @@ async function fetchDeviceList() {
     const params = { current: pagination.current, size: pagination.size }
     if (filter.status !== null && filter.status !== '') params.status = filter.status
     if (filter.name.trim()) params.name = filter.name.trim()
+    if (filter.cloudRoomId != null) params.cloudRoomId = filter.cloudRoomId
     const result = await getDevicePage(params)
     deviceList.value = result.data?.records || []
     total.value = result.data?.total || 0
@@ -191,14 +193,25 @@ async function fetchDeviceList() {
 
 function handleSearch() {
   pagination.current = 1
+  syncRoomQuery()
   void fetchDeviceList()
 }
 
 function handleReset() {
   filter.status = null
   filter.name = ''
+  filter.cloudRoomId = null
   pagination.current = 1
+  syncRoomQuery()
   void fetchDeviceList()
+}
+
+// 机房筛选与 URL query 双向同步（roomId 可从仪表盘/数据监控携带跳转）
+function syncRoomQuery() {
+  const query = { ...route.query }
+  if (filter.cloudRoomId != null) query.roomId = filter.cloudRoomId
+  else delete query.roomId
+  router.replace({ query })
 }
 
 function handleCreate() {
@@ -320,7 +333,13 @@ function formatDate(date) {
   return `${year}${month}${day}`
 }
 
+const route = useRoute()
+const router = useRouter()
+
 onMounted(async () => {
+  // URL query 携带的机房上下文初始化筛选（可分享/可刷新）
+  const queryRoom = Number(route.query.roomId)
+  if (queryRoom && !Number.isNaN(queryRoom)) filter.cloudRoomId = queryRoom
   await fetchReferences()
   await fetchDeviceList()
   await fetchGateways()

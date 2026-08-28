@@ -200,13 +200,23 @@ async function fetchAlarms() {
 
 function search() {
   pagination.current = 1
+  syncRoomQuery()
   void fetchAlarms()
 }
 
 function resetFilters() {
   Object.assign(filters, { state: '', alarmLevel: null, deviceId: null, cloudRoomId: null })
   pagination.current = 1
+  syncRoomQuery()
   void fetchAlarms()
+}
+
+// 机房筛选与 URL query 双向同步（roomId 可从仪表盘/设备/监控页携带跳转）
+function syncRoomQuery() {
+  const query = { ...route.query }
+  if (filters.cloudRoomId != null) query.roomId = filters.cloudRoomId
+  else delete query.roomId
+  router.replace({ query })
 }
 
 function availableActions(state) {
@@ -282,6 +292,9 @@ function roomName(id) {
 }
 
 onMounted(async () => {
+  // URL query 携带的机房上下文初始化筛选（可分享/可刷新）
+  const queryRoom = Number(route.query.roomId)
+  if (queryRoom && !Number.isNaN(queryRoom)) filters.cloudRoomId = queryRoom
   await Promise.all([loadReferences(), fetchAlarms()])
   removeSummaryListener = onSummary(handleSummary)
   if (route.query.id) openDetail({ id: route.query.id })

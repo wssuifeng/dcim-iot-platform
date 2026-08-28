@@ -61,10 +61,12 @@ public class DeviceController {
         this.cloudRoomService = cloudRoomService;
     }
 
-    @Operation(summary = "查询所有设备列表", description = "返回全部设备信息，不分页")
+    @Operation(summary = "查询所有设备列表", description = "返回设备信息不分页；可选按所属机房过滤")
     @GetMapping
-    public Result<List<Device>> list() {
-        return Result.success(deviceService.listScoped(currentUser().userId()));
+    public Result<List<Device>> list(
+            @Parameter(description = "所属机房ID筛选（可选）") @RequestParam(required = false) Long cloudRoomId) {
+        return Result.success(deviceService.listByConditionScoped(null, null, cloudRoomId,
+                currentUser().userId()));
     }
 
     @Operation(summary = "设备编码可用性检查", description = "添加设备时实时防重：返回编码是否可用")
@@ -131,16 +133,17 @@ public class DeviceController {
         return Result.success();
     }
 
-    @Operation(summary = "分页查询设备", description = "支持按状态、名称筛选，结果按 updateTime 倒序")
+    @Operation(summary = "分页查询设备", description = "支持按状态、名称、所属机房筛选，结果按 updateTime 倒序")
     @GetMapping("/page")
     public Result<Page<Device>> listByPage(
             @Parameter(description = "当前页码，默认1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小，默认10，上限100") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
-            @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name) {
+            @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name,
+            @Parameter(description = "所属机房ID筛选（可选）") @RequestParam(required = false) Long cloudRoomId) {
         int[] pageParams = PaginationUtils.validate(current, size);
         return Result.success(deviceService.pageByConditionScoped(
-                pageParams[0], pageParams[1], status, name, currentUser().userId()));
+                pageParams[0], pageParams[1], status, name, cloudRoomId, currentUser().userId()));
     }
 
     @Operation(summary = "删除设备", description = "设备不存在时抛出 DeviceNotFoundException")
@@ -176,7 +179,7 @@ public class DeviceController {
                 .doWrite(List.of());
     }
 
-    @Operation(summary = "导出设备列表", description = "按状态、名称筛选导出 Excel，单次上限 10000 条")
+    @Operation(summary = "导出设备列表", description = "按状态、名称、机房筛选导出 Excel，单次上限 10000 条")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "返回 .xlsx 文件流"),
             @ApiResponse(responseCode = "400", description = "导出超过10000条(4065)"),
@@ -188,9 +191,10 @@ public class DeviceController {
     public void exportDevices(
             @Parameter(description = "设备状态筛选（可选）") @RequestParam(required = false) Integer status,
             @Parameter(description = "设备名称模糊筛选（可选）") @RequestParam(required = false) String name,
+            @Parameter(description = "所属机房ID筛选（可选）") @RequestParam(required = false) Long cloudRoomId,
             HttpServletResponse response) throws IOException {
         List<Device> deviceList = deviceService.listByConditionScoped(
-                status, name, currentUser().userId());
+                status, name, cloudRoomId, currentUser().userId());
         if (deviceList.size() > 10000) {
             throw new com.example.platform.common.exception.BusinessException(
                     ResultCode.EXPORT_SIZE_EXCEED, "导出数据量超过 10000 条限制");

@@ -5,6 +5,21 @@
         <h1>指标监控</h1>
         <p>设备点位最新值、历史采样与趋势</p>
       </div>
+      <!-- 机房上下文（来自 URL query，仪表盘机房卡片下钻携带） -->
+      <div v-if="contextRoomName" class="room-context">
+        <span class="room-context-label">机房上下文</span>
+        <el-select
+          :model-value="contextRoomId"
+          clearable
+          filterable
+          placeholder="全部机房"
+          class="room-context-select"
+          @change="handleContextChange"
+        >
+          <el-option v-for="r in contextRooms" :key="r.id" :label="r.roomName" :value="r.id" />
+        </el-select>
+        <el-button link @click="clearContext">查看全部</el-button>
+      </div>
     </header>
 
     <el-card v-if="gateways.length" class="gateway-panel" shadow="never">
@@ -145,8 +160,10 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getAllDevices } from '@/api/device'
+import { getCloudRoomPage } from '@/api/cloudRoom'
 import { getDevicePointBindings } from '@/api/devicePoint'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getDeviceMetricLatest } from '@/api/metricLatest'
@@ -155,6 +172,27 @@ import DeviceSidebar from '@/components/data-monitor/DeviceSidebar.vue'
 import DataTrendChart from '@/components/data-monitor/DataTrendChart.vue'
 
 defineOptions({ name: 'ScopedMetricMonitor' })
+
+const route = useRoute()
+const router = useRouter()
+
+// 机房上下文：URL query roomId 驱动（仪表盘机房卡片下钻入口），可清除
+const contextRooms = ref([])
+const contextRoomId = computed(() => {
+  const raw = route.query.roomId
+  return raw != null && raw !== '' ? Number(raw) : null
+})
+const contextRoomName = computed(
+  () => contextRooms.value.find((r) => r.id === contextRoomId.value)?.roomName || '',
+)
+
+function handleContextChange(roomId) {
+  router.replace({ query: roomId != null ? { roomId } : {} })
+}
+
+function clearContext() {
+  router.replace({ query: {} })
+}
 
 const RANGE_MILLISECONDS = Object.freeze({
   '1h': 60 * 60 * 1000,
@@ -212,12 +250,14 @@ const chartData = computed(() =>
 )
 
 async function loadReferenceData() {
-  const [deviceResult, pointResult] = await Promise.all([
-    getAllDevices(),
+  const [deviceResult, pointResult, roomResult] = await Promise.all([
+    getAllDevices(contextRoomId.value),
     getPointDefinitionPage({ current: 1, size: 100 }),
+    getCloudRoomPage({ current: 1, size: 100 }).catch(() => ({ data: { records: [] } })),
   ])
   devices.value = deviceResult.data || []
   pointDefinitions.value = pointResult.data?.records || []
+  contextRooms.value = roomResult.data?.records || []
 }
 
 async function loadSelectedDevice() {
@@ -366,7 +406,16 @@ async function loadGateways() {
     .filter(Boolean)
 }
 
-onMounted(loadReferenceData)
+// 机房上下文切换：重载设备列表并清空选中设备
+watch(contextRoomId, () => {
+  selectedDeviceId.value = null
+  void loadReferenceData()
+})
+
+onMounted(() => {
+  void loadReferenceData()
+  void loadGateways()
+})
 </script>
 
 <style scoped>
@@ -376,6 +425,10 @@ onMounted(loadReferenceData)
 
 .page-header {
   margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .page-header h1 {
@@ -388,6 +441,23 @@ onMounted(loadReferenceData)
   margin: 6px 0 0;
   color: var(--color-text-3);
   font-size: 13px;
+}
+
+/* 机房上下文选择（URL query 驱动，仪表盘下钻可见） */
+.room-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.room-context-label {
+  color: var(--color-text-2);
+  font-size: 13px;
+}
+
+.room-context-select {
+  width: 180px;
 }
 
 .monitor-layout {

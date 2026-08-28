@@ -25,8 +25,8 @@ export function updateDeviceStatus(id, status) {
 }
 
 
-export function getAllDevices() {
-  return request.get('/devices')
+export function getAllDevices(cloudRoomId) {
+  return request.get('/devices', { params: cloudRoomId != null ? { cloudRoomId } : undefined })
 }
 
 /**
