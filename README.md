@@ -1,8 +1,8 @@
 # dcim-iot-platform 数据中心动环监控平台
 
-> **一句话定位**：自部署的数据中心动环监控平台——`docker compose up` 之后，你就拥有一个活着的数据中心：机房、设备、流动的数据、会响的告警。你的采集网关往一个干净的北向契约里推数，内置的仿真网关让系统开箱即活。
+> **一句话定位**：自部署的数据中心动环监控平台——`docker compose up` 之后，你就拥有一个活着的数据中心：机房、设备、流动的数据、会响的告警。你的采集网关只凭三样配置（平台地址 + AccessKey + SecretKey）往北向契约里推数，配套的仿真服务让整个系统开箱即活。
 
-> **当前基线**：`refactor/depivot` 分支（单租户收束）。多组织 SaaS 版本封存于 tag `v5.4-saas-final`，收束决策见 `docs/adr/`。
+> **当前基线**：`refactor/depivot` 分支（单租户收束 + 机房凭证合一）。多组织 SaaS 版本封存于 tag `v5.4-saas-final`，收束决策见 `docs/adr/`。
 
 ---
 
@@ -12,7 +12,7 @@
 # 1. 准备：MySQL 9.x + Redis 7 运行中，复制 .env.example 为 .env 并填好数据库密码
 cp .env.example .env
 
-# 2. 一键启动（app + MySQL + Redis）
+# 2. 一键启动（app + MySQL + Redis + mosquitto）
 docker compose up -d --build
 
 # 3. 打开前端，登录种子账号
@@ -20,12 +20,17 @@ docker compose up -d --build
 #    admin / Admin123（另有 operator / viewer 同密码）
 ```
 
-你会看到：两个演示机房、四台设备（其中一台离线，用于演示离线告警）、预置的温湿度/电压点位与告警规则。向设备上报一条超阈值的数据，告警状态机（TRIGGERED → ACKED → HANDLING → RECOVERED → CLOSED）、站内通知、邮件通道都会依次活动起来。
+登录后的接入全流程（机房与接入凭证合一，设备零预置）：
+
+1. **机房管理**页新增机房——弹窗一次性给出该机房的 **AccessKey / SecretKey**（创建机房即初始化接入凭证，无独立凭证管理页）；
+2. 打开仿真服务（[dcim-simulator](../dcim-simulator)，默认 :8090）管理页，网关配置**只填三样**：平台地址 + AccessKey + SecretKey，保存并启动，点"平台连通自检"；
+3. 点"拉取告警阈值"（顺带同步机房目录），创建虚拟设备（Modbus TCP slave）并初始化环境档案；
+4. 网关轮询寄存器、按策略北向上报——平台**首包自动注册**设备（按上报点位智能推断类型，如 temperature → 温湿度），数据落库、超阈值告警触发：右上角滑出告警弹窗，状态机 TRIGGERED → ACKED → HANDLING → RECOVERED → CLOSED 全程流转，站内通知（头部铃铛模态框）同步到达。
 
 本地开发：
 
 ```bash
-./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V10 + 演示种子）
+./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V14 + 种子）
 cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 ```
 
@@ -37,17 +42,22 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 | 能力 | 说明 |
 |------|------|
-| 机房与设备 | 机房为顶层资源；设备档案、五类产品类型（UPS/PDU/精密空调/温湿度/漏水）、Excel 导入导出 |
+| 机房与设备 | 机房为顶层资源，创建机房即初始化该机房网关接入凭证（合一模型，1:1）；设备档案、五类产品类型（UPS/PDU/精密空调/温湿度/漏水）、Excel 导入导出、编码实时防重 |
+| 设备接入 | 首包自动注册（未知 deviceCode 自动建档 + 模板点位绑定，类型按点位编码智能推断）、网关清单上报、编码防重查询 |
+| 数据接收门 | HTTP + MQTT 双协议适配器汇入传输无关核心：机房归属校验、`deviceCode+pointCode+seq` 幂等去重（QoS1 重发友好）、断网补传（迟到但有序）、批量逐条独立事务 |
+| 网关观测 | 心跳保活（恒走 HTTP，与数据传输解耦）、last_seen 持续刷新、网关离线告警（每 5 分钟扫描 + MQTT 遗嘱即时触发，恢复自动闭环，从未上线也可发现） |
 | 点位与指标 | 点位定义、类型级点位模板、设备点位绑定；指标采样（时序）+ 最新值 + 保留策略与 TTL 清理 |
-| 告警状态机 | 模板级/设备级规则引擎（替换式降级）、五级告警、TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED 全程留痕 |
-| 通知 | 站内通知未读管理、WebSocket（STOMP）用户隔离摘要推送、邮件告警、通知日志与去重 |
-| 仿真推演 | 模拟场景/步骤编排、异步运行与取消、生成数据可追溯（阶段三将重建为环境引擎+虚拟设备） |
+| 告警状态机 | 模板级/设备级规则引擎、五级告警、最严重命中、级别升级、全程留痕；阈值可经网关签名导出（供网关本地告警判定，松耦合） |
+| 通知 | 头部铃铛通知模态框（未读管理/单条与全部已读）、WebSocket（STOMP）用户隔离推送、右上角卡片式告警弹窗（分级图标、自动消失、堆叠不打断）、邮件告警、通知日志与去重 |
 | 认证与审计 | JWT 无状态认证、三角色 RBAC、账号锁定防爆破、IP 限流、邮箱验证码注册、结构化审计日志 |
 | 可观测 | TraceId 全链路、Druid 慢 SQL 监控、Actuator 健康检查、生产安全门控 |
 
+**平台内不做仿真**（V12 已退役）：造数职责由独立仓库 **dcim-simulator** 承担——虚拟设备（Modbus TCP slave，环境引擎四函数 + 确定性噪声 + 故障注入）+ 智能网关（FC03 轮询 / 工程量解码 / 周期-死区-越限上报策略 / MQTT-HTTP 双传输北向客户端），设备与网关间真实 Modbus TCP 通信，与真实机房两级链路同构。网关对云平台零管理依赖：全部交互走 Gateway 签名（上报、心跳自检、阈值拉取、清单同步）。
+
 ### 技术栈
 
-Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 Vue 3 + Vite + Element Plus + Pinia + ECharts，日间/夜间双主题。
+平台：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 Vue 3 + Vite + Element Plus + Pinia + ECharts，日间/夜间双主题。
+仿真服务：Spring Boot + JPA + H2（本地自包含），手写最小 Modbus TCP 子集（零协议依赖），Vue3 + Element Plus 单文件管理页。
 
 ---
 
@@ -55,11 +65,11 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 | 角色 | 能做什么 |
 |------|---------|
-| **ADMIN** | 全部：用户管理、设备类型、机房/设备/点位/规则/场景的增删改、审计清理、Druid 监控 |
-| **OPERATOR** | 业务写入：设备、采样上报、告警处理、仿真运行；不碰用户与设备类型目录 |
+| **ADMIN** | 全部：用户管理、设备类型、机房（含接入凭证生命周期）/设备/点位/规则、审计清理、Druid 监控 |
+| **OPERATOR** | 业务写入：设备、采样上报、告警处理；不碰用户与设备类型目录 |
 | **VIEWER** | 只读：设备/数据/告警/指标/日志 |
 
-角色写入 JWT（`role` 声明），历史多组织 Token 的 `platformRole` 声明自动归一化为 ADMIN。用户来源两条：ADMIN 在用户管理页创建；或开放注册（`AUTH_REGISTRATION_ENABLED=true` 时邮箱验证码自助注册，默认 OPERATOR 不可、注册即 VIEWER）。开发环境初始用户由 V9 seed 提供。
+角色写入 JWT（`role` 声明），历史多组织 Token 的 `platformRole` 声明自动归一化为 ADMIN。用户来源两条：ADMIN 在用户管理页创建；或开放注册（`AUTH_REGISTRATION_ENABLED=true` 时邮箱验证码自助注册，注册即 VIEWER）。开发环境初始用户由 V9 seed 提供。
 
 ---
 
@@ -67,14 +77,16 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 现场设备（RS485/Modbus/SNMP/BACnet）接入采集网关，网关做协议翻译后向北推送统一 JSON——**平台不实现任何南向协议**（决策记录：`docs/adr/ADR-002`）。
 
-**网关接入（已实现）**：管理员在"接入管理"页为机房签发网关凭证（accessKey/secret，secret 仅创建/重置时展示一次）。网关经两条等价通道上报：
+**机房即接入主体**：每个机房自带一套接入凭证（创建机房时初始化，停用机房联动停凭证、删除机房级联删凭证）。网关凭 AccessKey/SecretKey 经两条等价通道上报：
 
-- **HTTP**：`POST /api/ingest/samples`，请求头 `Authorization: Gateway {accessKey}:{sha256(secret + rawBody)}`
-- **MQTT**：发布到 `dcim/{accessKey}/samples`（QoS 1），报文 `{"signature","batch"}`；心跳走 `dcim/{accessKey}/heartbeat`，断连由 broker 遗嘱 `dcim/{accessKey}/lwt` 上报（broker 由 `docker compose up -d mosquitto` 提供，平台侧 `INGEST_MQTT_ENABLED=true` 启用）
+- **HTTP**：`POST /api/ingest/samples`，请求头 `Authorization: Gateway {AccessKey}:{sha256(SecretKey + rawBody)}`
+- **MQTT**：发布到 `dcim/{accessKey}/samples`（QoS 1），报文 `{"signature","batch"}`；断连由 broker 遗嘱 `dcim/{accessKey}/lwt` 上报（broker 由 `docker compose up -d mosquitto` 提供，平台侧 `INGEST_MQTT_ENABLED=true` 启用；仿真器网关 MQTT 不可达时自动回退 HTTP，数据不断流）
 
-两种通道汇入同一条传输无关处理链：机房归属校验 → `deviceCode+pointCode+seq` 幂等去重（QoS1 重发计入 duplicated）→ 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；凭证只能上报其绑定机房的设备，越权条目失败不落库。`POST /api/ingest/heartbeat` 刷新网关存活时间（接入管理页可见 last_seen_at）。
+两种通道汇入同一条传输无关处理链：机房归属校验 → 未知设备自动注册（可选，凭证维度开关）→ `deviceCode+pointCode+seq` 幂等去重 → 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；越权条目失败不落库。
 
-用户态 API `POST /metric-samples` 保留用于手工调试；机房仿真服务（独立仓库 dcim-simulator）作为"官方诚实网关"走同一条 ingest 契约。
+辅助契约（同样 Gateway 签名）：`POST /api/ingest/heartbeat` 心跳保活；`POST /api/ingest/inventory` 设备清单上报（显式导入或 unknown 比对）；`GET /api/ingest/export/thresholds` 阈值与机房目录导出（网关本地告警判定的配置源）。
+
+用户态 API `POST /metric-samples` 保留用于手工调试；dcim-simulator 作为"官方诚实网关"走同一条 ingest 契约。
 
 ---
 
@@ -83,19 +95,20 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 ```
 ├── src/main/java/com/example/platform/
 │   ├── controller/            # REST 控制器
-│   ├── service/ + impl/       # 服务层（含 AlertRuleEngine 告警规则引擎）
+│   ├── service/ + impl/       # 服务层（告警规则引擎、采样事务、离线检测）
 │   ├── entity/ mapper/ dto/   # 数据模型
-│   ├── ingest/                # 数据接收门：HTTP/MQTT 适配器 + 传输无关核心 + 网关凭证
-│   ├── security/              # JWT 过滤链、三角色模型、WebSocket 鉴权
+│   ├── ingest/                # 数据接收门：HTTP/MQTT 适配器 + 传输无关核心 + 机房配套凭证
+│   ├── security/              # JWT 过滤链、三角色模型、WebSocket 鉴权与推送
 │   ├── common/                # Result 统一响应、异常体系、审计切面、限流/XSS 过滤器
 │   ├── config/                # Security/Redis/MyBatis-Plus/Async/生产安全门控
-│   └── task/                  # 离线检测、数据 TTL 清理、幂等键清理
+│   └── task/                  # 设备离线检测、网关离线检测、数据 TTL、幂等键清理
 ├── src/main/resources/db/
-│   ├── migration/             # Flyway V1–V12（V10 用户域收束，V11 网关接收门，V12 仿真退役）
-│   └── seed/                  # V9 开发种子（仅 dev profile 加载）
-├── frontend/                  # Vue3 管理后台（13 个业务页面）
+│   ├── migration/             # Flyway V1–V14（V10 用户域收束，V11 接收门，V12 仿真退役，
+│   │                          #   V13 设备接入打通，V14 机房凭证合一）
+│   └── seed/                  # V9 开发种子（仅 dev profile；设备零预置，留给接入全流程）
+├── frontend/                  # Vue3 管理后台（11 个业务页面）
 ├── docker/mosquitto/          # MQTT broker 配置（数据接收门北向通道）
-└── docs/adr/                  # 架构决策记录
+└── docs/                      # 架构决策记录 + 实施计划书
 ```
 
 启动后访问 `/swagger-ui.html` 查看实时 API 文档；`/druid/index.html` 查看 SQL 监控（dev）。
@@ -106,12 +119,12 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 | 命令 | 用途 |
 |------|------|
-| `./mvnw test` | 全量测试（252 个用例） |
+| `./mvnw test` | 全量测试（261 个用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
 
-环境变量见 `.env.example`（数据库/Redis/JWT/邮件/注册开关）。生产环境由 `ProductionSafetyGuard` 启动门控强制：必须替换默认 JWT 密钥、配置明确 CORS 来源、关闭模拟写入。
+环境变量见 `.env.example`（数据库/Redis/JWT/邮件/注册开关/MQTT 接收门）。生产环境由 `ProductionSafetyGuard` 启动门控强制：必须替换默认 JWT 密钥、配置明确 CORS 来源、配置数据库与 Redis 密码。
 
 ---
 
@@ -120,8 +133,10 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
 | 一 | 用户域收束：多组织 SaaS → 单租户三角色 | ✅ 完成 |
-| 二 | 数据接收门：传输无关核心 + HTTP/MQTT 双协议适配器，网关凭证鉴权、幂等、心跳 | ✅ 完成（本版本） |
-| 三 | 独立机房仿真服务（新仓库 dcim-simulator）：设备模块（Modbus TCP slave）+ 网关模块（轮询/策略/北向上报），完整还原设备→网关→云平台两级链路 | ✅ 完成（E2E：45℃ 阶跃 4 秒触发告警，kill 重启自动恢复） |
+| 二 | 数据接收门：传输无关核心 + HTTP/MQTT 双协议适配器，网关凭证鉴权、幂等、心跳 | ✅ 完成 |
+| 三 | 独立机房仿真服务（dcim-simulator）：虚拟设备（Modbus TCP slave）+ 智能网关（轮询/策略/北向上报），还原设备→网关→云平台两级链路 | ✅ 完成（E2E：45℃ 平滑过渡 4 秒触发告警，kill 重启自动恢复） |
+| 四 | 设备接入打通：机房凭证合一、首包自动注册 + 类型智能匹配、清单上报、网关离线告警、通知模态框与告警弹窗 | ✅ 完成（本版本） |
+| 五 | 告警点位模版重构（可命名/可复用/可改绑的规则融合模版）+ 两服务前端 UI 重设计 | 📋 计划已定（[docs/点位模版重构与前端UI重设计计划.md](docs/点位模版重构与前端UI重设计计划.md)） |
 
 详细实施计划见 [docs/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md](docs/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md)。
 
@@ -134,4 +149,4 @@ Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + MySQL 9.6 + Redis 7 + JDK 17；前端 
 
 ---
 
-*基于 refactor/depivot 分支编写，最后更新于 2026-08-27。*
+*基于 refactor/depivot 分支编写，最后更新于 2026-08-28（机房凭证合一 + 设备接入打通基线）。*
