@@ -9,6 +9,9 @@
         <el-tooltip :content="themeTooltip">
           <el-button circle :icon="themeIcon" aria-label="切换主题" @click="themeStore.toggle" />
         </el-tooltip>
+        <el-tooltip :content="alarmSoundMuted ? '告警声音（已静音）' : '告警声音（开启）'">
+          <el-button circle :icon="alarmSoundMuted ? Mute : Bell" aria-label="告警声音开关" @click="toggleAlarmSound" />
+        </el-tooltip>
         <el-tooltip :content="realtimeConnected ? '站内通知' : '站内通知（实时连接中断）'">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
             <el-button circle :icon="Bell" aria-label="站内通知" @click="notificationVisible = true" />
@@ -64,12 +67,13 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell, Sunny, Moon } from '@element-plus/icons-vue'
-import { ElNotification } from 'element-plus'
+import { Bell, Mute, Sunny, Moon } from '@element-plus/icons-vue'
+import { ElMessage, ElNotification } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getAlarmEvent } from '@/api/alarmEvent'
 import NotificationModal from '@/components/NotificationModal.vue'
 import { getUnreadNotificationCount } from '@/api/notification'
+import { isAlarmSoundMuted, playAlarmSound, setAlarmSoundMuted } from '@/utils/alarmSound'
 import {
   connectSummarySocket,
   disconnectSummarySocket,
@@ -176,11 +180,17 @@ async function popAlarmNotification(summary) {
     if (summary.level <= 2 && summary.state !== 'RECOVERED') title = '紧急告警'
   }
 
+  // 告警触发/升级播放提醒音（恢复不响）；用户决策：手动关闭模式
+  if (summary.eventType !== 'ALARM_RECOVERED' && summary.state !== 'RECOVERED') {
+    playAlarmSound()
+  }
+
   enqueueNotification({
     title,
     message,
     type,
-    duration: 6000,
+    // 告警类不自动消失（手动关闭队列）；恢复类保持 6s 自动消失
+    duration: summary.eventType === 'ALARM_RECOVERED' || summary.state === 'RECOVERED' ? 6000 : 0,
     position: 'top-right',
     showClose: true,
     // 卡片顶部级别色带（theme.css 五级色带令牌）
@@ -189,9 +199,12 @@ async function popAlarmNotification(summary) {
 }
 
 // Element Plus 同一 tick 连发通知时，前序通知 offsetHeight 尚为 0（display 未解除），
-// 偏移只累加间距导致卡片互相叠压——用小间隔队列错峰派发规避
+// 偏移只累加间距导致卡片互相叠压——用小间隔队列错峰派发规避。
+// 告警类通知 duration=0 不自动消失，堆叠上限 5 张：第 6 张起顶掉最旧一张。
 const notificationQueue = []
+const activeAlarmNotifications = []
 let notificationFlushing = false
+const MAX_ALARM_NOTIFICATIONS = 5
 
 function enqueueNotification(options) {
   notificationQueue.push(options)
@@ -199,7 +212,17 @@ function enqueueNotification(options) {
   notificationFlushing = true
   const flush = () => {
     const next = notificationQueue.shift()
-    if (next) ElNotification(next)
+    if (next) {
+      const manualClose = next.duration === 0
+      if (manualClose) {
+        // 堆叠超限时顶掉最旧的手动关闭卡片
+        while (activeAlarmNotifications.length >= MAX_ALARM_NOTIFICATIONS) {
+          activeAlarmNotifications.shift()?.close()
+        }
+      }
+      const handle = ElNotification(next)
+      if (manualClose) activeAlarmNotifications.push(handle)
+    }
     if (notificationQueue.length) {
       setTimeout(flush, 120)
     } else {
@@ -222,6 +245,15 @@ function handleCommand(command) {
     authStore.logout()
     router.push('/login')
   }
+}
+
+// 告警音效开关（持久化 localStorage）
+const alarmSoundMuted = ref(isAlarmSoundMuted())
+
+function toggleAlarmSound() {
+  alarmSoundMuted.value = !alarmSoundMuted.value
+  setAlarmSoundMuted(alarmSoundMuted.value)
+  ElMessage.success(alarmSoundMuted.value ? '告警声音已静音' : '告警声音已开启')
 }
 </script>
 
