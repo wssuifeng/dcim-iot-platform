@@ -176,7 +176,7 @@ async function popAlarmNotification(summary) {
     if (summary.level <= 2 && summary.state !== 'RECOVERED') title = '紧急告警'
   }
 
-  ElNotification({
+  enqueueNotification({
     title,
     message,
     type,
@@ -186,6 +186,27 @@ async function popAlarmNotification(summary) {
     // 卡片顶部级别色带（theme.css 五级色带令牌）
     customClass: `alarm-notify alarm-notify-l${level}`,
   })
+}
+
+// Element Plus 同一 tick 连发通知时，前序通知 offsetHeight 尚为 0（display 未解除），
+// 偏移只累加间距导致卡片互相叠压——用小间隔队列错峰派发规避
+const notificationQueue = []
+let notificationFlushing = false
+
+function enqueueNotification(options) {
+  notificationQueue.push(options)
+  if (notificationFlushing) return
+  notificationFlushing = true
+  const flush = () => {
+    const next = notificationQueue.shift()
+    if (next) ElNotification(next)
+    if (notificationQueue.length) {
+      setTimeout(flush, 120)
+    } else {
+      notificationFlushing = false
+    }
+  }
+  setTimeout(flush, 0)
 }
 
 function levelType(level) {

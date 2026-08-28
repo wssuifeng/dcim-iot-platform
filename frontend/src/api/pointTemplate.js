@@ -7,11 +7,3 @@ export function getDeviceTypePointTemplates(typeId) {
 export function saveDeviceTypePointTemplates(typeId, items) {
   return request.put(`/point-templates/device-types/${typeId}`, { items })
 }
-
-export function getPlatformDeviceTypePointTemplates(typeId) {
-  return request.get(`/platform/point-templates/device-types/${typeId}`)
-}
-
-export function savePlatformDeviceTypePointTemplates(typeId, items) {
-  return request.put(`/platform/point-templates/device-types/${typeId}`, { items })
-}

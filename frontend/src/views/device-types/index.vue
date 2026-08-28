@@ -3,7 +3,7 @@
     <header class="page-header">
       <div>
         <h1>设备类型</h1>
-        <p>五类设备目录、告警规则与点位模板</p>
+        <p>五类设备目录、基础点位清单与告警模版绑定</p>
       </div>
       <el-button v-if="canEditType" type="primary" :icon="Plus" @click="handleCreate">
         新增设备类型
@@ -28,7 +28,7 @@
       <el-table-column label="操作" width="350" fixed="right">
         <template #default="{ row }">
           <el-button link type="success" :icon="Grid" @click="openTemplate(row)">
-            点位模板
+            点位清单
           </el-button>
           <el-button v-if="canEditType" link type="warning" :icon="AlarmClock" @click="openBindTemplate(row)">
             绑定模版
@@ -65,7 +65,6 @@
       v-model:visible="templateVisible"
       :device-type="currentType"
       :can-manage="canManageTemplate"
-      :mode="templateMode"
     />
 
     <!-- 基础告警模版绑定 -->
@@ -106,11 +105,8 @@ const authStore = useAuthStore()
 // 设备类型目录 CRUD 仅平台管理员（后端已收紧为 PLATFORM_ADMIN）
 const canEditType = computed(() => authStore.isAdmin)
 const canDeleteType = computed(() => authStore.isAdmin)
-// 点位模板：平台管理员维护平台级模板，组织管理员维护本组织模板
-const canManageTemplate = computed(
-  () => authStore.isAdmin,
-)
-const templateMode = computed(() => 'platform')
+// 基础点位清单：ADMIN 维护（新设备建档/自动注册的绑定来源）
+const canManageTemplate = computed(() => authStore.isAdmin)
 const loading = ref(false)
 const typeList = ref([])
 const filter = reactive({ typeName: '', typeCode: '' })

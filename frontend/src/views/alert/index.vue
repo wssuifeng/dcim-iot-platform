@@ -36,25 +36,29 @@
     </el-form>
 
     <el-table v-loading="loading" :data="alarms" row-key="id" :row-class-name="alarmRowClass">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="状态" width="105">
+      <el-table-column prop="id" label="ID" width="70" />
+      <el-table-column label="状态" width="95">
         <template #default="{ row }"><el-tag :type="stateType(row.state)">{{ stateLabel(row.state) }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="级别" width="90">
+      <el-table-column label="级别" width="80">
         <template #default="{ row }">
           <span :class="['level-tag', `alarm-band-l${row.alarmLevel}`]">{{ levelLabel(row.alarmLevel) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="设备" min-width="150">
+      <el-table-column label="设备" min-width="110">
         <template #default="{ row }">{{ deviceName(row.deviceId) }}</template>
       </el-table-column>
-      <el-table-column prop="alarmType" label="告警类型" min-width="140" />
-      <el-table-column prop="alarmMessage" label="告警描述" min-width="240" show-overflow-tooltip />
-      <el-table-column label="机房" min-width="160">
+      <el-table-column prop="alarmType" label="告警类型" width="100" />
+      <el-table-column prop="alarmMessage" label="告警描述" min-width="180">
+        <template #default="{ row }">
+          <span class="desc-text" :title="row.alarmMessage">{{ row.alarmMessage }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="机房" min-width="120">
         <template #default="{ row }">{{ roomName(row.cloudRoomId) }}</template>
       </el-table-column>
-      <el-table-column prop="triggeredTime" label="触发时间" min-width="170" />
-      <el-table-column label="操作" min-width="280">
+      <el-table-column prop="triggeredTime" label="触发时间" width="165" />
+      <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
           <el-button
@@ -335,11 +339,6 @@ onBeforeUnmount(() => removeSummaryListener?.())
   margin-top: 16px;
 }
 
-/* 告警行级别色条作用于表格行（scoped 需穿透 el-table 行） */
-:deep(.el-table .alarm-row-band) {
-  position: relative;
-}
-
 /* 级别 pill（五级色带令牌） */
 .level-tag {
   display: inline-flex;
@@ -351,5 +350,15 @@ onBeforeUnmount(() => removeSummaryListener?.())
   color: var(--alarm-band, var(--color-text-2));
   background: var(--alarm-band-bg, var(--color-surface-2));
   font-weight: 500;
+}
+
+/* 告警描述省略：不用 show-overflow-tooltip——其内联宽度取初始 realWidth，
+   列被压缩后不再更新导致文本溢出压列（EP 已知失配），改为受控截断 */
+.desc-text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: default;
 }
 </style>

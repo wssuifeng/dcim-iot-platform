@@ -285,11 +285,13 @@ body,
 .alarm-band-l4 { --alarm-band: var(--alarm-l4); --alarm-band-bg: var(--alarm-l4-bg); }
 .alarm-band-l5 { --alarm-band: var(--alarm-l5); --alarm-band-bg: var(--alarm-l5-bg); }
 
-/* 活跃告警行左侧级别色条（3px，视觉扫读） */
-.alarm-row-band {
+/* 活跃告警行左侧级别色条（3px，视觉扫读）
+   注意：伪元素必须挂在 td 上——挂 tr 会生成匿名表格盒子挤占第一列
+   （table-layout:fixed 下整行右移、末列被压成 0 宽） */
+.alarm-row-band > td:first-child {
   position: relative;
 }
-.alarm-row-band::before {
+.alarm-row-band > td:first-child::before {
   content: '';
   position: absolute;
   left: 0;
