@@ -224,7 +224,8 @@ function openAction(row, action) {
   actionVisible.value = true
 }
 
-async function submitAction(note) {
+// AlarmActionDialog emit 的是 { action, note } 对象，需解构取 note
+async function submitAction({ note }) {
   submitting.value = true
   try {
     const id = currentAlarm.value.id

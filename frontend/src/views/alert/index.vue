@@ -20,7 +20,18 @@
         </el-select>
       </el-form-item>
       <el-form-item label="设备">
-        <el-select v-model="filters.deviceId" clearable filterable class="device-select">
+        <el-select
+          v-model="filters.deviceId"
+          clearable
+          filterable
+          remote
+          :remote-method="searchDevices"
+          :loading="deviceSearching"
+          :remote-show-suffix="false"
+          reserve-keyword
+          class="device-select"
+          placeholder="输入名称搜索设备"
+        >
           <el-option v-for="item in devices" :key="item.id" :label="item.deviceName" :value="item.id" />
         </el-select>
       </el-form-item>
@@ -46,7 +57,7 @@
         </template>
       </el-table-column>
       <el-table-column label="设备" min-width="110">
-        <template #default="{ row }">{{ deviceName(row.deviceId) }}</template>
+        <template #default="{ row }">{{ row.deviceName || deviceName(row.deviceId) }}</template>
       </el-table-column>
       <el-table-column prop="alarmType" label="告警类型" width="100" />
       <el-table-column prop="alarmMessage" label="告警描述" min-width="180">
@@ -181,6 +192,25 @@ async function loadReferences() {
   ])
   devices.value = deviceResult.data?.records || []
   rooms.value = roomResult.data?.records || []
+}
+
+// 设备筛选远程搜索：输入字符按名称搜全量设备（设备多时下拉滚动不可用）
+const deviceSearching = ref(false)
+
+function searchDevices(query) {
+  const keyword = (query || '').trim()
+  if (!keyword) {
+    void loadReferences()
+    return
+  }
+  deviceSearching.value = true
+  getDevicePage({ current: 1, size: 50, name: keyword })
+    .then((res) => {
+      devices.value = res.data?.records || []
+    })
+    .finally(() => {
+      deviceSearching.value = false
+    })
 }
 
 async function fetchAlarms() {
