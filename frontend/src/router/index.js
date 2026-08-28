@@ -55,6 +55,12 @@ const routes = [
         meta: { title: '告警管理', icon: 'Bell', navigation: true, navigationOrder: 40, roles: ALL_ROLES },
       },
       {
+        path: 'alarm-templates',
+        name: 'alarm-templates',
+        component: () => import('@/views/alarm-template/index.vue'),
+        meta: { title: '告警模版', icon: 'AlarmClock', navigation: true, navigationOrder: 45, roles: ALL_ROLES },
+      },
+      {
         path: 'metric',
         name: 'metric',
         component: () => import('@/views/metric/index.vue'),

@@ -61,6 +61,19 @@
         <el-form-item label="IP 地址" prop="ipAddress">
           <el-input v-model="form.ipAddress" placeholder="可选" />
         </el-form-item>
+        <el-form-item v-if="mode === 'edit'" label="告警模版" class="span-full">
+          <el-select v-model="form.alarmTemplateId" clearable filterable class="full-width" placeholder="跟随类型基础模版">
+            <el-option
+              v-for="t in alarmTemplates"
+              :key="t.id"
+              :value="t.id"
+              :label="t.id === typeBaseTemplateId ? `跟随类型（${t.templateName}）` : `${t.templateName} (${t.templateCode})`"
+            />
+          </el-select>
+          <div v-if="followTypeName" class="alarm-template-hint">
+            当前跟随类型基础模版：{{ followTypeName }}；选择其他模版即改绑，规则整体切换
+          </div>
+        </el-form-item>
       </div>
     </el-form>
     <template #footer>
@@ -83,6 +96,7 @@ const props = defineProps({
   device: { type: Object, default: null },
   deviceTypes: { type: Array, default: () => [] },
   rooms: { type: Array, default: () => [] },
+  alarmTemplates: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:visible', 'confirm'])
 const codeHint = ref('')
@@ -96,8 +110,19 @@ const form = reactive({
   status: 0,
   location: '',
   ipAddress: '',
+  alarmTemplateId: null,
 })
 const availableRooms = computed(() => props.rooms.filter((item) => item.status === 0))
+// 所选类型的基础告警模版（"跟随类型"选项标注与提示）
+const typeBaseTemplateId = computed(() => {
+  const type = props.deviceTypes.find((t) => t.id === form.typeId)
+  return type?.alarmTemplateId || null
+})
+const followTypeName = computed(() => {
+  if (form.alarmTemplateId) return ''
+  const tpl = props.alarmTemplates.find((t) => t.id === typeBaseTemplateId.value)
+  return tpl?.templateName || ''
+})
 const rules = {
   deviceName: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
   deviceCode: [
@@ -121,6 +146,7 @@ function initializeForm() {
   form.status = source.status ?? 0
   form.location = source.location || ''
   form.ipAddress = source.ipAddress || ''
+  form.alarmTemplateId = source.alarmTemplateId || null
   if (!form.cloudRoomId && availableRooms.value.length === 1) {
     form.cloudRoomId = availableRooms.value[0].id
   }
@@ -181,7 +207,18 @@ async function submit() {
   gap: 0 16px;
 }
 
+.span-full {
+  grid-column: 1 / -1;
+}
+
 .full-width {
   width: 100%;
+}
+
+.alarm-template-hint {
+  margin-top: 4px;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

@@ -40,6 +40,17 @@
         <el-text v-else type="info" size="small">-</el-text>
       </template>
     </el-table-column>
+    <el-table-column label="生效模版" min-width="150">
+      <template #default="{ row }">
+        <span
+          v-if="effectiveTemplateNames[row.id]?.templateName"
+          :class="{ 'template-follow': effectiveTemplateNames[row.id]?.source === 'TEMPLATE' }"
+        >
+          {{ effectiveTemplateNames[row.id].templateName }}
+        </span>
+        <el-text v-else type="info" size="small">无</el-text>
+      </template>
+    </el-table-column>
     <el-table-column prop="updateTime" label="更新时间" min-width="170" />
     <el-table-column label="操作" width="310" fixed="right">
       <template #default="{ row }">
@@ -82,6 +93,7 @@ defineProps({
   typeNames: { type: Object, default: () => ({}) },
   roomNames: { type: Object, default: () => ({}) },
   gatewayNames: { type: Object, default: () => ({}) },
+  effectiveTemplateNames: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['edit', 'delete', 'status-change', 'points'])
 
@@ -99,5 +111,9 @@ function statusType(status) {
   margin-top: 3px;
   color: var(--color-text-3);
   font-size: 12px;
+}
+/* 跟随类型基础模版：灰色弱化显示（改绑后正常色） */
+.template-follow {
+  color: var(--color-text-2);
 }
 </style>

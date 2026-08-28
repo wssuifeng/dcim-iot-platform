@@ -13,14 +13,25 @@
     <device-type-filter :filter="filter" @search="handleSearch" @reset="handleReset" />
 
     <el-table v-loading="loading" :data="filteredList" row-key="id">
-      <el-table-column prop="typeName" label="类型名称" min-width="150" />
-      <el-table-column prop="typeCode" label="类型编码" min-width="150" />
-      <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
+      <el-table-column prop="typeName" label="类型名称" min-width="140" />
+      <el-table-column prop="typeCode" label="类型编码" min-width="140" />
+      <el-table-column label="基础告警模版" min-width="170">
+        <template #default="{ row }">
+          <span v-if="row.alarmTemplateId && templateNameById(row.alarmTemplateId)">
+            {{ templateNameById(row.alarmTemplateId).templateName }}
+          </span>
+          <span v-else class="secondary">未绑定</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
       <el-table-column prop="updateTime" label="更新时间" min-width="170" />
-      <el-table-column label="操作" width="310" fixed="right">
+      <el-table-column label="操作" width="350" fixed="right">
         <template #default="{ row }">
           <el-button link type="success" :icon="Grid" @click="openTemplate(row)">
             点位模板
+          </el-button>
+          <el-button v-if="canEditType" link type="warning" :icon="AlarmClock" @click="openBindTemplate(row)">
+            绑定模版
           </el-button>
           <el-button
             v-if="canEditType"
@@ -56,12 +67,26 @@
       :can-manage="canManageTemplate"
       :mode="templateMode"
     />
+
+    <!-- 基础告警模版绑定 -->
+    <el-dialog v-model="bindVisible" :title="`基础告警模版 — ${bindType?.typeName || ''}`" width="440px">
+      <el-select v-model="bindTemplateId" filterable clearable placeholder="选择启用中的告警模版（空=解绑）" style="width: 100%">
+        <el-option v-for="t in enabledTemplates" :key="t.id" :value="t.id" :label="`${t.templateName}（${t.templateCode}）`" />
+      </el-select>
+      <p class="bind-tip">
+        类型绑定的基础模版是该类型全部设备的默认告警规则；改绑过的设备不受影响。
+      </p>
+      <template #footer>
+        <el-button @click="bindVisible = false">取消</el-button>
+        <el-button type="primary" :loading="bindSaving" @click="handleBindConfirm">保存</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Delete, Edit, Grid, Plus } from '@element-plus/icons-vue'
+import { AlarmClock, Delete, Edit, Grid, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -70,6 +95,7 @@ import {
   getDeviceTypes,
   updateDeviceType,
 } from '@/api/deviceType'
+import { bindTypeTemplate, listEnabledTemplates } from '@/api/alarmTemplate'
 import DeviceTypeFilter from '@/components/device-types/DeviceTypeFilter.vue'
 import DeviceTypeFormDialog from '@/components/device-types/DeviceTypeFormDialog.vue'
 import PointTemplateDialog from './PointTemplateDialog.vue'
@@ -101,6 +127,47 @@ const formVisible = ref(false)
 const formMode = ref('create')
 const currentType = ref(null)
 const templateVisible = ref(false)
+
+// 基础告警模版绑定
+const alarmTemplates = ref([])
+const enabledTemplates = computed(() => alarmTemplates.value.filter(t => t.status === 0))
+const bindVisible = ref(false)
+const bindType = ref(null)
+const bindTemplateId = ref(null)
+const bindSaving = ref(false)
+
+function templateNameById(id) {
+  return alarmTemplates.value.find(t => t.id === id)
+}
+
+async function fetchTemplates() {
+  try {
+    const res = await listEnabledTemplates()
+    alarmTemplates.value = res.data || []
+  } catch {
+    alarmTemplates.value = []
+  }
+}
+
+function openBindTemplate(row) {
+  bindType.value = row
+  bindTemplateId.value = row.alarmTemplateId || null
+  bindVisible.value = true
+}
+
+async function handleBindConfirm() {
+  bindSaving.value = true
+  try {
+    await bindTypeTemplate(bindType.value.id, bindTemplateId.value || null)
+    ElMessage.success(bindTemplateId.value ? '基础告警模版已绑定' : '已解绑，该类型设备将无告警规则')
+    bindVisible.value = false
+    await fetchTypeList()
+  } catch (e) {
+    ElMessage.error(e.message || '绑定失败')
+  } finally {
+    bindSaving.value = false
+  }
+}
 
 async function fetchTypeList() {
   loading.value = true
@@ -170,6 +237,7 @@ async function handleFormConfirm(data) {
 
 onMounted(async () => {
   await fetchTypeList().catch(() => undefined)
+  await fetchTemplates()
 })
 </script>
 
@@ -201,5 +269,12 @@ onMounted(async () => {
 .secondary {
   color: var(--color-text-3);
   font-size: 12px;
+}
+
+.bind-tip {
+  margin: 10px 0 0;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

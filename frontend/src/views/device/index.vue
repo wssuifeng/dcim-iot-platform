@@ -28,6 +28,7 @@
       :type-names="typeNames"
       :room-names="roomNames"
       :gateway-names="gatewayNames"
+      :effective-template-names="effectiveTemplateNames"
       @edit="handleEdit"
       @delete="handleDelete"
       @status-change="handleStatusChange"
@@ -51,6 +52,7 @@
       :device="currentDevice"
       :device-types="supportedDeviceTypes"
       :rooms="rooms"
+      :alarm-templates="enabledAlarmTemplates"
       @confirm="handleFormConfirm"
     />
     <device-point-drawer
@@ -79,6 +81,7 @@ import {
 import { getDeviceTypes } from '@/api/deviceType'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getCloudRoomPage } from '@/api/cloudRoom'
+import { getEffectiveTemplate, listEnabledTemplates, bindDeviceTemplate } from '@/api/alarmTemplate'
 
 import DeviceFilter from '@/components/device/DeviceFilter.vue'
 import DeviceEditorDialog from './DeviceEditorDialog.vue'
@@ -139,14 +142,36 @@ async function fetchGateways() {
 }
 
 async function fetchReferences() {
-  const [typeResult, roomResult, metricResult] = await Promise.all([
+  const [typeResult, roomResult, metricResult, templateResult] = await Promise.all([
     getDeviceTypes(),
     getCloudRoomPage({ current: 1, size: 100, status: 0 }),
     getPointDefinitionPage({ current: 1, size: 100 }),
+    listEnabledTemplates().catch(() => ({ data: [] })),
   ])
   deviceTypes.value = typeResult.data || []
   rooms.value = roomResult.data?.records || []
   metrics.value = metricResult.data?.records || []
+  alarmTemplates.value = templateResult.data || []
+}
+
+// 告警模版：启用列表 + 各设备生效模版名（跟随类型时显示类型模版名）
+const alarmTemplates = ref([])
+const enabledAlarmTemplates = computed(() => alarmTemplates.value.filter(t => t.status === 0))
+const effectiveTemplateNames = ref({})
+const templateById = computed(() => Object.fromEntries(alarmTemplates.value.map(t => [t.id, t])))
+
+async function fetchEffectiveTemplateNames() {
+  const entries = await Promise.all(
+    deviceList.value.map(async (d) => {
+      try {
+        const res = await getEffectiveTemplate(d.id)
+        return [d.id, res.data || {}]
+      } catch {
+        return [d.id, null]
+      }
+    }),
+  )
+  effectiveTemplateNames.value = Object.fromEntries(entries)
 }
 
 async function fetchDeviceList() {
@@ -158,6 +183,7 @@ async function fetchDeviceList() {
     const result = await getDevicePage(params)
     deviceList.value = result.data?.records || []
     total.value = result.data?.total || 0
+    void fetchEffectiveTemplateNames()
   } finally {
     loading.value = false
   }
@@ -216,7 +242,13 @@ async function handleFormConfirm(data) {
       await createDevice(data)
       ElMessage.success('设备已创建')
     } else {
-      await updateDevice(currentDevice.value.id, data)
+      const { alarmTemplateId, ...deviceData } = data
+      await updateDevice(currentDevice.value.id, deviceData)
+      // 改绑与常规更新分离：独立绑定端点（停用模版校验在服务端）
+      const targetId = alarmTemplateId || null
+      if ((currentDevice.value.alarmTemplateId || null) !== targetId) {
+        await bindDeviceTemplate(currentDevice.value.id, targetId)
+      }
       ElMessage.success('设备已更新')
     }
     formVisible.value = false
