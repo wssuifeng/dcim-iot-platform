@@ -26,62 +26,71 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="rooms" row-key="id">
-      <el-table-column prop="roomName" label="机房名称" min-width="150" />
-      <el-table-column prop="roomCode" label="机房编码" min-width="110" />
-      <el-table-column label="AccessKey" min-width="190">
-        <template #default="{ row }">
-          <span v-if="credentialOf(row.id)" class="access-key num">
-            {{ credentialOf(row.id).accessKey }}
-            <el-icon class="copy-icon" @click="copyText(credentialOf(row.id).accessKey)"><CopyDocument /></el-icon>
+    <!-- 机房卡片网格（默认按未处理告警降序，点击进入机房工作台） -->
+    <div v-loading="loading" class="room-card-grid">
+      <div
+        v-for="room in sortedRooms"
+        :key="room.id"
+        :class="['room-card', `room-card--${roomCardHealth(room)}`]"
+        @click="goWorkspace(room)"
+      >
+        <span v-if="roomTriggeredAlarms[room.id] > 0" class="room-card-badge num">{{ roomTriggeredAlarms[room.id] }}</span>
+        <div class="room-card-head">
+          <div class="room-card-title">
+            <span class="room-card-name">{{ room.roomName }}</span>
+            <span class="room-card-code num">{{ room.roomCode }}</span>
+          </div>
+          <span class="room-card-gateway">
+            <state-dot :state="gatewayDotState(room)" />
+            <span class="room-card-gateway-text">{{ gatewayStateLabel(room) }}</span>
           </span>
-          <el-text v-else type="info" size="small">未初始化</el-text>
-        </template>
-      </el-table-column>
-      <el-table-column label="网关状态" width="110">
-        <template #default="{ row }">
-          <span class="gateway-state">
-            <state-dot :state="gatewayDotState(row)" />
-            <span class="gateway-state-text">{{ gatewayStateLabel(row) }}</span>
+        </div>
+        <div class="room-card-ak" v-if="credentialOf(room.id)">
+          <span class="num">{{ credentialOf(room.id).accessKey }}</span>
+          <el-icon class="copy-icon" @click.stop="copyText(credentialOf(room.id).accessKey)"><CopyDocument /></el-icon>
+        </div>
+        <div class="room-card-ak" v-else><span class="ak-empty">未初始化</span></div>
+        <div class="room-card-meta">
+          <span class="meta-item">
+            <span class="meta-label">最近活跃</span>
+            <span class="num meta-value">{{ credentialOf(room.id)?.lastSeenAt || '从未上报' }}</span>
           </span>
-        </template>
-      </el-table-column>
-      <el-table-column label="最近活跃" min-width="160">
-        <template #default="{ row }">
-          <span v-if="credentialOf(row.id)?.lastSeenAt">{{ credentialOf(row.id).lastSeenAt }}</span>
-          <el-text v-else type="info" size="small">从未上报</el-text>
-        </template>
-      </el-table-column>
-      <el-table-column label="自动注册" width="90">
-        <template #default="{ row }">
-          <el-tag v-if="credentialOf(row.id)?.autoRegister === 1" type="success" size="small">开启</el-tag>
-          <el-tag v-else type="info" size="small">关闭</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="location" label="位置" min-width="130" show-overflow-tooltip />
-      <el-table-column label="机房状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 0 ? 'success' : 'info'">
-            {{ row.status === 0 ? '正常' : '停用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column v-if="canManage" label="操作" width="300" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="warning" :icon="Key" @click="handleResetSecret(row)">重置密钥</el-button>
+          <span class="meta-item">
+            <span class="meta-label">自动注册</span>
+            <span class="meta-value">
+              <el-tag v-if="credentialOf(room.id)?.autoRegister === 1" type="success" size="small">开启</el-tag>
+              <el-tag v-else type="info" size="small">关闭</el-tag>
+            </span>
+          </span>
+          <span class="meta-item">
+            <span class="meta-label">机房状态</span>
+            <span class="meta-value">
+              <el-tag :type="room.status === 0 ? 'success' : 'info'" size="small">
+                {{ room.status === 0 ? '正常' : '停用' }}
+              </el-tag>
+            </span>
+          </span>
+          <span class="meta-item meta-item-wide">
+            <span class="meta-label">位置</span>
+            <span class="meta-value meta-wrap">{{ room.location || '未设置' }}</span>
+          </span>
+        </div>
+        <div v-if="canManage" class="room-card-actions" @click.stop>
+          <el-button link type="primary" :icon="Edit" @click="openEdit(room)">编辑</el-button>
+          <el-button link type="warning" :icon="Key" @click="handleResetSecret(room)">重置密钥</el-button>
           <el-button
             link
-            :type="row.status === 0 ? 'warning' : 'success'"
+            :type="room.status === 0 ? 'warning' : 'success'"
             :icon="Switch"
-            @click="toggleStatus(row)"
+            @click="toggleStatus(room)"
           >
-            {{ row.status === 0 ? '停用' : '启用' }}
+            {{ room.status === 0 ? '停用' : '启用' }}
           </el-button>
-          <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+          <el-button link type="danger" :icon="Delete" @click="handleDelete(room)">删除</el-button>
+        </div>
+      </div>
+      <el-empty v-if="!loading && rooms.length === 0" description="暂无机房" class="grid-empty" />
+    </div>
 
     <el-pagination
       v-if="total > 0"
@@ -164,10 +173,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { CopyDocument, Delete, Edit, Key, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceTypes } from '@/api/deviceType'
+import { getAlarmEventPage } from '@/api/alarmEvent'
 import {
   createCloudRoom,
   deleteCloudRoom,
@@ -182,6 +193,7 @@ import {
 defineOptions({ name: 'CloudRoomManagement' })
 
 const authStore = useAuthStore()
+const router = useRouter()
 const canManage = computed(() => authStore.role === 'ADMIN')
 const loading = ref(false)
 const submitting = ref(false)
@@ -209,6 +221,35 @@ const rules = {
 
 function credentialOf(roomId) {
   return credentials.value[roomId]
+}
+
+// 每机房未处理告警数（卡片排序主指标与角标）
+const roomTriggeredAlarms = ref({})
+
+// 卡片排序：未处理告警降序 → 网关离线 → 停用靠后（用户决策）
+const sortedRooms = computed(() =>
+  [...rooms.value].sort((a, b) => {
+    const at = roomTriggeredAlarms.value[a.id] || 0
+    const bt = roomTriggeredAlarms.value[b.id] || 0
+    if (bt !== at) return bt - at
+    const aDown = gatewayStateLabel(a) === '离线' ? 1 : 0
+    const bDown = gatewayStateLabel(b) === '离线' ? 1 : 0
+    if (aDown !== bDown) return bDown - aDown
+    return (a.status === 1 ? 1 : 0) - (b.status === 1 ? 1 : 0)
+  }),
+)
+
+// 卡片健康色条：停用灰 / 网关离线红 / 有告警黄 / 正常绿（口径同仪表盘）
+function roomCardHealth(room) {
+  if (room.status === 1) return 'idle'
+  const label = gatewayStateLabel(room)
+  if (label === '离线') return 'down'
+  if (label === '在线') return (roomTriggeredAlarms.value[room.id] || 0) > 0 ? 'warn' : 'ok'
+  return 'idle'
+}
+
+function goWorkspace(room) {
+  router.push({ name: 'room-overview', params: { roomId: room.id } })
 }
 
 function gatewayStateLabel(room) {
@@ -251,6 +292,14 @@ async function fetchRooms() {
       if (credResults[i]?.data) credMap[room.id] = credResults[i].data
     })
     credentials.value = credMap
+    // 各机房未处理告警数（排序+角标）
+    const alarmResults = await Promise.all(rooms.value.map((r) =>
+      getAlarmEventPage({ current: 1, size: 1, cloudRoomId: r.id, state: 'TRIGGERED' }).catch(() => null)))
+    const alarmMap = {}
+    rooms.value.forEach((room, i) => {
+      alarmMap[room.id] = Number(alarmResults[i]?.data?.total || 0)
+    })
+    roomTriggeredAlarms.value = alarmMap
   } finally {
     loading.value = false
   }
@@ -443,11 +492,117 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-/* AccessKey 等宽 + 悬停复制图标 */
-.access-key {
+/* ===== 机房卡片网格（卡片式表格，视觉同仪表盘机房卡） ===== */
+.room-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  min-height: 120px;
+}
+
+.grid-empty {
+  grid-column: 1 / -1;
+}
+
+.room-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.room-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.room-card--ok { border-left-color: var(--color-success); }
+.room-card--warn { border-left-color: var(--color-warning); }
+.room-card--down { border-left-color: var(--color-danger); }
+.room-card--idle { border-left-color: var(--color-text-3); }
+
+/* 未处理告警角标 */
+.room-card-badge {
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 11px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.room-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.room-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.room-card-name {
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-card-code {
+  color: var(--color-text-3);
+  font-size: 11px;
+}
+
+.room-card-gateway {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+.room-card-gateway-text {
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+/* AccessKey 行：等宽 + 悬停复制 */
+.room-card-ak {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.room-card-ak .num {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-empty {
+  color: var(--color-text-3);
 }
 
 .copy-icon {
@@ -461,15 +616,45 @@ onMounted(async () => {
   color: var(--color-primary);
 }
 
-/* 网关状态：色点 + 文字 */
-.gateway-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+.room-card-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
 }
 
-.gateway-state-text {
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.meta-item-wide {
+  grid-column: 1 / -1;
+}
+
+.meta-label {
+  color: var(--color-text-3);
+  font-size: 11px;
+}
+
+.meta-value {
   color: var(--color-text-2);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+/* 位置长文本换行显示（卡片不截断） */
+.meta-wrap {
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.room-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 8px;
 }
 </style>

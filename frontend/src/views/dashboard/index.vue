@@ -41,6 +41,8 @@
           :class="['room-card', `room-card--${room.health}`]"
           @click="router.push({ name: 'room-overview', params: { roomId: room.id } })"
         >
+          <!-- 未处理告警角标（排序主指标） -->
+          <span v-if="room.triggeredAlarms > 0" class="room-card-badge num">{{ room.triggeredAlarms }}</span>
           <div class="room-card-head">
             <span class="room-card-name">{{ room.roomName }}</span>
             <span class="room-card-gateway">
@@ -207,24 +209,35 @@ const ranking = computed(() => {
 })
 
 // 机房卡片：绿=网关在线且无触发告警 / 黄=有告警 / 红=网关离线
+// 机房卡片：默认按未处理告警降序 → 网关离线 → 在线率（用户决策）
 const roomCards = computed(() =>
-  rooms.value.map((room) => {
-    const credential = roomCredentials.value[room.id]
-    const gatewayState = resolveGatewayState(credential?.lastSeenAt)
-    const roomDevices = devices.value.filter((d) => d.cloudRoomId === room.id)
-    const triggered = roomTriggeredAlarms.value[room.id] || 0
-    const health =
-      gatewayState === 'online' ? (triggered > 0 ? 'warn' : 'ok') : gatewayState === 'stale' ? 'idle' : 'down'
-    return {
-      id: room.id,
-      roomName: room.roomName,
-      gatewayState,
-      health,
-      totalDevices: roomDevices.length,
-      onlineDevices: roomDevices.filter((d) => d.status === 1).length,
-      triggeredAlarms: triggered,
-    }
-  }),
+  rooms.value
+    .map((room) => {
+      const credential = roomCredentials.value[room.id]
+      const gatewayState = resolveGatewayState(credential?.lastSeenAt)
+      const roomDevices = devices.value.filter((d) => d.cloudRoomId === room.id)
+      const triggered = roomTriggeredAlarms.value[room.id] || 0
+      const health =
+        gatewayState === 'online' ? (triggered > 0 ? 'warn' : 'ok') : gatewayState === 'stale' ? 'idle' : 'down'
+      return {
+        id: room.id,
+        roomName: room.roomName,
+        gatewayState,
+        health,
+        totalDevices: roomDevices.length,
+        onlineDevices: roomDevices.filter((d) => d.status === 1).length,
+        triggeredAlarms: triggered,
+      }
+    })
+    .sort((a, b) => {
+      if (b.triggeredAlarms !== a.triggeredAlarms) return b.triggeredAlarms - a.triggeredAlarms
+      const aDown = a.gatewayState === 'offline' ? 1 : 0
+      const bDown = b.gatewayState === 'offline' ? 1 : 0
+      if (aDown !== bDown) return bDown - aDown
+      const aRate = a.totalDevices ? a.onlineDevices / a.totalDevices : 0
+      const bRate = b.totalDevices ? b.onlineDevices / b.totalDevices : 0
+      return aRate - bRate
+    }),
 )
 
 // 网关状态口径与机房管理页一致：最近活跃 5 分钟内在线；从未上线=stale
@@ -361,6 +374,7 @@ onBeforeUnmount(() => removeSummaryListener?.())
 }
 
 .room-card {
+  position: relative;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-left: 3px solid var(--color-border);
@@ -387,6 +401,21 @@ onBeforeUnmount(() => removeSummaryListener?.())
 
 .room-card--idle {
   border-left-color: var(--color-text-3);
+}
+
+/* 未处理告警角标（右上角，排序主指标） */
+.room-card-badge {
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 11px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .room-card-head {
