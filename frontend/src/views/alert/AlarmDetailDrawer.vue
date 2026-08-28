@@ -123,7 +123,7 @@ defineExpose({ loadDetail })
 
 .history-section {
   padding-top: 18px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--color-border);
 }
 
 .history-section + .history-section {

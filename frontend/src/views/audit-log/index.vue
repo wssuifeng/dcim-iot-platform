@@ -186,7 +186,7 @@ onMounted(() => {
 .filter-bar {
   padding: 14px 16px 0;
   margin-bottom: 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 

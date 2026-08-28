@@ -116,11 +116,11 @@ const trendData = computed(() =>
   Object.entries(dashboard.value.dailyTrend || {}).map(([date, count]) => ({ date: date.slice(5), count })),
 )
 const stateMeta = Object.freeze([
-  { key: 'TRIGGERED', label: '已触发', color: '#f56c6c' },
-  { key: 'ACKED', label: '已确认', color: '#e6a23c' },
-  { key: 'HANDLING', label: '处理中', color: '#409eff' },
-  { key: 'RECOVERED', label: '已恢复', color: '#67c23a' },
-  { key: 'CLOSED', label: '已关闭', color: '#909399' },
+  { key: 'TRIGGERED', label: '已触发', color: 'var(--color-danger)' },
+  { key: 'ACKED', label: '已确认', color: 'var(--color-warning)' },
+  { key: 'HANDLING', label: '处理中', color: 'var(--color-primary)' },
+  { key: 'RECOVERED', label: '已恢复', color: 'var(--color-success)' },
+  { key: 'CLOSED', label: '已关闭', color: 'var(--color-text-3)' },
 ])
 const levelMeta = Object.freeze([
   { key: '1', label: '紧急', type: 'danger' },

@@ -33,14 +33,14 @@ const filteredDevices = computed(() => {
 })
 
 function statusColor(status) {
-  return DEVICE_STATUS[status]?.color || '#909399'
+  return DEVICE_STATUS[status]?.color || 'var(--color-text-3)'
 }
 </script>
 
 <style scoped>
-.device-sidebar { width: 220px; padding: 12px; border-right: 1px solid #e6e6e6; overflow-y: auto; }
+.device-sidebar { width: 220px; padding: 12px; border-right: 1px solid var(--color-border); overflow-y: auto; }
 .device-item { cursor: pointer; padding: 8px 12px; border-radius: 4px; display: flex; align-items: center; gap: 8px; }
 .device-item:hover { background: var(--color-bg); }
-.device-item.active { background: #ecf5ff; color: var(--color-primary); }
+.device-item.active { background: var(--color-primary-light); color: var(--color-primary); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 </style>

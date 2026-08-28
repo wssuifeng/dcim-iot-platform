@@ -141,7 +141,7 @@ watch(
 
 .notice-item {
   padding: 10px 12px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border);
   cursor: pointer;
   border-radius: 4px;
 }
@@ -164,7 +164,7 @@ watch(
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #dcdfe6;
+  background: var(--color-border);
   flex-shrink: 0;
 }
 

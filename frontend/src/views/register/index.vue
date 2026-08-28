@@ -70,7 +70,7 @@ async function submit() {
 
 <style scoped>
 .auth-shell { min-height: 100vh; display: grid; place-items: center; background: #f3f5f7; padding: 24px; }
-.auth-panel { width: min(440px, 100%); padding: 28px; background: #fff; border: 1px solid #dcdfe6; border-radius: 6px; }
+.auth-panel { width: min(440px, 100%); padding: 28px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; }
 h1 { margin: 0 0 22px; font-size: 24px; }
 .code-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; width: 100%; }
 .submit { width: 100%; margin-bottom: 18px; }

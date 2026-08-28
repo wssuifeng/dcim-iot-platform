@@ -380,13 +380,13 @@ onMounted(loadReferenceData)
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 620px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 
 .device-panel {
   overflow: hidden;
-  border-right: 1px solid #ebeef5;
+  border-right: 1px solid var(--color-border);
 }
 
 .monitor-content {

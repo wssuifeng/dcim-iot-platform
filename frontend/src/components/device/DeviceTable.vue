@@ -10,8 +10,8 @@
           :model-value="row.status"
           :active-value="1"
           :inactive-value="0"
-          active-color="#67C23A"
-          inactive-color="#909399"
+          active-color="var(--color-success)"
+          inactive-color="var(--color-text-3)"
           @change="val => $emit('status-change', row, val)"
         />
         <el-tag v-else :type="statusType(row.status)" size="small">

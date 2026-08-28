@@ -39,6 +39,18 @@
   --chart-tooltip-border: #e2e8f0;
   --chart-tooltip-text: #1e293b;
 
+  /* ===== 告警五级色带（1紧急-5提示，红→橙→黄→蓝→灰） ===== */
+  --alarm-l1: #dc2626;
+  --alarm-l1-bg: #fef2f2;
+  --alarm-l2: #ea580c;
+  --alarm-l2-bg: #fff7ed;
+  --alarm-l3: #d97706;
+  --alarm-l3-bg: #fffbeb;
+  --alarm-l4: #2563eb;
+  --alarm-l4-bg: #eff6ff;
+  --alarm-l5: #64748b;
+  --alarm-l5-bg: #f1f5f9;
+
   /* ===== Element Plus 变量覆盖 ===== */
   --el-color-primary: #2563eb;
   --el-color-primary-light-3: #5a8af0;
@@ -158,6 +170,18 @@
   --chart-tooltip-border: #334155;
   --chart-tooltip-text: #f1f5f9;
 
+  /* ===== 告警五级色带（暗色：降饱和提高可读性） ===== */
+  --alarm-l1: #f87171;
+  --alarm-l1-bg: rgba(248, 113, 113, 0.14);
+  --alarm-l2: #fb923c;
+  --alarm-l2-bg: rgba(251, 146, 60, 0.14);
+  --alarm-l3: #fbbf24;
+  --alarm-l3-bg: rgba(251, 191, 36, 0.14);
+  --alarm-l4: #60a5fa;
+  --alarm-l4-bg: rgba(96, 165, 250, 0.14);
+  --alarm-l5: #94a3b8;
+  --alarm-l5-bg: rgba(148, 163, 184, 0.14);
+
   /* ===== Element Plus 变量覆盖 ===== */
   --el-color-primary: #00d4ff;
   --el-color-primary-light-3: #33ddff;
@@ -245,6 +269,35 @@ body,
   background-color: var(--color-bg);
   color: var(--color-text);
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ===== 数据数值等宽工具类（tabular-nums + mono 栈） ===== */
+.num {
+  font-family: var(--data-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ===== 告警级别色带工具类 ===== */
+.alarm-band-l1 { --alarm-band: var(--alarm-l1); --alarm-band-bg: var(--alarm-l1-bg); }
+.alarm-band-l2 { --alarm-band: var(--alarm-l2); --alarm-band-bg: var(--alarm-l2-bg); }
+.alarm-band-l3 { --alarm-band: var(--alarm-l3); --alarm-band-bg: var(--alarm-l3-bg); }
+.alarm-band-l4 { --alarm-band: var(--alarm-l4); --alarm-band-bg: var(--alarm-l4-bg); }
+.alarm-band-l5 { --alarm-band: var(--alarm-l5); --alarm-band-bg: var(--alarm-l5-bg); }
+
+/* 活跃告警行左侧级别色条（3px，视觉扫读） */
+.alarm-row-band {
+  position: relative;
+}
+.alarm-row-band::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--alarm-band, var(--alarm-l5));
+  border-radius: 3px 0 0 3px;
 }
 
 /* Element Plus 组件暗黑模式适配 */
