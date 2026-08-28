@@ -1,6 +1,7 @@
 package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.platform.common.ResultCode;
@@ -319,8 +320,11 @@ public class AlarmTemplateServiceImpl
                         "停用状态的模版不能绑定为类型基础模版: " + template.getTemplateName());
             }
         }
-        type.setAlarmTemplateId(alarmTemplateId);
-        deviceTypeMapper.updateById(type);
+        // 解绑须显式 set null（updateById 默认忽略 null 字段）
+        LambdaUpdateWrapper<DeviceType> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(DeviceType::getId, typeId)
+                .set(DeviceType::getAlarmTemplateId, alarmTemplateId);
+        deviceTypeMapper.update(null, wrapper);
         log.info("设备类型告警模版绑定 typeId={} templateId={}", typeId, alarmTemplateId);
     }
 
@@ -338,8 +342,11 @@ public class AlarmTemplateServiceImpl
                         "停用状态的模版不能绑定到设备: " + template.getTemplateName());
             }
         }
-        device.setAlarmTemplateId(alarmTemplateId);
-        deviceMapper.updateById(device);
+        // 解绑须显式 set null（updateById 默认忽略 null 字段）
+        LambdaUpdateWrapper<Device> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(Device::getId, deviceId)
+                .set(Device::getAlarmTemplateId, alarmTemplateId);
+        deviceMapper.update(null, wrapper);
         log.info("设备告警模版改绑 deviceId={} templateId={}", deviceId, alarmTemplateId);
     }
 

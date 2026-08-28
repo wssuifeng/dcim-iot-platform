@@ -2,6 +2,7 @@ package com.example.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.dto.AlarmTemplateItemCreateDTO;
@@ -100,6 +101,9 @@ class AlarmTemplateServiceImplTest {
         MapperBuilderAssistant typeAssistant = new MapperBuilderAssistant(configuration, "");
         typeAssistant.setCurrentNamespace(DeviceTypeMapper.class.getName());
         TableInfoHelper.initTableInfo(typeAssistant, DeviceType.class);
+        MapperBuilderAssistant deviceAssistant = new MapperBuilderAssistant(configuration, "");
+        deviceAssistant.setCurrentNamespace(DeviceMapper.class.getName());
+        TableInfoHelper.initTableInfo(deviceAssistant, Device.class);
     }
 
     private AlarmTemplate template(long id) {
@@ -365,7 +369,7 @@ class AlarmTemplateServiceImplTest {
         @DisplayName("设备改绑为空即跟随类型")
         void should_unbindDevice() {
             when(deviceMapper.selectById(DEVICE_ID)).thenReturn(device(CUSTOM_TEMPLATE_ID));
-            when(deviceMapper.updateById(any(Device.class))).thenReturn(1);
+            when(deviceMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
             templateService.updateDeviceBinding(DEVICE_ID, null);
 
