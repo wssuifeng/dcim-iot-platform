@@ -3,13 +3,12 @@ package com.example.platform.task;
 import com.example.platform.dto.AlarmTriggerContext;
 import com.example.platform.dto.PointAlarmRuleVO;
 import com.example.platform.entity.AlarmEvent;
+import com.example.platform.entity.AlarmTemplateItem;
 import com.example.platform.entity.Device;
-import com.example.platform.entity.DevicePointAlarmRule;
-import com.example.platform.mapper.DevicePointAlarmRuleMapper;
+import com.example.platform.mapper.AlarmTemplateItemMapper;
 import com.example.platform.service.AlarmEventService;
-import com.example.platform.service.DevicePointAlarmRuleService;
+import com.example.platform.service.AlarmTemplateService;
 import com.example.platform.service.DeviceService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,7 +22,7 @@ import java.util.List;
  * 类功能:设备离线检测任务，双向扫描（触发离线告警/恢复离线告警），阈值取 OFFLINE 规则降级解析
  *
  * 【方向①该告警的】
- *   阈值解析: findEffectiveRules 的 OFFLINE 规则（设备覆盖优先→模板级→兜底 task.offline-threshold-seconds）
+ *   阈值解析: findEffectiveRules 的 OFFLINE 规则（设备改绑模版→类型基础模版，兜底 task.offline-threshold-seconds）
  *   扫描: getOnlineDetection(now - 最小生效阈值) 粗筛 → 逐台按各自生效阈值精判
  *   动作: AlarmEventService.trigger（pointId=NULL, alarmType=OFFLINE，活动告警去重）+
  *         DeviceService.updateStatus(id, 0)（D20 设备状态闭环）
@@ -38,21 +37,21 @@ public class DeviceOfflineMonitorTask {
     public static final String ALARM_TYPE_OFFLINE = "OFFLINE";
 
     private final DeviceService deviceService;
-    private final DevicePointAlarmRuleService ruleService;
+    private final AlarmTemplateService templateService;
     private final AlarmEventService alarmEventService;
-    private final DevicePointAlarmRuleMapper alarmRuleMapper;
+    private final AlarmTemplateItemMapper templateItemMapper;
 
     @Value("${task.offline-threshold-seconds:300}")
     private int offlineThresholdSeconds;
 
     public DeviceOfflineMonitorTask(DeviceService deviceService,
-                                    DevicePointAlarmRuleService ruleService,
+                                    AlarmTemplateService templateService,
                                     AlarmEventService alarmEventService,
-                                    DevicePointAlarmRuleMapper alarmRuleMapper) {
+                                    AlarmTemplateItemMapper templateItemMapper) {
         this.deviceService = deviceService;
-        this.ruleService = ruleService;
+        this.templateService = templateService;
         this.alarmEventService = alarmEventService;
-        this.alarmRuleMapper = alarmRuleMapper;
+        this.templateItemMapper = templateItemMapper;
     }
 
     /*
@@ -72,12 +71,9 @@ public class DeviceOfflineMonitorTask {
     }
 
     private void triggerOfflineAlarms() {
-        // 1. 全部启用 OFFLINE 规则的最小阈值用于粗筛（避免 N 次全表扫描；精判按各设备生效阈值）
-        LambdaQueryWrapper<DevicePointAlarmRule> offlineWrapper = new LambdaQueryWrapper<>();
-        offlineWrapper.eq(DevicePointAlarmRule::getRuleType, ALARM_TYPE_OFFLINE)
-                .eq(DevicePointAlarmRule::getEnabled, 1);
-        int minRuleMinutes = alarmRuleMapper.selectList(offlineWrapper).stream()
-                .map(DevicePointAlarmRule::getThreshold)
+        // 1. 全部启用模版下 OFFLINE 规则的最小阈值用于粗筛（避免 N 次全表扫描；精判按各设备生效模版阈值）
+        int minRuleMinutes = templateItemMapper.selectEnabledOfflineItems().stream()
+                .map(AlarmTemplateItem::getThreshold)
                 .filter(t -> t != null)
                 .map(BigDecimal::intValue)
                 .min(Integer::compareTo)
@@ -147,7 +143,7 @@ public class DeviceOfflineMonitorTask {
     }
 
     private int resolveOfflineMinutes(Integer deviceId, int fallbackMinutes) {
-        List<PointAlarmRuleVO> rules = ruleService.findEffectiveRules(deviceId, null);
+        List<PointAlarmRuleVO> rules = templateService.findEffectiveRules(deviceId, null);
         return rules.stream()
                 .filter(r -> ALARM_TYPE_OFFLINE.equals(r.getRuleType()))
                 .filter(r -> r.getThreshold() != null)
@@ -157,7 +153,7 @@ public class DeviceOfflineMonitorTask {
     }
 
     private int resolveOfflineLevel(Integer deviceId) {
-        List<PointAlarmRuleVO> rules = ruleService.findEffectiveRules(deviceId, null);
+        List<PointAlarmRuleVO> rules = templateService.findEffectiveRules(deviceId, null);
         return rules.stream()
                 .filter(r -> ALARM_TYPE_OFFLINE.equals(r.getRuleType()))
                 .map(PointAlarmRuleVO::getAlarmLevel)

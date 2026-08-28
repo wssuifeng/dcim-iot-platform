@@ -9,12 +9,12 @@ import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.PointDefinitionCreateDTO;
 import com.example.platform.dto.PointDefinitionUpdateDTO;
 import com.example.platform.dto.PointResourceExportPackage;
-import com.example.platform.entity.DevicePointAlarmRule;
+import com.example.platform.entity.AlarmTemplateItem;
 import com.example.platform.entity.DevicePointBinding;
 import com.example.platform.entity.DeviceType;
 import com.example.platform.entity.DeviceTypePointTemplate;
 import com.example.platform.entity.PointDefinition;
-import com.example.platform.mapper.DevicePointAlarmRuleMapper;
+import com.example.platform.mapper.AlarmTemplateItemMapper;
 import com.example.platform.mapper.DevicePointBindingMapper;
 import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.mapper.DeviceTypePointTemplateMapper;
@@ -49,7 +49,7 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
     private final DeviceTypeMapper deviceTypeMapper;
     private final DeviceTypePointTemplateMapper templateMapper;
     private final DevicePointBindingMapper bindingMapper;
-    private final DevicePointAlarmRuleMapper alarmRuleMapper;
+    private final AlarmTemplateItemMapper alarmTemplateItemMapper;
 
     // 注：不注入 DeviceTypePointTemplateService——该服务反向依赖本服务校验点位，
     // 注入会形成循环依赖；模板读写一律走 Mapper 层完成。
@@ -297,10 +297,10 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         if (bindingMapper.selectCount(bindingWrapper) > 0) {
             throw new BusinessException(ResultCode.POINT_IN_USE, "点位被设备绑定引用，禁止删除");
         }
-        LambdaQueryWrapper<DevicePointAlarmRule> ruleWrapper = new LambdaQueryWrapper<>();
-        ruleWrapper.eq(DevicePointAlarmRule::getPointId, pointId);
-        if (alarmRuleMapper.selectCount(ruleWrapper) > 0) {
-            throw new BusinessException(ResultCode.POINT_IN_USE, "点位被告警规则引用，禁止删除");
+        LambdaQueryWrapper<AlarmTemplateItem> ruleWrapper = new LambdaQueryWrapper<>();
+        ruleWrapper.eq(AlarmTemplateItem::getPointId, pointId);
+        if (alarmTemplateItemMapper.selectCount(ruleWrapper) > 0) {
+            throw new BusinessException(ResultCode.POINT_IN_USE, "点位被告警模版规则引用，禁止删除");
         }
     }
 

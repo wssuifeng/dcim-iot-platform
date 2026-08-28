@@ -12,33 +12,28 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 /**
- * 点位告警规则实体类，映射 device_point_alarm_rule 表，
- * 定义针对模板指标项的告警判断条件，支持设备级覆盖（设备级规则优先于模板级规则）
+ * 告警模版规则行实体类，映射 alarm_template_item 表
+ * 模版内的单条告警规则；point_id 为空表示通用规则（如 OFFLINE 离线检测）
  */
-@Schema(description = "点位告警规则")
+@Schema(description = "告警模版规则行")
 @Data
-@TableName("device_point_alarm_rule")
-public class DevicePointAlarmRule implements Serializable {
+@TableName("alarm_template_item")
+public class AlarmTemplateItem implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "规则ID（主键）", example = "1")
+    @Schema(description = "规则行ID（主键，自增）", example = "1")
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "所属模板指标项ID（关联 device_type_point_template）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "模板指标项不能为空")
-    @TableField("template_item_id")
-    private Long templateItemId;
+    @Schema(description = "所属模版ID（关联 alarm_template）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "所属模版不能为空")
+    @TableField("template_id")
+    private Long templateId;
 
-    @Schema(description = "设备ID（NULL=模板级规则；非空=该设备覆盖规则，优先生效）", example = "2")
-    @TableField("device_id")
-    private Integer deviceId;
-
-    @Schema(description = "点位定义ID（NULL=通用规则如离线/通信异常）", example = "1")
+    @Schema(description = "点位定义ID（NULL=通用规则如 OFFLINE/COMM）", example = "1")
     @TableField("point_id")
     private Long pointId;
 
@@ -56,7 +51,7 @@ public class DevicePointAlarmRule implements Serializable {
 
     @Schema(description = "比较符：GT/LT/GE/LE/EQ/NE；OFFLINE/COMM 规则为空", example = "GT",
             allowableValues = {"GT", "LT", "GE", "LE", "EQ", "NE"})
-    @Size(max = 5, message = "比较符最长5个字符")
+    @Size(max = 10, message = "比较符最长10个字符")
     @TableField("operator")
     private String operator;
 
@@ -76,20 +71,7 @@ public class DevicePointAlarmRule implements Serializable {
     @TableField("enabled")
     private Integer enabled;
 
-    @Schema(description = "备注")
-    @Size(max = 200, message = "备注最长200个字符")
-    @TableField("remark")
-    private String remark;
-
-    @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
-    @TableField(value = "create_time", fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
-
-    @Schema(description = "更新时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
-    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updateTime;
-
-    @Schema(hidden = true)
-    @TableLogic(value = "0", delval = "1")
-    private Integer deleted;
+    @Schema(description = "展示排序", example = "0")
+    @TableField("sort_order")
+    private Integer sortOrder;
 }

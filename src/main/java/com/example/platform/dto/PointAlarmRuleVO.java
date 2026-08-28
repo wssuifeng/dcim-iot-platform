@@ -1,6 +1,5 @@
 package com.example.platform.dto;
 
-import com.example.platform.entity.DevicePointAlarmRule;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -62,26 +61,9 @@ public class PointAlarmRuleVO implements Serializable {
     @Schema(description = "备注")
     private String remark;
 
-    @Schema(description = "生效层级来源（仅 effective 接口返回）：DEVICE_OVERRIDE/TEMPLATE")
+    @Schema(description = "生效层级来源（仅 effective 解析返回）：DEVICE_OVERRIDE-设备改绑模版 / TEMPLATE-类型基础模版")
     private String source;
 
     @Schema(description = "更新时间")
     private LocalDateTime updateTime;
-
-    public static PointAlarmRuleVO fromEntity(DevicePointAlarmRule rule) {
-        PointAlarmRuleVO vo = new PointAlarmRuleVO();
-        vo.setId(rule.getId());
-        vo.setTemplateItemId(rule.getTemplateItemId());
-        vo.setDeviceId(rule.getDeviceId());
-        vo.setPointId(rule.getPointId());
-        vo.setRuleType(rule.getRuleType());
-        vo.setRuleName(rule.getRuleName());
-        vo.setOperator(rule.getOperator());
-        vo.setThreshold(rule.getThreshold());
-        vo.setAlarmLevel(rule.getAlarmLevel());
-        vo.setEnabled(rule.getEnabled());
-        vo.setRemark(rule.getRemark());
-        vo.setUpdateTime(rule.getUpdateTime());
-        return vo;
-    }
 }

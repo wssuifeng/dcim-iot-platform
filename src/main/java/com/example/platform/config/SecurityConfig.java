@@ -154,10 +154,10 @@ public class SecurityConfig {
                         // 管理员/运维：设备/点位/采样写入（其余写接口由 @PreAuthorize 细化）
                         auth.requestMatchers(HttpMethod.POST, "/devices", "/metric-samples",
                                 "/metric-samples/batch", "/point-definitions",
-                                "/point-alarm-rules").hasAnyRole(BUSINESS_WRITE_ROLES);
+                                "/alarm-templates").hasAnyRole(BUSINESS_WRITE_ROLES);
                         auth.requestMatchers(HttpMethod.PUT, "/devices/**",
                                 "/point-definitions/**", "/point-templates/**",
-                                "/point-alarm-rules/**", "/metric-samples/**")
+                                "/alarm-templates/**", "/metric-samples/**")
                                 .hasAnyRole(BUSINESS_WRITE_ROLES);
                         // 管理员/运维：告警处理（VIEWER不可处理告警）
                         auth.requestMatchers(HttpMethod.PUT, "/alarm-events/**").hasAnyRole(BUSINESS_WRITE_ROLES);
@@ -165,7 +165,7 @@ public class SecurityConfig {
                         auth.requestMatchers(HttpMethod.GET,
                                 "/devices/**", "/metric-samples/**", "/metric-latest/**",
                                 "/point-definitions/**", "/point-templates/**",
-                                "/point-alarm-rules/**", "/alarm-events/**",
+                                "/alarm-templates/**", "/alarm-events/**",
                                 "/alarm-notification-logs/**",
                                 "/dashboard/**").hasAnyRole(BUSINESS_READ_ROLES);
                         // 其他GET仅要求认证

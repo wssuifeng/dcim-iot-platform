@@ -29,6 +29,10 @@ public class DeviceType implements Serializable {
     @Schema(description = "类型描述", example = "各类温度采集设备")
     private String description;
 
+    @Schema(description = "该类型的基础告警模版ID", example = "1")
+    @TableField("alarm_template_id")
+    private Long alarmTemplateId;
+
     @Schema(description = "创建时间（自动填充）", accessMode = Schema.AccessMode.READ_ONLY)
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

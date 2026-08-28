@@ -7,7 +7,7 @@ import com.example.platform.common.exception.BusinessException;
 import com.example.platform.dto.PointDefinitionCreateDTO;
 import com.example.platform.dto.PointDefinitionUpdateDTO;
 import com.example.platform.entity.PointDefinition;
-import com.example.platform.mapper.DevicePointAlarmRuleMapper;
+import com.example.platform.mapper.AlarmTemplateItemMapper;
 import com.example.platform.mapper.DevicePointBindingMapper;
 import com.example.platform.mapper.DeviceTypeMapper;
 import com.example.platform.mapper.DeviceTypePointTemplateMapper;
@@ -49,7 +49,7 @@ class PointDefinitionServiceImplTest {
     @Mock
     private DevicePointBindingMapper bindingMapper;
     @Mock
-    private DevicePointAlarmRuleMapper alarmRuleMapper;
+    private AlarmTemplateItemMapper alarmTemplateItemMapper;
 
     @InjectMocks
     private PointDefinitionServiceImpl pointDefinitionService;
@@ -165,12 +165,12 @@ class PointDefinitionServiceImplTest {
     class Delete {
 
         @Test
-        @DisplayName("被告警规则引用的点位拒绝删除（4035）")
+        @DisplayName("被告警模版规则引用的点位拒绝删除（4035）")
         void should_reject_whenReferencedByRule() {
             when(pointDefinitionMapper.selectById(5L)).thenReturn(buildPoint(5L, "temperature"));
             lenient().when(templateMapper.selectCount(any())).thenReturn(0L);
             lenient().when(bindingMapper.selectCount(any())).thenReturn(0L);
-            when(alarmRuleMapper.selectCount(any())).thenReturn(2L);
+            when(alarmTemplateItemMapper.selectCount(any())).thenReturn(2L);
 
             assertThatThrownBy(() -> pointDefinitionService.deletePointDefinition(5L, USER_ID))
                     .isInstanceOf(BusinessException.class)

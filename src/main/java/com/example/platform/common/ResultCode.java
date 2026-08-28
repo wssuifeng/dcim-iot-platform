@@ -46,6 +46,13 @@ public final class ResultCode {
     public static final int ALARM_RULE_DUPLICATE = 4043;
     public static final int ALARM_RULE_INVALID = 4044;
 
+    // 告警模版模块 404x 后段（阶段五）
+    public static final int ALARM_TEMPLATE_NOT_FOUND = 4045;
+    public static final int ALARM_TEMPLATE_CODE_EXISTS = 4046;
+    public static final int ALARM_TEMPLATE_IN_USE = 4047;
+    public static final int ALARM_TEMPLATE_ITEM_NOT_FOUND = 4048;
+    public static final int ALARM_TEMPLATE_ITEM_INVALID = 4049;
+
     // 配置模块 405x
     public static final int CONFIG_NOT_FOUND = 4051;
 

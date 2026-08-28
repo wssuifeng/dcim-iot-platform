@@ -39,6 +39,10 @@ public class Device implements Serializable {
     @NotNull(message = "设备类型不能为空", groups = {CreateGroup.class, UpdateGroup.class})
     private Integer typeId;
 
+    @Schema(description = "改绑的告警模版ID（空=跟随类型基础模版）", example = "1")
+    @TableField("alarm_template_id")
+    private Long alarmTemplateId;
+
     @Schema(description = "所属机房ID", example = "1")
     @TableField("cloud_room_id")
     private Long cloudRoomId;

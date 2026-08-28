@@ -8,7 +8,7 @@ import com.example.platform.entity.PointDefinition;
 import com.example.platform.event.MetricSampleSavedEvent;
 import com.example.platform.service.AlarmEvaluateService;
 import com.example.platform.service.AlarmEventService;
-import com.example.platform.service.DevicePointAlarmRuleService;
+import com.example.platform.service.AlarmTemplateService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.PointDefinitionService;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +49,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
 
     public static final String ALARM_TYPE_METRIC = "METRIC";
 
-    private final DevicePointAlarmRuleService devicePointAlarmRuleService;
+    private final AlarmTemplateService alarmTemplateService;
     private final AlarmEventService alarmEventService;
     private final DeviceService deviceService;
     private final PointDefinitionService pointDefinitionService;
@@ -69,7 +69,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
     }
 
     private void doEvaluate(MetricSampleSavedEvent event) {
-        List<PointAlarmRuleVO> rules = devicePointAlarmRuleService
+        List<PointAlarmRuleVO> rules = alarmTemplateService
                 .findEffectiveRules(event.deviceId(), event.pointId()).stream()
                 .filter(rule -> ALARM_TYPE_METRIC.equals(rule.getRuleType()))
                 .toList();

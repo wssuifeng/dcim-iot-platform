@@ -7,7 +7,7 @@ import com.example.platform.entity.Device;
 import com.example.platform.entity.PointDefinition;
 import com.example.platform.event.MetricSampleSavedEvent;
 import com.example.platform.service.AlarmEventService;
-import com.example.platform.service.DevicePointAlarmRuleService;
+import com.example.platform.service.AlarmTemplateService;
 import com.example.platform.service.DeviceService;
 import com.example.platform.service.PointDefinitionService;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +26,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,7 +40,7 @@ import static org.mockito.Mockito.when;
 class AlarmEvaluateServiceImplTest {
 
     @Mock
-    private DevicePointAlarmRuleService devicePointAlarmRuleService;
+    private AlarmTemplateService alarmTemplateService;
     @Mock
     private AlarmEventService alarmEventService;
     @Mock
@@ -84,7 +83,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("无生效规则时不做任何触发")
         void should_skip_whenNoRules() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of());
 
             alarmEvaluateService.evaluate(event("41"));
@@ -96,7 +95,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("多条规则命中取最严重级别（数字最小）")
         void should_triggerMostSevereHit() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of(
                             rule("GT", "35", 2),
                             rule("GT", "40", 1)));
@@ -118,7 +117,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("未命中且存在活动告警时自动恢复")
         void should_autoRecover_whenNoHit() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of(rule("GT", "35", 2)));
             when(alarmEventService.autoRecover(DEVICE_ID, POINT_ID, "METRIC")).thenReturn(true);
 
@@ -131,7 +130,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("比较符语义：LT 命中低温规则")
         void should_matchLtOperator() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of(rule("LT", "10", 4)));
             when(deviceService.getById(DEVICE_ID)).thenReturn(device());
             when(pointDefinitionService.getById(POINT_ID)).thenReturn(new PointDefinition());
@@ -147,7 +146,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("评估异常不外抛不触发（D15：采样数据不受影响）")
         void should_swallowException_withoutTrigger() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenThrow(new IllegalStateException("engine down"));
 
             assertThatCode(() -> alarmEvaluateService.evaluate(event("41")))
@@ -160,7 +159,7 @@ class AlarmEvaluateServiceImplTest {
         @Test
         @DisplayName("trigger 抛异常同样被吞掉（评估事务失败不影响采样）")
         void should_swallowTriggerException() {
-            when(devicePointAlarmRuleService.findEffectiveRules(DEVICE_ID, POINT_ID))
+            when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of(rule("GT", "35", 2)));
             when(deviceService.getById(DEVICE_ID)).thenReturn(device());
             when(pointDefinitionService.getById(POINT_ID)).thenReturn(new PointDefinition());
