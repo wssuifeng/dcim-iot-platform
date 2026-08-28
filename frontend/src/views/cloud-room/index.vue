@@ -29,15 +29,21 @@
     <el-table v-loading="loading" :data="rooms" row-key="id">
       <el-table-column prop="roomName" label="机房名称" min-width="150" />
       <el-table-column prop="roomCode" label="机房编码" min-width="110" />
-      <el-table-column prop="accessKey" label="AccessKey" min-width="180">
+      <el-table-column label="AccessKey" min-width="190">
         <template #default="{ row }">
-          <span v-if="credentialOf(row.id)">{{ credentialOf(row.id).accessKey }}</span>
+          <span v-if="credentialOf(row.id)" class="access-key num">
+            {{ credentialOf(row.id).accessKey }}
+            <el-icon class="copy-icon" @click="copyText(credentialOf(row.id).accessKey)"><CopyDocument /></el-icon>
+          </span>
           <el-text v-else type="info" size="small">未初始化</el-text>
         </template>
       </el-table-column>
-      <el-table-column label="网关状态" width="100">
+      <el-table-column label="网关状态" width="110">
         <template #default="{ row }">
-          <el-tag :type="gatewayStateType(row)" size="small">{{ gatewayStateLabel(row) }}</el-tag>
+          <span class="gateway-state">
+            <state-dot :state="gatewayDotState(row)" />
+            <span class="gateway-state-text">{{ gatewayStateLabel(row) }}</span>
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="最近活跃" min-width="160">
@@ -158,7 +164,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Delete, Edit, Key, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
+import { CopyDocument, Delete, Edit, Key, Plus, Refresh, Search, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { getDeviceTypes } from '@/api/deviceType'
@@ -213,14 +219,19 @@ function gatewayStateLabel(room) {
   return new Date(cred.lastSeenAt).getTime() > Date.now() - 5 * 60 * 1000 ? '在线' : '离线'
 }
 
-function gatewayStateType(room) {
-  return {
-    在线: 'success',
-    离线: 'danger',
-    从未上线: 'warning',
-    已停用: 'info',
-    未初始化: 'info',
-  }[gatewayStateLabel(room)]
+// StateDot 语义映射：在线/离线/从未上线/停用(灰)
+function gatewayDotState(room) {
+  const label = gatewayStateLabel(room)
+  return { 在线: 'online', 离线: 'offline', 从未上线: 'stale', 已停用: 'stale', 未初始化: 'stale' }[label] || 'stale'
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.warning('复制失败，请手动选择复制')
+  }
 }
 
 async function fetchRooms() {
@@ -430,5 +441,35 @@ onMounted(async () => {
   margin-left: 10px;
   color: var(--color-text-3);
   font-size: 12px;
+}
+
+/* AccessKey 等宽 + 悬停复制图标 */
+.access-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.copy-icon {
+  cursor: pointer;
+  color: var(--color-text-3);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.copy-icon:hover {
+  color: var(--color-primary);
+}
+
+/* 网关状态：色点 + 文字 */
+.gateway-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gateway-state-text {
+  color: var(--color-text-2);
+  font-size: 13px;
 }
 </style>

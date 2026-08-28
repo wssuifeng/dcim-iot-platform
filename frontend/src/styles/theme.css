@@ -300,6 +300,16 @@ body,
   border-radius: 3px 0 0 3px;
 }
 
+/* 告警弹窗卡片顶部级别色带 */
+.alarm-notify.el-notification {
+  border-top: 3px solid var(--alarm-l5);
+}
+.alarm-notify-l1.el-notification { border-top-color: var(--alarm-l1); }
+.alarm-notify-l2.el-notification { border-top-color: var(--alarm-l2); }
+.alarm-notify-l3.el-notification { border-top-color: var(--alarm-l3); }
+.alarm-notify-l4.el-notification { border-top-color: var(--alarm-l4); }
+.alarm-notify-l5.el-notification { border-top-color: var(--alarm-l5); }
+
 /* Element Plus 组件暗黑模式适配 */
 [data-theme="dark"] .el-card {
   background-color: var(--color-surface);

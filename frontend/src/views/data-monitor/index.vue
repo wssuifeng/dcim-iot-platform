@@ -63,17 +63,17 @@
               <h2>最新值</h2>
               <span>{{ latestValues.length }} 个点位</span>
             </div>
-            <el-table v-loading="loadingDevice" :data="latestValues" row-key="pointId" size="small">
-              <el-table-column prop="pointName" label="点位" min-width="180" />
-              <el-table-column prop="pointCode" label="编码" min-width="150" />
-              <el-table-column label="最新值" min-width="150">
-                <template #default="{ row }">
-                  <strong>{{ row.latestValue }}</strong>
-                  <span v-if="row.unit" class="unit">{{ row.unit }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="latestTime" label="采样时间" min-width="180" />
-            </el-table>
+            <div v-loading="loadingDevice" class="latest-grid">
+              <div v-for="row in latestValues" :key="row.pointId" class="latest-card">
+                <div class="latest-card-head">
+                  <span class="latest-card-name">{{ row.pointName }}</span>
+                  <span class="latest-card-code num">{{ row.pointCode }}</span>
+                </div>
+                <stat-value :value="row.latestValue" :unit="row.unit" size="lg" />
+                <span class="latest-card-time">{{ relativeTime(row.latestTime) }}</span>
+              </div>
+              <el-empty v-if="!loadingDevice && latestValues.length === 0" :image-size="64" description="暂无上报数据" />
+            </div>
           </section>
 
           <template v-if="selectedPointId">
@@ -278,6 +278,20 @@ function handlePointChange() {
   void loadHistory()
 }
 
+// 相对时间：3 秒前 / 5 分钟前
+function relativeTime(time) {
+  if (!time) return '从未上报'
+  const diff = Date.now() - new Date(time).getTime()
+  if (diff < 0) return '刚刚'
+  const seconds = Math.floor(diff / 1000)
+  if (seconds < 60) return `${seconds} 秒前`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  return `${Math.floor(hours / 24)} 天前`
+}
+
 function handleRangeChange(range) {
   currentRange.value = range
   historyPagination.current = 1
@@ -408,6 +422,49 @@ onMounted(loadReferenceData)
 .latest-section,
 .history-section {
   margin-bottom: 18px;
+}
+
+.latest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  min-height: 80px;
+}
+
+.latest-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.latest-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.latest-card-name {
+  color: var(--color-text-2);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.latest-card-code {
+  color: var(--color-text-3);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.latest-card-time {
+  color: var(--color-text-3);
+  font-size: 12px;
 }
 
 .section-heading {

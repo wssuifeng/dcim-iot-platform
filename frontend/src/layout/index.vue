@@ -161,14 +161,16 @@ async function popAlarmNotification(summary) {
   let title = titles[summary.eventType] || '告警动态'
   let message = summary.title
   let type = summary.state === 'RECOVERED' ? 'success' : 'warning'
+  let level = summary.level ?? 5
 
   if (!message) {
     const result = await getAlarmEvent(summary.resourceId).catch(() => null)
     const event = result?.data
     if (!event) return
     message = event.alarmMessage || `告警事件 #${summary.resourceId}`
-    type = event.state === 'RECOVERED' ? 'success' : levelType(event.alarmLevel)
-    if (event.alarmLevel <= 2) title = '紧急告警'
+    level = event.alarmLevel ?? 5
+    type = event.state === 'RECOVERED' ? 'success' : levelType(level)
+    if (level <= 2) title = '紧急告警'
   } else if (summary.level != null) {
     type = summary.state === 'RECOVERED' ? 'success' : levelType(summary.level)
     if (summary.level <= 2 && summary.state !== 'RECOVERED') title = '紧急告警'
@@ -181,6 +183,8 @@ async function popAlarmNotification(summary) {
     duration: 6000,
     position: 'top-right',
     showClose: true,
+    // 卡片顶部级别色带（theme.css 五级色带令牌）
+    customClass: `alarm-notify alarm-notify-l${level}`,
   })
 }
 

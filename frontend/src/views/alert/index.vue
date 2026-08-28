@@ -35,13 +35,15 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="alarms" row-key="id">
+    <el-table v-loading="loading" :data="alarms" row-key="id" :row-class-name="alarmRowClass">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column label="状态" width="105">
         <template #default="{ row }"><el-tag :type="stateType(row.state)">{{ stateLabel(row.state) }}</el-tag></template>
       </el-table-column>
       <el-table-column label="级别" width="90">
-        <template #default="{ row }"><el-tag :type="levelType(row.alarmLevel)" effect="plain">{{ levelLabel(row.alarmLevel) }}</el-tag></template>
+        <template #default="{ row }">
+          <span :class="['level-tag', `alarm-band-l${row.alarmLevel}`]">{{ levelLabel(row.alarmLevel) }}</span>
+        </template>
       </el-table-column>
       <el-table-column label="设备" min-width="150">
         <template #default="{ row }">{{ deviceName(row.deviceId) }}</template>
@@ -260,8 +262,10 @@ function levelLabel(level) {
   return levels.find((item) => item.value === level)?.label || level
 }
 
-function levelType(level) {
-  return { 1: 'danger', 2: 'warning', 3: 'primary', 4: 'info', 5: 'info' }[level]
+// 活跃告警行左侧级别色条（TRIGGERED/ACKED/HANDLING），已恢复/关闭不着色
+function alarmRowClass({ row }) {
+  const active = ['TRIGGERED', 'ACKED', 'HANDLING'].includes(row.state)
+  return active ? `alarm-row-band alarm-band-l${row.alarmLevel}` : ''
 }
 
 function deviceName(id) {
@@ -329,5 +333,23 @@ onBeforeUnmount(() => removeSummaryListener?.())
 .pagination {
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+/* 告警行级别色条作用于表格行（scoped 需穿透 el-table 行） */
+:deep(.el-table .alarm-row-band) {
+  position: relative;
+}
+
+/* 级别 pill（五级色带令牌） */
+.level-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--alarm-band, var(--color-text-2));
+  background: var(--alarm-band-bg, var(--color-surface-2));
+  font-weight: 500;
 }
 </style>

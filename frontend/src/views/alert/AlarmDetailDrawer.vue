@@ -29,7 +29,13 @@
       <section class="history-section">
         <h3>状态流转</h3>
         <el-timeline v-if="transitions.length">
-          <el-timeline-item v-for="item in transitions" :key="item.id" :timestamp="item.createTime" placement="top">
+          <el-timeline-item
+            v-for="item in transitions"
+            :key="item.id"
+            :timestamp="item.createTime"
+            :color="transitionColor(item.toState)"
+            placement="top"
+          >
             <strong>{{ stateLabel(item.fromState) }} → {{ stateLabel(item.toState) }}</strong>
             <p>{{ item.remark || '无备注' }} · 用户 #{{ item.operatorUserId }}</p>
           </el-timeline-item>
@@ -98,6 +104,17 @@ function stateLabel(state) {
 
 function stateType(state) {
   return { TRIGGERED: 'danger', ACKED: 'warning', HANDLING: 'primary', RECOVERED: 'success', CLOSED: 'info' }[state]
+}
+
+// 时间线节点按到达状态着色（Element Plus color 属性需具体色值）
+function transitionColor(state) {
+  return {
+    TRIGGERED: 'var(--color-danger)',
+    ACKED: 'var(--color-warning)',
+    HANDLING: 'var(--color-primary)',
+    RECOVERED: 'var(--color-success)',
+    CLOSED: 'var(--color-text-3)',
+  }[state] || 'var(--color-primary)'
 }
 
 function levelLabel(level) {
