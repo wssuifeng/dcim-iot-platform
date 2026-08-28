@@ -64,11 +64,25 @@ public interface AlarmEventService extends IService<AlarmEvent> {
     AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end);
 
     /*
+     * 方法功能:按用户数据范围聚合告警统计（限定机房）
+     * 参数:currentUserId-当前用户ID, start-开始时间, end-结束时间, cloudRoomId-机房ID
+     * 返回数据:AlarmStatsVO-状态、级别和设备排名统计
+     * */
+    AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end, Long cloudRoomId);
+
+    /*
      * 方法功能:按用户数据范围聚合告警趋势
      * 参数:currentUserId-当前用户ID, start-开始日期, end-结束日期
      * 返回数据:Map<String, Long>-日期到触发数量的映射
      * */
     Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end);
+
+    /*
+     * 方法功能:按用户数据范围聚合告警趋势（限定机房）
+     * 参数:currentUserId-当前用户ID, start-开始日期, end-结束日期, cloudRoomId-机房ID
+     * 返回数据:Map<String, Long>-日期到触发数量的映射
+     * */
+    Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end, Long cloudRoomId);
 
     AlarmEvent acknowledge(Long alarmEventId, Long currentUserId, String note);
 

@@ -42,8 +42,8 @@ class DashboardAlarmStatsServiceImplTest {
         stats.setStateDistribution(Map.of("TRIGGERED", 2L));
         stats.setLevelDistribution(Map.of("L2", 2L));
         stats.setDeviceRanking(List.of(Map.of("deviceId", 5, "alarmCount", 2L)));
-        when(alarmEventService.countStats(eq(CURRENT_USER_ID), any(), any())).thenReturn(stats);
-        when(alarmEventService.trendStats(eq(CURRENT_USER_ID), any(), any()))
+        when(alarmEventService.countStats(eq(CURRENT_USER_ID), any(), any(), any())).thenReturn(stats);
+        when(alarmEventService.trendStats(eq(CURRENT_USER_ID), any(), any(), any()))
                 .thenReturn(Map.of(LocalDate.now().toString(), 2L));
 
         DashboardAlarmStatsVO result = dashboardAlarmStatsService.getAlarmDashboardStats(CURRENT_USER_ID);
@@ -52,7 +52,41 @@ class DashboardAlarmStatsServiceImplTest {
         assertThat(result.getLevelDistribution()).containsEntry("L2", 2L);
         assertThat(result.getDeviceRanking()).hasSize(1);
         assertThat(result.getDailyTrend()).containsEntry(LocalDate.now().toString(), 2L);
-        verify(alarmEventService).countStats(eq(CURRENT_USER_ID), any(), any());
-        verify(alarmEventService).trendStats(eq(CURRENT_USER_ID), any(), any());
+        // 全量口径透传 null cloudRoomId
+        verify(alarmEventService).countStats(eq(CURRENT_USER_ID), any(), any(), eq(null));
+        verify(alarmEventService).trendStats(eq(CURRENT_USER_ID), any(), any(), eq(null));
+    }
+
+    @Test
+    @DisplayName("机房过滤口径：透传 cloudRoomId 并填充 scopeDescription")
+    void should_passRoomFilter_andFillScopeDescription() {
+        AlarmStatsVO stats = new AlarmStatsVO();
+        stats.setStateDistribution(Map.of());
+        stats.setLevelDistribution(Map.of());
+        stats.setDeviceRanking(List.of());
+        when(alarmEventService.countStats(eq(CURRENT_USER_ID), any(), any(), eq(4L))).thenReturn(stats);
+        when(alarmEventService.trendStats(eq(CURRENT_USER_ID), any(), any(), eq(4L)))
+                .thenReturn(Map.of());
+
+        DashboardAlarmStatsVO result = dashboardAlarmStatsService
+                .getAlarmDashboardStats(CURRENT_USER_ID, 4L, "南昌红谷滩-铭万");
+
+        assertThat(result.getScopeDescription()).isEqualTo("机房：南昌红谷滩-铭万");
+        verify(alarmEventService).countStats(eq(CURRENT_USER_ID), any(), any(), eq(4L));
+        verify(alarmEventService).trendStats(eq(CURRENT_USER_ID), any(), any(), eq(4L));
+    }
+
+    @Test
+    @DisplayName("全量口径：cloudRoomId 为 null 时 scopeDescription 保持空")
+    void should_keepScopeEmpty_forGlobalStats() {
+        AlarmStatsVO stats = new AlarmStatsVO();
+        when(alarmEventService.countStats(eq(CURRENT_USER_ID), any(), any(), any())).thenReturn(stats);
+        when(alarmEventService.trendStats(eq(CURRENT_USER_ID), any(), any(), any()))
+                .thenReturn(Map.of());
+
+        DashboardAlarmStatsVO result = dashboardAlarmStatsService
+                .getAlarmDashboardStats(CURRENT_USER_ID, null, null);
+
+        assertThat(result.getScopeDescription()).isNull();
     }
 }

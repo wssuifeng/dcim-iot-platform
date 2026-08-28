@@ -182,7 +182,12 @@ public class AlarmEventServiceImpl
 
     @Override
     public AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end) {
-        List<AlarmEvent> events = listScopedEvents(currentUserId, start, end);
+        return countStats(currentUserId, start, end, null);
+    }
+
+    @Override
+    public AlarmStatsVO countStats(Long currentUserId, LocalDateTime start, LocalDateTime end, Long cloudRoomId) {
+        List<AlarmEvent> events = listScopedEvents(currentUserId, start, end, cloudRoomId);
         AlarmStatsVO stats = new AlarmStatsVO();
         stats.setStateDistribution(events.stream()
                 .filter(event -> event.getState() != null)
@@ -211,13 +216,18 @@ public class AlarmEventServiceImpl
 
     @Override
     public Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end) {
+        return trendStats(currentUserId, start, end, null);
+    }
+
+    @Override
+    public Map<String, Long> trendStats(Long currentUserId, LocalDate start, LocalDate end, Long cloudRoomId) {
         Map<String, Long> trend = new LinkedHashMap<>();
         for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
             trend.put(day.toString(), 0L);
         }
         LocalDateTime from = start.atStartOfDay();
         LocalDateTime to = end.plusDays(1).atStartOfDay();
-        for (AlarmEvent event : listScopedEvents(currentUserId, from, to)) {
+        for (AlarmEvent event : listScopedEvents(currentUserId, from, to, cloudRoomId)) {
             if (event.getTriggeredTime() == null) {
                 continue;
             }
@@ -347,12 +357,20 @@ public class AlarmEventServiceImpl
     }
 
     private List<AlarmEvent> listScopedEvents(Long currentUserId, LocalDateTime start, LocalDateTime end) {
+        return listScopedEvents(currentUserId, start, end, null);
+    }
+
+    private List<AlarmEvent> listScopedEvents(Long currentUserId, LocalDateTime start, LocalDateTime end,
+                                              Long cloudRoomId) {
         LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
         if (start != null) {
             wrapper.ge(AlarmEvent::getTriggeredTime, start);
         }
         if (end != null) {
             wrapper.lt(AlarmEvent::getTriggeredTime, end);
+        }
+        if (cloudRoomId != null) {
+            wrapper.eq(AlarmEvent::getCloudRoomId, cloudRoomId);
         }
         return list(wrapper);
     }
