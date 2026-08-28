@@ -103,7 +103,10 @@ let removeSummaryListener = null
 let removeConnectionListener = null
 let removeUnreadCountListener = null
 
-const activeMenu = computed(() => route.path)
+// 侧栏高亮：工作台路由（/rooms/...）不在侧栏，无匹配项即不高亮（工作台自带返回入口）
+const activeMenu = computed(() =>
+  route.path.startsWith('/rooms/') ? '' : route.path,
+)
 const roleLabel = computed(() => ROLE_LABELS[authStore.normalizedRole] || authStore.normalizedRole)
 const themeIcon = computed(() => (themeStore.theme === THEME_LIGHT ? Moon : Sunny))
 const themeTooltip = computed(() => (themeStore.theme === THEME_LIGHT ? '切换夜间模式' : '切换日间模式'))

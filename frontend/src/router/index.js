@@ -37,22 +37,42 @@ const routes = [
         meta: { title: '机房管理', icon: 'House', navigation: true, navigationOrder: 15, roles: ALL_ROLES },
       },
       {
-        path: 'devices',
-        name: 'devices',
-        component: () => import('@/views/device/index.vue'),
-        meta: { title: '设备管理', icon: 'Monitor', navigation: true, navigationOrder: 20, roles: ALL_ROLES },
-      },
-      {
-        path: 'data-monitor',
-        name: 'data-monitor',
-        component: () => import('@/views/data-monitor/index.vue'),
-        meta: { title: '数据监控', icon: 'TrendCharts', navigation: true, navigationOrder: 30, roles: ALL_ROLES },
-      },
-      {
         path: 'alerts',
         name: 'alerts',
         component: () => import('@/views/alert/index.vue'),
-        meta: { title: '告警管理', icon: 'Bell', navigation: true, navigationOrder: 40, roles: ALL_ROLES },
+        meta: { title: '全局告警流', icon: 'Bell', navigation: true, navigationOrder: 18, roles: ALL_ROLES },
+      },
+      {
+        path: 'search',
+        name: 'cross-room-search',
+        component: () => import('@/views/cross-room-search/index.vue'),
+        meta: { title: '跨机房检索', icon: 'Search', navigation: true, navigationOrder: 20, roles: ALL_ROLES },
+      },
+      // 机房工作台：机房为一等导航上下文（下钻入口在驾驶舱机房卡片与机房管理页）
+      {
+        path: 'rooms/:roomId',
+        component: () => import('@/views/room-workspace/RoomWorkspace.vue'),
+        children: [
+          { path: '', redirect: { name: 'room-overview' } },
+          {
+            path: 'overview',
+            name: 'room-overview',
+            component: () => import('@/views/room-workspace/tabs/OverviewTab.vue'),
+            meta: { title: '机房概览', roles: ALL_ROLES },
+          },
+          {
+            path: 'devices',
+            name: 'room-devices',
+            component: () => import('@/views/room-workspace/tabs/DevicesTab.vue'),
+            meta: { title: '设备与数据', roles: ALL_ROLES },
+          },
+          {
+            path: 'alarms',
+            name: 'room-alarms',
+            component: () => import('@/views/room-workspace/tabs/AlarmsTab.vue'),
+            meta: { title: '机房告警', roles: ALL_ROLES },
+          },
+        ],
       },
       {
         path: 'alarm-templates',

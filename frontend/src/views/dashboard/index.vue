@@ -39,7 +39,7 @@
           v-for="room in roomCards"
           :key="room.id"
           :class="['room-card', `room-card--${room.health}`]"
-          @click="router.push({ path: '/data-monitor', query: { roomId: room.id } })"
+          @click="router.push({ name: 'room-overview', params: { roomId: room.id } })"
         >
           <div class="room-card-head">
             <span class="room-card-name">{{ room.roomName }}</span>
