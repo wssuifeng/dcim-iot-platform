@@ -3,6 +3,11 @@
  */
 import request from '@/utils/request'
 
-export function getAlarmDashboardStats() {
-  return request.get('/dashboard/alarm-stats')
+export function getAlarmDashboardStats(params) {
+  return request.get('/dashboard/alarm-stats', { params })
+}
+
+// 多机房对比聚合（跨机房检索对比页）
+export function compareRooms(params) {
+  return request.get('/dashboard/comparison', { params })
 }

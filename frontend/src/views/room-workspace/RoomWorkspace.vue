@@ -23,7 +23,7 @@
       <el-tab-pane label="告警" name="alarms" />
     </el-tabs>
 
-    <router-view :room="room" :room-id="roomId" @room-alarms-loaded="handleAlarmsLoaded" />
+    <router-view :room="room" :room-id="roomId" @room-alarms-loaded="handleAlarmsLoaded" @refresh-room="loadRoom" />
   </section>
 </template>
 
