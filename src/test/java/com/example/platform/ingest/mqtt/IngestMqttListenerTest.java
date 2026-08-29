@@ -52,7 +52,8 @@ class IngestMqttListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new IngestMqttListener(ingestCoreService, ingestCredentialService,
+        listener = new IngestMqttListener(ingestCoreService,
+                new com.example.platform.ingest.metrics.IngestMetricsCollector(), ingestCredentialService,
                 sysAuditLogService, alarmEventService, cloudRoomService,
                 Validation.buildDefaultValidatorFactory().getValidator(),
                 objectMapper, "tcp://localhost:1883", "test-ingest", "", "", 30, false);

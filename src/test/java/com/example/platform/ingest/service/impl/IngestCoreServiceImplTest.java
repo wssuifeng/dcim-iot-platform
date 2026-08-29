@@ -57,6 +57,9 @@ class IngestCoreServiceImplTest {
     private TransactionTemplate transactionTemplate;
     @Mock
     private org.springframework.transaction.TransactionStatus transactionStatus;
+    @org.mockito.Spy
+    private com.example.platform.ingest.metrics.IngestMetricsCollector metricsCollector =
+            new com.example.platform.ingest.metrics.IngestMetricsCollector();
 
     @InjectMocks
     private IngestCoreServiceImpl coreService;

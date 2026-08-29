@@ -6,6 +6,7 @@ import com.example.platform.ingest.dto.IngestInventoryResultVO;
 import com.example.platform.ingest.dto.IngestResultVO;
 import com.example.platform.ingest.dto.IngestSampleBatchDTO;
 import com.example.platform.ingest.entity.IngestCredential;
+import com.example.platform.ingest.metrics.IngestMetricsCollector;
 import com.example.platform.ingest.service.IngestCoreService;
 import com.example.platform.ingest.service.IngestInventoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,11 +32,14 @@ public class IngestHttpController {
 
     private final IngestCoreService ingestCoreService;
     private final IngestInventoryService ingestInventoryService;
+    private final IngestMetricsCollector metricsCollector;
 
     public IngestHttpController(IngestCoreService ingestCoreService,
-                                IngestInventoryService ingestInventoryService) {
+                                IngestInventoryService ingestInventoryService,
+                                IngestMetricsCollector metricsCollector) {
         this.ingestCoreService = ingestCoreService;
         this.ingestInventoryService = ingestInventoryService;
+        this.metricsCollector = metricsCollector;
     }
 
     @Operation(summary = "网关批量数据上报",
@@ -47,7 +51,12 @@ public class IngestHttpController {
                                           HttpServletRequest request) {
         IngestCredential credential =
                 (IngestCredential) request.getAttribute(GatewayAuthenticationFilter.ATTR_CREDENTIAL);
-        return Result.success(ingestCoreService.processSamples(credential, batch));
+        long start = System.nanoTime();
+        IngestResultVO result = ingestCoreService.processSamples(credential, batch);
+        metricsCollector.recordBatch("http", batch.getItems().size(),
+                (System.nanoTime() - start) / 1_000_000,
+                result.getAccepted(), result.getDuplicated(), result.getFailed());
+        return Result.success(result);
     }
 
     @Operation(summary = "网关心跳保活",

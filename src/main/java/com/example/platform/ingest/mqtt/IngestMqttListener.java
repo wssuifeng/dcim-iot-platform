@@ -54,6 +54,7 @@ public class IngestMqttListener {
     private static final String ACK_TOPIC_SUFFIX = "/ack";
 
     private final IngestCoreService ingestCoreService;
+    private final com.example.platform.ingest.metrics.IngestMetricsCollector metricsCollector;
     private final IngestCredentialService ingestCredentialService;
     private final SysAuditLogService sysAuditLogService;
     private final com.example.platform.service.AlarmEventService alarmEventService;
@@ -72,6 +73,7 @@ public class IngestMqttListener {
     private ScheduledExecutorService reconnectExecutor;
 
     public IngestMqttListener(IngestCoreService ingestCoreService,
+                              com.example.platform.ingest.metrics.IngestMetricsCollector metricsCollector,
                               IngestCredentialService ingestCredentialService,
                               SysAuditLogService sysAuditLogService,
                               com.example.platform.service.AlarmEventService alarmEventService,
@@ -85,6 +87,7 @@ public class IngestMqttListener {
                               @Value("${ingest.mqtt.keep-alive-seconds:30}") int keepAliveSeconds,
                               @Value("${ingest.mqtt.ack-enabled:true}") boolean ackEnabled) {
         this.ingestCoreService = ingestCoreService;
+        this.metricsCollector = metricsCollector;
         this.ingestCredentialService = ingestCredentialService;
         this.sysAuditLogService = sysAuditLogService;
         this.alarmEventService = alarmEventService;
@@ -169,7 +172,11 @@ public class IngestMqttListener {
                 return;
             }
 
+            long start = System.nanoTime();
             IngestResultVO result = ingestCoreService.processSamples(credential, batch);
+            metricsCollector.recordBatch("mqtt", batch.getItems().size(),
+                    (System.nanoTime() - start) / 1_000_000,
+                    result.getAccepted(), result.getDuplicated(), result.getFailed());
             publishAck(accessKey, Result.success(result));
         } catch (BusinessException ex) {
             auditRejected(accessKey, "MQTT 凭证鉴权失败: " + ex.getMessage());

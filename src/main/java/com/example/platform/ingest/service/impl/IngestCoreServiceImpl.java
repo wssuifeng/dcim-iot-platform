@@ -51,6 +51,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
     private final IngestCredentialService ingestCredentialService;
     private final IngestDedupMapper ingestDedupMapper;
     private final TransactionTemplate transactionTemplate;
+    private final com.example.platform.ingest.metrics.IngestMetricsCollector metricsCollector;
 
     @Override
     public IngestResultVO processSamples(IngestCredential credential, IngestSampleBatchDTO batch) {
@@ -171,6 +172,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
                     device.getId(), typeId, credential.getId());
             log.info("首包自动注册 deviceCode={} roomId={} typeId={} credentialId={}",
                     deviceCode, credential.getCloudRoomId(), typeId, credential.getId());
+            metricsCollector.incrementAutoRegistered();
             return device;
         } catch (Exception ex) {
             log.warn("首包自动注册失败 deviceCode={} error={}", deviceCode, ex.getMessage());
