@@ -9,6 +9,7 @@ import com.example.platform.common.exception.DataScopeViolationException;
 import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
+import com.example.platform.dto.MetricSampleTrendPointVO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.DevicePointBinding;
 import com.example.platform.entity.MetricLatest;
@@ -42,6 +43,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -146,12 +148,12 @@ class MetricSampleServiceImplTest {
         }
 
         @Test
-        @DisplayName("点位不存在时拒绝写入")
+        @DisplayName("指标不存在时拒绝写入")
         void should_throw_when_pointNotFound() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(null);
             when(pointDefinitionService.getPointDefinitionOrThrow(10L))
-                    .thenThrow(new BusinessException("点位不存在"));
+                    .thenThrow(new BusinessException("指标不存在"));
 
             MetricSampleDTO dto = new MetricSampleDTO();
             dto.setDeviceId(1);
@@ -258,7 +260,7 @@ class MetricSampleServiceImplTest {
         }
 
         @Test
-        @DisplayName("BOOLEAN 点位仅接受 0 或 1")
+        @DisplayName("BOOLEAN 指标仅接受 0 或 1")
         void should_rejectInvalidBooleanValue() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(null);
@@ -328,10 +330,10 @@ class MetricSampleServiceImplTest {
         void should_batchPartialFailureNotAffectOthers() {
             stubTransactionPassThrough();
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
-            // 第2条点位不存在 → 该条失败
+            // 第2条指标不存在 → 该条失败
             when(pointDefinitionService.getPointDefinitionOrThrow(10L)).thenReturn(buildPoint(10L));
             when(pointDefinitionService.getPointDefinitionOrThrow(20L))
-                    .thenThrow(new BusinessException(4040, "点位不存在"));
+                    .thenThrow(new BusinessException(4040, "指标不存在"));
             when(devicePointBindingService.getActiveBindingOrThrow(eq(1), eq(10L), eq(CURRENT_USER_ID)))
                     .thenReturn(activeBinding(1, 10L));
             when(metricSampleMapper.insert((MetricSample) any())).thenReturn(1);
@@ -422,6 +424,117 @@ class MetricSampleServiceImplTest {
             assertThat(result.getRecords()).isEmpty();
             verify(metricSampleMapper, times(1))
                     .selectPage(any(Page.class), any(LambdaQueryWrapper.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("trendSamples - 趋势分桶聚合查询")
+    class TrendSamples {
+
+        @Test
+        @DisplayName("未指定 pointId 应拒绝")
+        void should_throw_when_noPointId() {
+            assertThatThrownBy(() -> metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, null, LocalDateTime.now().minusHours(1), LocalDateTime.now()))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("必须指定 pointId");
+        }
+
+        @Test
+        @DisplayName("未指定时间范围应拒绝")
+        void should_throw_when_noTimeRange() {
+            assertThatThrownBy(() -> metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, null, LocalDateTime.now()))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("必须指定时间范围");
+        }
+
+        @Test
+        @DisplayName("startTime>endTime 应拒绝")
+        void should_throw_when_startAfterEnd() {
+            assertThatThrownBy(() -> metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, LocalDateTime.now(), LocalDateTime.now().minusHours(1)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("起始时间不能晚于结束时间");
+        }
+
+        @Test
+        @DisplayName("时间跨度超过 90 天应拒绝")
+        void should_throw_when_timeRangeExceed90Days() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+
+            assertThatThrownBy(() -> metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, LocalDateTime.now().minusDays(100), LocalDateTime.now()))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("时间跨度不能超过");
+        }
+
+        @Test
+        @DisplayName("设备越权时拒绝查询")
+        void should_throw_when_deviceAccessDenied() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
+                    .thenThrow(new DataScopeViolationException("Device", "1"));
+
+            assertThatThrownBy(() -> metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, LocalDateTime.now().minusHours(1), LocalDateTime.now()))
+                    .isInstanceOf(DataScopeViolationException.class);
+            verify(metricSampleMapper, never()).selectTrendBuckets(any(), any(), any(), any(), anyLong());
+        }
+
+        @Test
+        @DisplayName("24 小时范围查询按 10 分钟桶聚合并返回升序结果")
+        void should_aggregateWithBucket_and_returnAsc() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+            MetricSampleTrendPointVO bucket = new MetricSampleTrendPointVO();
+            bucket.setTime(LocalDateTime.now().minusHours(2));
+            bucket.setAvgValue(new BigDecimal("24.35"));
+            bucket.setMinValue(new BigDecimal("23.80"));
+            bucket.setMaxValue(new BigDecimal("24.90"));
+            when(metricSampleMapper.selectTrendBuckets(eq(1), eq(10L), any(LocalDateTime.class),
+                    any(LocalDateTime.class), eq(600L))).thenReturn(List.of(bucket));
+
+            List<MetricSampleTrendPointVO> result = metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, LocalDateTime.now().minusHours(24), LocalDateTime.now());
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getAvgValue()).isEqualByComparingTo("24.35");
+            verify(metricSampleMapper, times(1)).selectTrendBuckets(eq(1), eq(10L),
+                    any(LocalDateTime.class), any(LocalDateTime.class), eq(600L));
+        }
+
+        @Test
+        @DisplayName("空数据范围返回空列表（不报错）")
+        void should_returnEmptyList_whenNoData() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+            when(metricSampleMapper.selectTrendBuckets(eq(1), eq(10L), any(LocalDateTime.class),
+                    any(LocalDateTime.class), eq(60L))).thenReturn(List.of());
+
+            List<MetricSampleTrendPointVO> result = metricSampleService.trendSamples(
+                    CURRENT_USER_ID, 1, 10L, LocalDateTime.now().minusHours(1), LocalDateTime.now());
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("resolveBucketSeconds - 桶宽取整")
+    class ResolveBucketSeconds {
+
+        @Test
+        @DisplayName("1小时→60s、24小时→600s、7天→3600s、30天→14400s")
+        void should_roundUpToNiceSteps() {
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(3600)).isEqualTo(60L);
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(86400)).isEqualTo(600L);
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(604800)).isEqualTo(3600L);
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(2592000)).isEqualTo(14400L);
+        }
+
+        @Test
+        @DisplayName("极小范围取最小步长 60s，超大范围用原始值兜底")
+        void should_floorAt60s_and_fallbackRawBeyondSteps() {
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(10)).isEqualTo(60L);
+            // 100 天：7776000/200=38880 未超步长表上界 86400 → 43200
+            assertThat(MetricSampleServiceImpl.resolveBucketSeconds(7776000)).isEqualTo(43200L);
         }
     }
 }

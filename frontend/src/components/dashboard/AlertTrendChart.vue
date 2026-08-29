@@ -1,34 +1,34 @@
 /*
- * 文件功能:告警趋势折线图组件，使用 ECharts + vue-echarts 渲染 7 天告警数量趋势
+ * 文件功能:近七日告警趋势图组件，ECharts + vue-echarts 渲染
  *
  * 【ECharts 按需引入策略】
- * 本组件使用 ECharts 6.x 的「按需引入」模式（Tree Shaking）：
- *   - 只引入 LineChart（折线图）、Grid（坐标系）、Tooltip（提示框）、Legend（图例）
- *   - 避免全量引入 ECharts，减少打包体积约 60%
+ * 只引入 LineChart（折线图）、Grid（坐标系）、Tooltip（提示框），减少打包体积。
+ *
+ * 【视觉语言】
+ * 线色取五级色带 L1（告警语义红，与 theme.css --alarm-l1 同源），
+ * 面积用同色纵向渐变淡出；空数据显示空态而非空白坐标系。
  *
  * 【数据格式】
- * props.data: [{ date: "01-25", count: 12 }, ...]
- *   - date: 横轴日期标签（已截取 MM-DD）
- *   - count: 纵轴告警数量
+ * props.data: [{ date: "08-23", count: 12 }, ...]
  */
 <template>
   <div class="chart-container" ref="containerRef">
-    <!-- 加载中显示骨架屏，避免图表渲染空白闪烁 -->
-    <v-chart v-if="!loading" :option="chartOption" />
-    <el-skeleton v-else :rows="6" animated />
+    <v-chart v-if="showChart" :option="chartOption" autoresize />
+    <el-skeleton v-else-if="loading" :rows="6" animated />
+    <el-empty v-else :image-size="72" description="近七日暂无告警" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import VChart from 'vue-echarts'
-import { use, getInstanceByDom } from 'echarts/core'
+import { use, getInstanceByDom, graphic } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useThemeStore, THEME_DARK } from '@/stores/theme'
 
-use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -40,54 +40,62 @@ const themeStore = useThemeStore()
 let resizeObserver = null
 
 const isDark = computed(() => themeStore.theme === THEME_DARK)
-const lineColor = computed(() => (isDark.value ? '#ff5d82' : '#ef4444'))
-const areaColor = computed(() => (isDark.value ? 'rgba(255, 46, 99, 0.2)' : 'rgba(239, 68, 68, 0.1)'))
-const textColor = computed(() => (isDark.value ? '#94a3b8' : '#64748b'))
-const axisColor = computed(() => (isDark.value ? '#334155' : '#e2e8f0'))
+const showChart = computed(() => !props.loading && props.data.length > 0)
 
-const chartOption = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: isDark.value ? 'rgba(21, 29, 46, 0.96)' : 'rgba(255, 255, 255, 0.96)',
-    borderColor: isDark.value ? '#334155' : '#e2e8f0',
-    textStyle: { color: isDark.value ? '#f1f5f9' : '#1e293b' },
-  },
-  legend: {
-    data: ['告警数量'],
-    textStyle: { color: textColor.value },
-  },
-  grid: {
-    left: '3%',
-    right: '4%',
-    bottom: '3%',
-    containLabel: true,
-  },
-  xAxis: {
-    type: 'category',
-    data: props.data.map((d) => d.date),
-    axisLine: { lineStyle: { color: axisColor.value } },
-    axisLabel: { color: textColor.value },
-    splitLine: { show: false },
-  },
-  yAxis: {
-    type: 'value',
-    minInterval: 1,
-    axisLine: { show: false },
-    axisLabel: { color: textColor.value },
-    splitLine: { lineStyle: { color: isDark.value ? 'rgba(51, 65, 85, 0.6)' : '#f1f5f9' } },
-  },
-  series: [
-    {
-      name: '告警数量',
-      type: 'line',
-      data: props.data.map((d) => d.count),
-      smooth: true,
-      areaStyle: { color: areaColor.value },
-      itemStyle: { color: lineColor.value },
-      lineStyle: { color: lineColor.value, width: 3 },
+const chartOption = computed(() => {
+  const c = isDark.value
+    ? { text: '#94a3b8', axis: '#334155', split: 'rgba(51, 65, 85, 0.55)', tipBg: 'rgba(21, 29, 46, 0.96)', tipBorder: '#334155', tipText: '#f1f5f9' }
+    : { text: '#64748b', axis: '#e2e8f0', split: 'rgba(148, 163, 184, 0.25)', tipBg: 'rgba(255, 255, 255, 0.96)', tipBorder: '#e2e8f0', tipText: '#1e293b' }
+  // 五级色带 L1 红：告警趋势的语义色，不使用主色蓝
+  const line = isDark.value ? '#f87171' : '#dc2626'
+  const area = new graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: isDark.value ? 'rgba(248, 113, 113, 0.26)' : 'rgba(220, 38, 38, 0.18)' },
+    { offset: 1, color: isDark.value ? 'rgba(248, 113, 113, 0.02)' : 'rgba(220, 38, 38, 0.01)' },
+  ])
+  return {
+    animationDuration: 400,
+    grid: { top: 24, right: 16, bottom: 8, left: 16, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: c.tipBg,
+      borderColor: c.tipBorder,
+      textStyle: { color: c.tipText, fontSize: 12 },
+      axisPointer: { type: 'line', lineStyle: { color: line, opacity: 0.35 } },
+      valueFormatter: (value) => `${value} 条`,
     },
-  ],
-}))
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: props.data.map((d) => d.date),
+      axisLine: { lineStyle: { color: c.axis } },
+      axisTick: { show: false },
+      axisLabel: { color: c.text, fontSize: 10, margin: 12 },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: c.text, fontSize: 10 },
+      splitLine: { lineStyle: { color: c.split, type: 'dashed' } },
+    },
+    series: [
+      {
+        name: '告警数量',
+        type: 'line',
+        data: props.data.map((d) => d.count),
+        smooth: 0.3,
+        symbol: 'circle',
+        symbolSize: 5,
+        showSymbol: props.data.length <= 8,
+        areaStyle: { color: area },
+        itemStyle: { color: line, borderColor: isDark.value ? 'rgba(21, 29, 46, 0.9)' : '#fff', borderWidth: 1 },
+        lineStyle: { color: line, width: 2 },
+      },
+    ],
+  }
+})
 
 function resizeChart() {
   const dom = containerRef.value?.querySelector('.v-chart')

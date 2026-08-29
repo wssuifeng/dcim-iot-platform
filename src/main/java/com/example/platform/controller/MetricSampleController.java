@@ -9,6 +9,7 @@ import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.MetricSampleExportRow;
+import com.example.platform.dto.MetricSampleTrendPointVO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.MetricSample;
 import com.example.platform.security.CurrentUser;
@@ -32,7 +33,7 @@ import java.util.List;
  * <p>权限边界：ADMIN/OPERATOR 可写；任何已认证用户可读；
  * 写入与查询均必须指定 deviceId，由 Service 层按授权设备范围校验。</p>
  */
-@Tag(name = "指标采样历史", description = "设备点位历史采样写入与查询（ADMIN/OPERATOR 写，已认证按范围读）")
+@Tag(name = "指标采样历史", description = "设备指标历史采样写入与查询（ADMIN/OPERATOR 写，已认证按范围读）")
 @RestController
 @RequestMapping("/metric-samples")
 @Validated
@@ -50,7 +51,7 @@ public class MetricSampleController {
     @Operation(summary = "写入单条指标采样", description = "ADMIN/OPERATOR；T1事务（采样+最新值+设备在线），提交后异步触发告警评估")
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
-    @AuditLog(operation = "WRITE_METRIC_SAMPLE", detail = "设备ID:#dto.deviceId, 点位ID:#dto.pointId")
+    @AuditLog(operation = "WRITE_METRIC_SAMPLE", detail = "设备ID:#dto.deviceId, 指标ID:#dto.pointId")
     public Result<MetricSample> save(@Valid @RequestBody MetricSampleDTO dto) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         // HTTP 上报恒触发告警评估（模拟运行走服务层传开关值）
@@ -72,7 +73,7 @@ public class MetricSampleController {
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
-            @Parameter(description = "点位ID（可选）") @RequestParam(required = false) Long pointId,
+            @Parameter(description = "指标ID（可选）") @RequestParam(required = false) Long pointId,
             @Parameter(description = "起始时间（可选，ISO yyyy-MM-dd'T'HH:mm:ss）")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @Parameter(description = "结束时间（可选，ISO yyyy-MM-dd'T'HH:mm:ss）")
@@ -82,11 +83,25 @@ public class MetricSampleController {
                 user.userId(), current, size, deviceId, pointId, startTime, endTime));
     }
 
+    @Operation(summary = "查询指标趋势（分桶聚合）", description = "趋势图专用：按桶宽聚合均值/最小/最大，桶数≤200；须指定 deviceId+pointId+时间范围，跨度≤90天")
+    @GetMapping("/trend")
+    public Result<List<MetricSampleTrendPointVO>> trend(
+            @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
+            @Parameter(description = "指标ID", required = true) @RequestParam Long pointId,
+            @Parameter(description = "起始时间（ISO yyyy-MM-dd'T'HH:mm:ss）", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+            @Parameter(description = "结束时间（ISO yyyy-MM-dd'T'HH:mm:ss）", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        return Result.success(metricSampleService.trendSamples(
+                user.userId(), deviceId, pointId, startTime, endTime));
+    }
+
     @Operation(summary = "导出指标采样 Excel", description = "上限 10000 行；必须指定 deviceId，时间跨度上限 90 天")
     @GetMapping("/export")
     public void export(
             @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
-            @Parameter(description = "点位ID（可选）") @RequestParam(required = false) Long pointId,
+            @Parameter(description = "指标ID（可选）") @RequestParam(required = false) Long pointId,
             @Parameter(description = "起始时间（可选）") @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @Parameter(description = "结束时间（可选）") @RequestParam(required = false)

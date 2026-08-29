@@ -28,7 +28,7 @@
           <state-dot :state="dotState(d.status)" />
         </div>
         <div class="device-card-code num">{{ d.deviceCode }}</div>
-        <!-- 最新值迷你条：点位名=值 单位（换行显示，不截断） -->
+        <!-- 最新值迷你条：指标名=值 单位（换行显示，不截断） -->
         <div class="device-card-latest">
           <div v-for="v in latestOf(d.id)" :key="v.pointId" class="latest-line">
             <span class="latest-point">{{ v.pointName }}</span>
@@ -43,7 +43,7 @@
         <div class="device-card-actions" @click.stop>
           <el-button link type="primary" size="small" @click="selectDevice(d)">数据</el-button>
           <el-button v-if="canWrite" link type="primary" size="small" @click="openEdit(d)">编辑</el-button>
-          <el-button link type="success" size="small" @click="openPoints(d)">点位</el-button>
+          <el-button link type="success" size="small" @click="openPoints(d)">指标</el-button>
           <el-button v-if="canDelete" link type="danger" size="small" @click="handleDelete(d)">删除</el-button>
         </div>
       </div>
@@ -76,11 +76,20 @@
         <div class="drawer-trend">
           <div class="section-heading">
             <h3>趋势</h3>
-            <el-select v-model="trendPointId" size="small" style="width: 180px" @change="loadHistory">
-              <el-option v-for="p in numericPoints" :key="p.id" :label="p.pointName" :value="p.id" />
-            </el-select>
+            <div class="trend-controls">
+              <el-select v-model="trendPointId" size="small" style="width: 150px" @change="loadAllTrendData">
+                <el-option v-for="p in numericPoints" :key="p.id" :label="p.pointName" :value="p.id" />
+              </el-select>
+              <el-radio-group v-model="currentRange" size="small" @change="loadAllTrendData">
+                <el-radio-button value="1h">1小时</el-radio-button>
+                <el-radio-button value="6h">6小时</el-radio-button>
+                <el-radio-button value="24h">24小时</el-radio-button>
+                <el-radio-button value="7d">7天</el-radio-button>
+                <el-radio-button value="30d">30天</el-radio-button>
+              </el-radio-group>
+            </div>
           </div>
-          <data-trend-chart :data="chartData" @range-change="handleRangeChange" />
+          <data-trend-chart :data="trendData" :range="currentRange" :unit="trendUnit" />
           <el-table v-loading="historyLoading" :data="history" size="small" max-height="300">
             <el-table-column label="采样值" min-width="120">
               <template #default="{ row }">
@@ -117,7 +126,7 @@ import { getDeviceTypes } from '@/api/deviceType'
 import { getPointDefinitionPage } from '@/api/pointDefinition'
 import { getDeviceMetricLatest } from '@/api/metricLatest'
 import { getDevicePointBindings } from '@/api/devicePoint'
-import { getMetricSamplePage } from '@/api/metricSample'
+import { getMetricSamplePage, getMetricSampleTrend } from '@/api/metricSample'
 import { bindDeviceTemplate, listEnabledTemplates } from '@/api/alarmTemplate'
 import DeviceEditorDialog from '@/views/device/DeviceEditorDialog.vue'
 import DevicePointDrawer from '@/views/device/DevicePointDrawer.vue'
@@ -153,6 +162,7 @@ const trendPointId = ref(null)
 const historyLoading = ref(false)
 const history = ref([])
 const currentRange = ref('24h')
+const trendData = ref([])
 
 const editorVisible = ref(false)
 const editorMode = ref('create')
@@ -195,8 +205,8 @@ const numericPoints = computed(() => {
     .map((b) => pointMap[b.pointId])
     .filter((p) => p && p.dataType === 'NUMBER')
 })
-const chartData = computed(() =>
-  history.value.map((item) => ({ createTime: item.sampleTime, value: Number(item.sampleValue) })),
+const trendUnit = computed(() =>
+  numericPoints.value.find((p) => p.id === trendPointId.value)?.unit || '',
 )
 
 async function fetchDevices() {
@@ -211,7 +221,7 @@ async function fetchDevices() {
       records = records.filter((d) => (d.deviceName || '').toLowerCase().includes(kw))
     }
     devices.value = records
-    // 各设备最新值（点位名+值+单位）
+    // 各设备最新值（指标名+值+单位）
     const entries = await Promise.all(
       records.map(async (d) => {
         const r = await getDeviceMetricLatest(d.id).catch(() => null)
@@ -249,13 +259,36 @@ async function selectDevice(device) {
     if (!numericPoints.value.some((p) => p.id === trendPointId.value)) {
       trendPointId.value = numericPoints.value[0]?.id || null
     }
-    await loadHistory()
+    await loadAllTrendData()
   } finally {
     drawerLoading.value = false
   }
 }
 
 const RANGE_MS = { '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000 }
+
+// 趋势图：走分桶聚合端点，返回 ≤200 桶（均值/最小/最大）
+async function loadTrend() {
+  if (!selectedDevice.value || !trendPointId.value) {
+    trendData.value = []
+    return
+  }
+  const end = new Date()
+  const start = new Date(end.getTime() - RANGE_MS[currentRange.value])
+  try {
+    const res = await getMetricSampleTrend({
+      deviceId: selectedDevice.value.id,
+      pointId: trendPointId.value,
+      startTime: toLocal(start),
+      endTime: toLocal(end),
+    })
+    trendData.value = res.data || []
+  } catch {
+    trendData.value = []
+  }
+}
+
+// 采样明细表：保留分页查询（最新 50 条），与趋势图数据源解耦
 async function loadHistory() {
   if (!selectedDevice.value || !trendPointId.value) {
     history.value = []
@@ -279,13 +312,13 @@ async function loadHistory() {
   }
 }
 
+async function loadAllTrendData() {
+  await Promise.all([loadTrend(), loadHistory()])
+}
+
 function toLocal(date) {
   const offset = date.getTimezoneOffset() * 60000
   return new Date(date.getTime() - offset).toISOString().slice(0, 19)
-}
-function handleRangeChange(range) {
-  currentRange.value = range
-  void loadHistory()
 }
 
 function openCreate() {
@@ -523,5 +556,13 @@ onMounted(() => {
   margin: 0;
   color: var(--color-text);
   font-size: 15px;
+}
+
+.trend-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

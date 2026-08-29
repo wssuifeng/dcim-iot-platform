@@ -11,6 +11,7 @@ import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.MetricSampleExportRow;
+import com.example.platform.dto.MetricSampleTrendPointVO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.Device;
 import com.example.platform.entity.DevicePointBinding;
@@ -45,8 +46,8 @@ import java.util.stream.Collectors;
  *
  * 【T1 写入流程（单条）】
  *   1. deviceScopeHelper.ensureDeviceAccess：用户对设备有授权
- *   2. pointDefinitionService.getPointDefinitionOrThrow：点位存在 + 数据类型校验
- *   3. devicePointBindingService.getActiveBindingOrThrow：设备点位已启用绑定
+ *   2. pointDefinitionService.getPointDefinitionOrThrow：指标存在 + 数据类型校验
+ *   3. devicePointBindingService.getActiveBindingOrThrow：设备指标已启用绑定
  *   4. 双时间基准（D09）：sample_time 不得晚于 服务端当前时间+5分钟（设备时钟容忍）
  *   5. INSERT metric_sample（receive_time 由数据库默认值生成）
  *   6. UPSERT metric_latest（只取较新 sample_time 的值）
@@ -172,6 +173,46 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
     private static final int EXPORT_MAX_ROWS = 10000;
 
     @Override
+    public List<MetricSampleTrendPointVO> trendSamples(Long currentUserId, Integer deviceId, Long pointId,
+                                                       LocalDateTime startTime, LocalDateTime endTime) {
+        if (deviceId == null) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "指标趋势查询必须指定 deviceId");
+        }
+        if (pointId == null) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "指标趋势查询必须指定 pointId");
+        }
+        if (startTime == null || endTime == null) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "指标趋势查询必须指定时间范围");
+        }
+        deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
+        Duration duration = Duration.between(startTime, endTime);
+        if (duration.isNegative() || duration.isZero()) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "查询起始时间不能晚于结束时间");
+        }
+        if (duration.compareTo(Duration.ofDays(DevicePointMetricContract.MAX_RETENTION_DAYS)) > 0) {
+            throw new BusinessException(ResultCode.DATA_TIME_RANGE_EXCEED,
+                    "查询时间跨度不能超过 " + DevicePointMetricContract.MAX_RETENTION_DAYS + " 天");
+        }
+        long bucketSeconds = resolveBucketSeconds(duration.getSeconds());
+        return baseMapper.selectTrendBuckets(deviceId, pointId, startTime, endTime, bucketSeconds);
+    }
+
+    // 趋势图目标桶数：桶宽向上对齐规则步长，控制返回点数（≤约200）与聚合查询成本
+    private static final int TREND_TARGET_BUCKETS = 200;
+    private static final long[] TREND_BUCKET_STEPS = {60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 21600, 43200, 86400};
+
+    // 桶宽取整：范围秒数/目标桶数 向上对齐到最近规则步长（60s~1d），超出步长表用原始值兜底
+    static long resolveBucketSeconds(long rangeSeconds) {
+        long raw = rangeSeconds / TREND_TARGET_BUCKETS;
+        for (long step : TREND_BUCKET_STEPS) {
+            if (raw <= step) {
+                return step;
+            }
+        }
+        return raw;
+    }
+
+    @Override
     public List<MetricSampleExportRow> exportRows(Long currentUserId, Integer deviceId, Long pointId,
                                                   LocalDateTime startTime, LocalDateTime endTime) {
         deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
@@ -286,13 +327,13 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
         String dataType = point.getDataType();
         if ("STRING".equals(dataType)) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "STRING 点位不能写入数值型指标采样表");
+                    "STRING 指标不能写入数值型指标采样表");
         }
         if ("BOOLEAN".equals(dataType)
                 && sampleValue.compareTo(BigDecimal.ZERO) != 0
                 && sampleValue.compareTo(BigDecimal.ONE) != 0) {
             throw new BusinessException(ResultCode.DATA_VALUE_OUT_OF_RANGE,
-                    "BOOLEAN 点位采样值仅允许 0 或 1");
+                    "BOOLEAN 指标采样值仅允许 0 或 1");
         }
     }
 }

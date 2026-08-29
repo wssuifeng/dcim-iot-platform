@@ -6,6 +6,7 @@ import com.example.platform.dto.MetricSampleBatchDTO;
 import com.example.platform.dto.MetricSampleBatchResultVO;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.dto.MetricSampleExportRow;
+import com.example.platform.dto.MetricSampleTrendPointVO;
 import com.example.platform.dto.MetricSampleVO;
 import com.example.platform.entity.MetricSample;
 
@@ -48,8 +49,8 @@ public interface MetricSampleService extends IService<MetricSample> {
 
     /*
      * 方法功能:分页查询采样历史（须指定 deviceId，经设备范围校验，跨度≤90天）
-     * 参数:currentUserId-当前用户, current/size-分页, deviceId-设备ID, pointId-点位ID, startTime/endTime-时间范围
-     * 返回数据:Page<MetricSampleVO>-采样分页（含点位名称回填）
+     * 参数:currentUserId-当前用户, current/size-分页, deviceId-设备ID, pointId-指标ID, startTime/endTime-时间范围
+     * 返回数据:Page<MetricSampleVO>-采样分页（含指标名称回填）
      * */
     Page<MetricSampleVO> pageSamples(Long currentUserId, Integer current, Integer size,
                                      Integer deviceId, Long pointId,
@@ -57,9 +58,18 @@ public interface MetricSampleService extends IService<MetricSample> {
 
     /*
      * 方法功能:导出采样 Excel 行（上限10000行，须指定 deviceId，经设备范围校验）
-     * 参数:currentUserId-当前用户, deviceId-设备ID, pointId-点位ID, startTime/endTime-时间范围
+     * 参数:currentUserId-当前用户, deviceId-设备ID, pointId-指标ID, startTime/endTime-时间范围
      * 返回数据:List<MetricSampleExportRow>-导出行
      * */
     List<MetricSampleExportRow> exportRows(Long currentUserId, Integer deviceId, Long pointId,
                                            LocalDateTime startTime, LocalDateTime endTime);
+
+    /*
+     * 方法功能:查询指标趋势分桶聚合（趋势图专用降采样：桶内均值/最小/最大，桶数≤200，
+     *   须指定 deviceId+pointId+时间范围，跨度≤90天）
+     * 参数:currentUserId-当前用户, deviceId-设备ID, pointId-指标ID, startTime/endTime-时间范围
+     * 返回数据:List<MetricSampleTrendPointVO>-按时间升序的聚合点
+     * */
+    List<MetricSampleTrendPointVO> trendSamples(Long currentUserId, Integer deviceId, Long pointId,
+                                                LocalDateTime startTime, LocalDateTime endTime);
 }
