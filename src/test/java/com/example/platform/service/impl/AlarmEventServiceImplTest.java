@@ -246,4 +246,40 @@ class AlarmEventServiceImplTest {
                     .extracting("code").isEqualTo(ResultCode.ALARM_EVENT_NOT_FOUND);
         }
     }
+
+    @Nested
+    @DisplayName("自动恢复")
+    class AutoRecover {
+
+        @Test
+        @DisplayName("网关级告警（device_id 为空）可自动恢复：查询条件走 IS NULL 而非 eq null")
+        void should_autoRecover_withNullDeviceId() {
+            AlarmEvent event = buildEvent(92L, "ACKED");
+            event.setDeviceId(null);
+            when(alarmEventMapper.selectOne(org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(event);
+            when(alarmEventMapper.updateById((AlarmEvent) any())).thenReturn(1);
+            when(alarmStateTransitionMapper.insert((AlarmStateTransition) any())).thenReturn(1);
+
+            boolean recovered = alarmEventService.autoRecover(null, null, "GATEWAY_OFFLINE");
+
+            assertThat(recovered).isTrue();
+            org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<AlarmEvent>> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+            verify(alarmEventMapper).selectOne(captor.capture(), org.mockito.ArgumentMatchers.eq(false));
+            // device_id/point_id 双 null 必须生成 IS NULL（eq null 在 SQL 中恒不匹配）
+            String sql = captor.getValue().getSqlSegment();
+            assertThat(sql).contains("IS NULL");
+            verify(alarmEventMapper).updateById((AlarmEvent) any());
+        }
+
+        @Test
+        @DisplayName("无活动告警时自动恢复返回 false")
+        void should_returnFalse_whenNoActiveEvent() {
+            when(alarmEventMapper.selectOne(org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(null);
+
+            assertThat(alarmEventService.autoRecover(null, null, "GATEWAY_OFFLINE")).isFalse();
+        }
+    }
 }

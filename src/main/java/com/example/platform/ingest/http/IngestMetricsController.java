@@ -14,12 +14,13 @@ import java.util.Map;
 /**
  * 数据接收门观测端点（阶段七压测配套，只读）
  *
- * <p>输出内存计数快照（批次/条目/延迟分位），供压测脚本轮询采集；
+ * <p>挂载于 /observability 前缀（/ingest/** 为网关机器鉴权专用，用户通道不可达），
+ * 输出内存计数快照（批次/条目/延迟分位），供压测脚本轮询采集；
  * 数据为进程内存态，重启归零，快照自带 since 时间戳供调用方差分。</p>
  */
 @Tag(name = "数据接收门（观测）", description = "ingest 链路吞吐与延迟观测（压测采样用，只读）")
 @RestController
-@RequestMapping("/ingest/metrics")
+@RequestMapping("/observability/ingest-metrics")
 public class IngestMetricsController {
 
     private final IngestMetricsCollector metricsCollector;

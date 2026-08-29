@@ -377,8 +377,14 @@ public class AlarmEventServiceImpl
 
     private AlarmEvent findActiveEvent(Integer deviceId, Long pointId, String alarmType) {
         LambdaQueryWrapper<AlarmEvent> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AlarmEvent::getDeviceId, deviceId)
-                .eq(AlarmEvent::getAlarmType, alarmType)
+        // 网关级告警（GATEWAY_OFFLINE）device_id 为空：eq(field, null) 在 SQL 里
+        // 恒不匹配（NULL=NULL），必须走 isNull，否则该类告警永远无法 trigger 去重/自动恢复
+        if (deviceId == null) {
+            wrapper.isNull(AlarmEvent::getDeviceId);
+        } else {
+            wrapper.eq(AlarmEvent::getDeviceId, deviceId);
+        }
+        wrapper.eq(AlarmEvent::getAlarmType, alarmType)
                 .notIn(AlarmEvent::getState, List.of(STATE_RECOVERED, STATE_CLOSED))
                 .orderByDesc(AlarmEvent::getTriggeredTime)
                 .last("LIMIT 1");
