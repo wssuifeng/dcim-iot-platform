@@ -13,7 +13,9 @@ import java.util.Map;
  *
  * 【匹配优先级】清单显式类型码 > 指标编码推断 > 凭证默认类型（兜底）。
  * 指标推断规则与平台指标目录对齐：temperature/humidity→温湿度，
- * voltage/current→UPS，power→电表，leak→漏水检测。
+ * voltage/current→UPS，power→电表，supply_air/return_air→精密空调，
+ * leak→漏水检测。同一编码命中多个提示时取最长关键词（如 return_air_temp
+ * 同时含 temp 与 return_air，应判精密空调而非温湿度）。
  * */
 @Component
 public class DeviceTypeInferencer {
@@ -27,7 +29,15 @@ public class DeviceTypeInferencer {
             Map.entry("voltage", "UPS"),
             Map.entry("current", "UPS"),
             Map.entry("power", "PDU_METER"),
+            Map.entry("supply_air", "PRECISION_AC"),
+            Map.entry("return_air", "PRECISION_AC"),
             Map.entry("leak", "LEAK_DETECTOR"));
+
+    // 关键词按长度降序：最长匹配优先（supply_air/return_air 压过 temp/hum 短提示）
+    private static final List<Map.Entry<String, String>> ORDERED_HINTS = POINT_HINTS.entrySet()
+            .stream()
+            .sorted((a, b) -> b.getKey().length() - a.getKey().length())
+            .toList();
 
     public DeviceTypeInferencer(DeviceTypeService deviceTypeService) {
         this.deviceTypeService = deviceTypeService;
@@ -61,7 +71,7 @@ public class DeviceTypeInferencer {
                 continue;
             }
             String lower = pointCode.toLowerCase();
-            for (Map.Entry<String, String> hint : POINT_HINTS.entrySet()) {
+            for (Map.Entry<String, String> hint : ORDERED_HINTS) {
                 if (lower.contains(hint.getKey())) {
                     Integer typeId = resolveByTypeCode(hint.getValue());
                     if (typeId != null) {
