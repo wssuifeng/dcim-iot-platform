@@ -23,7 +23,7 @@ public class MetricRetentionPolicy implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "点位定义ID（为空表示全局默认策略）", example = "1")
+    @Schema(description = "指标定义ID（为空表示全局默认策略）", example = "1")
     @TableField("point_id")
     private Long pointId;
 

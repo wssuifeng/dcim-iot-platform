@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 告警模版响应 VO（含引用计数与点位展示回填）
+ * 告警模版响应 VO（含引用计数与指标展示回填）
  */
 @Schema(description = "告警模版响应")
 @Data

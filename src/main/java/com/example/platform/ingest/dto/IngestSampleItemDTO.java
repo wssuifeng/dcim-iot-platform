@@ -27,10 +27,10 @@ public class IngestSampleItemDTO implements Serializable {
     @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "设备编码只能包含字母、数字、下划线和短横线")
     private String deviceCode;
 
-    @Schema(description = "点位编码（point_definition.point_code）", example = "temperature", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "点位编码不能为空")
-    @Size(max = 50, message = "点位编码最长50个字符")
-    @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "点位编码只能包含字母、数字、下划线和短横线")
+    @Schema(description = "指标编码（point_definition.point_code）", example = "temperature", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "指标编码不能为空")
+    @Size(max = 50, message = "指标编码最长50个字符")
+    @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "指标编码只能包含字母、数字、下划线和短横线")
     private String pointCode;
 
     @Schema(description = "采样值", example = "22.5", requiredMode = Schema.RequiredMode.REQUIRED)

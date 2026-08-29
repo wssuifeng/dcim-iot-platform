@@ -33,7 +33,7 @@ import java.util.Optional;
  *   2. 逐条 operator×threshold 比较，全部启用规则评估完取最严重命中（级别数字最小）
  *      （"从高到低/从低到高"校验顺序不影响结果：最严重命中者胜出）
  *   3. 命中 → AlarmEventService.trigger（活动告警去重/升级在状态机内完成）
- *   4. 未命中但存在同点位 METRIC 活动告警 → AlarmEventService.autoRecover（值恢复正常）
+ *   4. 未命中但存在同指标 METRIC 活动告警 → AlarmEventService.autoRecover（值恢复正常）
  *
  * 【异常原则（D15）】评估报错≠采样非法：全方法 try-catch，异常仅记 ERROR 日志
  *   （带 traceId），不生成设备告警、不回滚采样；引擎自身故障不进 alarm_event。
@@ -85,7 +85,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
         if (hit.isPresent()) {
             triggerAlarm(event, hit.get());
         } else {
-            // 值恢复正常：同点位 METRIC 活动告警自动恢复（设备在线由上报刷新，离线告警由任务恢复）
+            // 值恢复正常：同指标 METRIC 活动告警自动恢复（设备在线由上报刷新，离线告警由任务恢复）
             alarmEventService.autoRecover(event.deviceId(), event.pointId(), ALARM_TYPE_METRIC);
         }
     }

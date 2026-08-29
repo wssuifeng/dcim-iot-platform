@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /*
- * 类功能:设备点位绑定服务实现类
+ * 类功能:设备指标绑定服务实现类
  *
  * 【角色与范围】
  *   - 写操作权限由控制器 RBAC（ADMIN/OPERATOR）保证，Service 层校验设备存在性
@@ -55,7 +55,7 @@ public class DevicePointBindingServiceImpl
                 .eq(DevicePointBinding::getPointId, dto.getPointId());
         if (count(wrapper) > 0) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "设备 " + dto.getDeviceId() + " 已绑定点位 " + dto.getPointId());
+                    "设备 " + dto.getDeviceId() + " 已绑定指标 " + dto.getPointId());
         }
 
         DevicePointBinding binding = new DevicePointBinding();
@@ -63,9 +63,9 @@ public class DevicePointBindingServiceImpl
         binding.setPointId(dto.getPointId());
         binding.setStatus(dto.getStatus() != null ? dto.getStatus() : 0);
         if (!save(binding)) {
-            throw new BusinessException("设备点位绑定失败");
+            throw new BusinessException("设备指标绑定失败");
         }
-        log.info("设备点位绑定成功 deviceId={} pointId={}", dto.getDeviceId(), dto.getPointId());
+        log.info("设备指标绑定成功 deviceId={} pointId={}", dto.getDeviceId(), dto.getPointId());
         return binding;
     }
 
@@ -90,9 +90,9 @@ public class DevicePointBindingServiceImpl
         DevicePointBinding binding = getBindingOrThrow(bindingId);
         deviceScopeHelper.ensureDeviceAccess(binding.getDeviceId(), currentUserId);
         if (!removeById(bindingId)) {
-            throw new BusinessException("移除设备点位绑定失败");
+            throw new BusinessException("移除设备指标绑定失败");
         }
-        log.info("设备点位绑定移除 bindingId={} deviceId={}", bindingId, binding.getDeviceId());
+        log.info("设备指标绑定移除 bindingId={} deviceId={}", bindingId, binding.getDeviceId());
     }
 
     @Override
@@ -114,7 +114,7 @@ public class DevicePointBindingServiceImpl
         DevicePointBinding binding = getOne(wrapper, false);
         if (binding == null) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "设备 " + deviceId + " 未启用点位 " + pointId + " 的绑定");
+                    "设备 " + deviceId + " 未启用指标 " + pointId + " 的绑定");
         }
         return binding;
     }
@@ -128,7 +128,7 @@ public class DevicePointBindingServiceImpl
 
         if (deviceId == null) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "设备点位绑定查询必须指定 deviceId");
+                    "设备指标绑定查询必须指定 deviceId");
         }
         deviceScopeHelper.ensureDeviceAccess(deviceId, currentUserId);
         wrapper.eq(DevicePointBinding::getDeviceId, deviceId);
@@ -154,11 +154,11 @@ public class DevicePointBindingServiceImpl
         List<DeviceTypePointTemplate> templates = deviceTypePointTemplateService.listEffectiveTemplates(
                 typeId, currentUserId);
         if (templates.isEmpty()) {
-            log.info("设备类型 {} 未配置点位模板，跳过模板拷贝", typeId);
+            log.info("设备类型 {} 未配置指标模板，跳过模板拷贝", typeId);
             return new ArrayList<>();
         }
 
-        // 已绑定点位ID集合
+        // 已绑定指标ID集合
         LambdaQueryWrapper<DevicePointBinding> existWrapper = new LambdaQueryWrapper<>();
         existWrapper.eq(DevicePointBinding::getDeviceId, deviceId);
         Set<Long> existPointIds = list(existWrapper).stream()
@@ -178,7 +178,7 @@ public class DevicePointBindingServiceImpl
             save(binding);
             result.add(binding);
         }
-        log.info("设备点位模板拷贝完成 deviceId={} typeId={} 新增绑定数={}",
+        log.info("设备指标模板拷贝完成 deviceId={} typeId={} 新增绑定数={}",
                 deviceId, typeId, result.size());
         return result;
     }
@@ -187,7 +187,7 @@ public class DevicePointBindingServiceImpl
         DevicePointBinding binding = getById(id);
         if (binding == null) {
             throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND,
-                    "设备点位绑定记录不存在: " + id);
+                    "设备指标绑定记录不存在: " + id);
         }
         return binding;
     }

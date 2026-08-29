@@ -21,11 +21,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 点位定义接口层
+ * 指标定义接口层
  *
  * <p>写操作 ADMIN；查询任何已认证用户；删除仅 ADMIN。</p>
  */
-@Tag(name = "点位定义", description = "点位字典管理")
+@Tag(name = "指标定义", description = "指标字典管理")
 @RestController
 @RequestMapping("/point-definitions")
 @Validated
@@ -40,7 +40,7 @@ public class PointDefinitionController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "分页查询点位定义", description = "支持关键字与数据类型过滤")
+    @Operation(summary = "分页查询指标定义", description = "支持关键字与数据类型过滤")
     @GetMapping("/page")
     public Result<Page<PointDefinition>> page(
             @Parameter(description = "当前页码，默认1") @RequestParam(defaultValue = "1") Integer current,
@@ -52,22 +52,22 @@ public class PointDefinitionController {
                 user.userId(), current, size, keyword, dataType));
     }
 
-    @Operation(summary = "查询点位详情")
+    @Operation(summary = "查询指标详情")
     @GetMapping("/{id}")
     public Result<PointDefinition> getById(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long id) {
+            @Parameter(description = "指标ID", required = true) @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(pointDefinitionService.getPointDefinitionOrThrow(id, user.userId()));
     }
 
-    @Operation(summary = "查询可绑点位下拉", description = "全部点位，供绑定/模板/规则选择")
+    @Operation(summary = "查询可绑指标下拉", description = "全部指标，供绑定/模板/规则选择")
     @GetMapping("/available")
     public Result<List<PointDefinition>> available() {
         currentUserContext.requireCurrentUser();
         return Result.success(pointDefinitionService.listAvailablePoints());
     }
 
-    @Operation(summary = "新增点位定义", description = "编码全局唯一")
+    @Operation(summary = "新增指标定义", description = "编码全局唯一")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "CREATE_POINT_DEFINITION", detail = "编码:#createDTO.pointCode")
@@ -76,38 +76,38 @@ public class PointDefinitionController {
         return Result.success(pointDefinitionService.createPointDefinition(createDTO, user.userId()));
     }
 
-    @Operation(summary = "更新点位定义", description = "按 ID 更新；仅 ADMIN")
+    @Operation(summary = "更新指标定义", description = "按 ID 更新；仅 ADMIN")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @AuditLog(operation = "UPDATE_POINT_DEFINITION", detail = "点位ID:#id")
+    @AuditLog(operation = "UPDATE_POINT_DEFINITION", detail = "指标ID:#id")
     public Result<PointDefinition> update(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long id,
+            @Parameter(description = "指标ID", required = true) @PathVariable Long id,
             @Valid @RequestBody PointDefinitionUpdateDTO updateDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(pointDefinitionService.updatePointDefinition(id, updateDTO, user.userId()));
     }
 
-    @Operation(summary = "删除点位定义", description = "被模板/绑定/规则引用时拒绝；仅 ADMIN")
+    @Operation(summary = "删除指标定义", description = "被模板/绑定/规则引用时拒绝；仅 ADMIN")
     @DeleteMapping("/{id}")
-    @AuditLog(operation = "DELETE_POINT_DEFINITION", detail = "点位ID:#id")
+    @AuditLog(operation = "DELETE_POINT_DEFINITION", detail = "指标ID:#id")
     public Result<Void> delete(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long id) {
+            @Parameter(description = "指标ID", required = true) @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         pointDefinitionService.deletePointDefinition(id, user.userId());
         return Result.success();
     }
 
-    @Operation(summary = "导出点位资源包", description = "导出全部点位+模板为 JSON 传输包；仅 ADMIN")
+    @Operation(summary = "导出指标资源包", description = "导出全部指标+模板为 JSON 传输包；仅 ADMIN")
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ADMIN')")
     public Result<PointResourceExportPackage> export() {
         return Result.success(pointDefinitionService.exportPackage());
     }
 
-    @Operation(summary = "导入点位资源包", description = "导入点位资源包（编码冲突复用已有，模板覆盖写）；仅 ADMIN")
+    @Operation(summary = "导入指标资源包", description = "导入指标资源包（编码冲突复用已有，模板覆盖写）；仅 ADMIN")
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN')")
-    @AuditLog(operation = "IMPORT_POINT_RESOURCES", detail = "点位数:#pkg.points.size")
+    @AuditLog(operation = "IMPORT_POINT_RESOURCES", detail = "指标数:#pkg.points.size")
     public Result<Void> importPackage(@Valid @RequestBody PointResourceExportPackage pkg) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         pointDefinitionService.importPackage(pkg, user.userId());

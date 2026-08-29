@@ -122,10 +122,10 @@
         </el-form-item>
         <el-form-item v-if="dialogMode === 'edit'" label="自动注册" prop="autoRegister">
           <el-switch v-model="form.autoRegister" :active-value="1" :inactive-value="0" />
-          <span class="form-tip">未知设备编码首包自动建档（类型优先按点位推断）</span>
+          <span class="form-tip">未知设备编码首包自动建档（类型优先按指标推断）</span>
         </el-form-item>
         <el-form-item v-if="dialogMode === 'edit' && form.autoRegister === 1" label="默认类型" prop="defaultTypeId">
-          <el-select v-model="form.defaultTypeId" filterable clearable class="full-width" placeholder="点位推断失败时兜底">
+          <el-select v-model="form.defaultTypeId" filterable clearable class="full-width" placeholder="指标推断失败时兜底">
             <el-option
               v-for="item in deviceTypes"
               :key="item.id"

@@ -11,8 +11,8 @@ import java.util.Map;
 /*
  * 类功能:首包自动注册的设备类型解析器——按网关上报线索智能匹配平台设备类型
  *
- * 【匹配优先级】清单显式类型码 > 点位编码推断 > 凭证默认类型（兜底）。
- * 点位推断规则与平台点位目录对齐：temperature/humidity→温湿度，
+ * 【匹配优先级】清单显式类型码 > 指标编码推断 > 凭证默认类型（兜底）。
+ * 指标推断规则与平台指标目录对齐：temperature/humidity→温湿度，
  * voltage/current→UPS，power→电表，leak→漏水检测。
  * */
 @Component
@@ -20,7 +20,7 @@ public class DeviceTypeInferencer {
 
     private final DeviceTypeService deviceTypeService;
 
-    // 点位编码片段（前缀/包含匹配）→ 类型码（与 device_types.type_code 对齐）
+    // 指标编码片段（前缀/包含匹配）→ 类型码（与 device_types.type_code 对齐）
     private static final Map<String, String> POINT_HINTS = Map.ofEntries(
             Map.entry("temp", "TEMP_HUMIDITY"),
             Map.entry("hum", "TEMP_HUMIDITY"),
@@ -48,8 +48,8 @@ public class DeviceTypeInferencer {
     }
 
     /*
-     * 方法功能:按上报点位编码集合推断平台类型ID
-     * 参数:pointCodes-网关上报的点位编码（任一命中即投票）
+     * 方法功能:按上报指标编码集合推断平台类型ID
+     * 参数:pointCodes-网关上报的指标编码（任一命中即投票）
      * 返回数据:Integer-类型ID，无法推断返回 null
      * */
     public Integer inferByPointCodes(List<String> pointCodes) {

@@ -21,7 +21,7 @@ import java.util.List;
  * <p>权限边界：仅 ADMIN 可写（全局策略或单点策略）；任何已认证用户可读（策略本身不泄露业务数据）。
  * 保留天数上限 90 天，由 DTO 校验保证（共享契约：不得默认启用无限保留）。</p>
  */
-@Tag(name = "指标保留策略", description = "全局/点位级指标数据保留策略管理（ADMIN 写）")
+@Tag(name = "指标保留策略", description = "全局/指标级指标数据保留策略管理（ADMIN 写）")
 @RestController
 @RequestMapping("/metric-retention-policies")
 @Validated
@@ -39,18 +39,18 @@ public class MetricRetentionPolicyController {
         return Result.success(metricRetentionPolicyService.getGlobalPolicyOrThrow());
     }
 
-    @Operation(summary = "按点位查询保留策略", description = "pointId 为 null 等价于查询全局策略")
+    @Operation(summary = "按指标查询保留策略", description = "pointId 为 null 等价于查询全局策略")
     @GetMapping("/point/{pointId}")
     public Result<MetricRetentionPolicy> getByPoint(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long pointId) {
+            @Parameter(description = "指标ID", required = true) @PathVariable Long pointId) {
         MetricRetentionPolicy policy = metricRetentionPolicyService.findByPointId(pointId);
         return Result.success(policy);
     }
 
-    @Operation(summary = "解析某点位的有效保留天数", description = "点位策略优先、回退全局、再回退 90 默认值；传 pointId=0 时视为全局")
+    @Operation(summary = "解析某指标的有效保留天数", description = "指标策略优先、回退全局、再回退 90 默认值；传 pointId=0 时视为全局")
     @GetMapping("/effective/{pointId}")
     public Result<Integer> effective(
-            @Parameter(description = "点位ID（传 0 视为全局）", required = true) @PathVariable Long pointId) {
+            @Parameter(description = "指标ID（传 0 视为全局）", required = true) @PathVariable Long pointId) {
         Long effectivePointId = (pointId != null && pointId == 0L) ? null : pointId;
         return Result.success(metricRetentionPolicyService.resolveEffectiveRetentionDays(effectivePointId));
     }
@@ -64,7 +64,7 @@ public class MetricRetentionPolicyController {
     @Operation(summary = "更新或创建保留策略", description = "ADMIN 专用；retentionDays 1~90；pointId 为 null 表示全局")
     @PutMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @AuditLog(operation = "UPSERT_RETENTION_POLICY", detail = "点位ID:#dto.pointId, 天数:#dto.retentionDays")
+    @AuditLog(operation = "UPSERT_RETENTION_POLICY", detail = "指标ID:#dto.pointId, 天数:#dto.retentionDays")
     public Result<MetricRetentionPolicy> upsert(@Valid @RequestBody MetricRetentionPolicyDTO dto) {
         return Result.success(metricRetentionPolicyService.upsertPolicy(dto));
     }

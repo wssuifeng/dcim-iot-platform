@@ -10,10 +10,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 设备类型点位模板实体类，映射 device_type_point_template 表，
- * 描述某类设备类型（device_types）默认应包含的点位定义集合
+ * 设备类型指标模板实体类，映射 device_type_point_template 表，
+ * 描述某类设备类型（device_types）默认应包含的指标定义集合
  */
-@Schema(description = "设备类型点位模板")
+@Schema(description = "设备类型指标模板")
 @Data
 @TableName("device_type_point_template")
 public class DeviceTypePointTemplate implements Serializable {
@@ -29,12 +29,12 @@ public class DeviceTypePointTemplate implements Serializable {
     @TableField("type_id")
     private Integer typeId;
 
-    @Schema(description = "点位定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "点位定义不能为空")
+    @Schema(description = "指标定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "指标定义不能为空")
     @TableField("point_id")
     private Long pointId;
 
-    @Schema(description = "是否必选点位：0-可选 1-必选", example = "1")
+    @Schema(description = "是否必选指标：0-可选 1-必选", example = "1")
     @TableField("is_required")
     private Integer isRequired;
 

@@ -67,7 +67,7 @@ public class IngestExportController {
         IngestCredential credential =
                 (IngestCredential) request.getAttribute(GatewayAuthenticationFilter.ATTR_CREDENTIAL);
 
-        // 点位 id → code 映射
+        // 指标 id → code 映射
         Map<Long, String> pointCodeById = pointDefinitionService.list().stream()
                 .collect(Collectors.toMap(PointDefinition::getId, PointDefinition::getPointCode));
 
@@ -83,7 +83,7 @@ public class IngestExportController {
             }
         }
 
-        // 生效模版下启用的 METRIC 规则按点位聚合导出
+        // 生效模版下启用的 METRIC 规则按指标聚合导出
         List<ThresholdItem> thresholds = new ArrayList<>();
         if (!templateIds.isEmpty()) {
             LambdaQueryWrapper<AlarmTemplateItem> itemWrapper = new LambdaQueryWrapper<>();

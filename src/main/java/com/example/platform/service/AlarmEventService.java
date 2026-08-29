@@ -37,14 +37,14 @@ public interface AlarmEventService extends IService<AlarmEvent> {
 
     /*
      * 方法功能:产生或升级告警（活动告警去重，新级别更小时升级）
-     * 参数:context-触发上下文（设备/点位/类型/级别/文案/组织/机房）
+     * 参数:context-触发上下文（设备/指标/类型/级别/文案/组织/机房）
      * 返回数据:AlarmTriggerResult-事件与kind（CREATED/UPGRADED/SKIPPED）
      * */
     AlarmTriggerResult trigger(AlarmTriggerContext context);
 
     /*
      * 方法功能:系统自动恢复活动告警（值恢复正常/设备恢复上线），操作人标记为系统
-     * 参数:deviceId-设备ID, pointId-点位ID（通用告警为null）, alarmType-告警类型
+     * 参数:deviceId-设备ID, pointId-指标ID（通用告警为null）, alarmType-告警类型
      * 返回数据:boolean-是否执行了恢复（无活动告警返回false）
      * */
     boolean autoRecover(Integer deviceId, Long pointId, String alarmType);

@@ -19,7 +19,7 @@ public class MetricRetentionPolicyDTO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "点位定义ID（为空表示全局默认策略）", example = "1")
+    @Schema(description = "指标定义ID（为空表示全局默认策略）", example = "1")
     private Long pointId;
 
     @Schema(description = "保留天数（1~90）", example = "90", requiredMode = Schema.RequiredMode.REQUIRED)

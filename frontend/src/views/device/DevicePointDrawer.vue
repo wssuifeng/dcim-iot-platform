@@ -1,14 +1,14 @@
 <template>
   <el-drawer
     :model-value="visible"
-    :title="`设备点位 · ${device?.deviceName || ''}`"
+    :title="`设备指标 · ${device?.deviceName || ''}`"
     size="720px"
     destroy-on-close
     @update:model-value="emit('update:visible', $event)"
     @open="loadData"
   >
     <div v-if="canManage" class="point-toolbar">
-      <el-select v-model="selectedPointId" filterable placeholder="选择点位" class="point-select">
+      <el-select v-model="selectedPointId" filterable placeholder="选择指标" class="point-select">
         <el-option
           v-for="item in availablePoints"
           :key="item.id"
@@ -23,7 +23,7 @@
     </div>
 
     <el-table v-loading="loading" :data="bindings" row-key="id">
-      <el-table-column label="点位" min-width="210">
+      <el-table-column label="指标" min-width="210">
         <template #default="{ row }">
           <div>{{ pointMeta(row.pointId).pointName }}</div>
           <div class="secondary">{{ pointMeta(row.pointId).pointCode }}</div>
@@ -87,7 +87,7 @@ const availablePoints = computed(() => {
 
 function pointMeta(id) {
   return pointMap.value[id] || {
-    pointName: `点位 #${id}`,
+    pointName: `指标 #${id}`,
     pointCode: '',
     dataType: '-',
     unit: '',
@@ -116,7 +116,7 @@ async function bindPoint() {
     pointId: selectedPointId.value,
     status: 0,
   })
-  ElMessage.success('点位已绑定')
+  ElMessage.success('指标已绑定')
   await loadData()
 }
 
@@ -128,17 +128,17 @@ async function initializeFromTemplate() {
 
 async function toggleStatus(row) {
   await updateDevicePointStatus(row.id, row.status === 0 ? 1 : 0)
-  ElMessage.success('点位状态已更新')
+  ElMessage.success('指标状态已更新')
   await loadData()
 }
 
 async function removeBinding(row) {
-  const confirmed = await ElMessageBox.confirm('确认解除这个设备点位绑定？', '解绑确认', {
+  const confirmed = await ElMessageBox.confirm('确认解除这个设备指标绑定？', '解绑确认', {
     type: 'warning',
   }).catch(() => false)
   if (!confirmed) return
   await unbindDevicePoint(row.id)
-  ElMessage.success('点位已解绑')
+  ElMessage.success('指标已解绑')
   await loadData()
 }
 </script>

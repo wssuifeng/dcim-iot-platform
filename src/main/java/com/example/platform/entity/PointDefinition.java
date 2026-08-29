@@ -11,28 +11,28 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 点位定义实体类，映射 point_definition 表，描述设备可采集的物理量点位
+ * 指标定义实体类，映射 point_definition 表，描述设备可采集的物理量指标
  */
-@Schema(description = "点位定义")
+@Schema(description = "指标定义")
 @Data
 @TableName("point_definition")
 public class PointDefinition implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "点位定义ID（主键）", example = "1")
+    @Schema(description = "指标定义ID（主键）", example = "1")
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Schema(description = "点位编码（全局唯一）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "点位编码不能为空")
-    @Size(max = 50, message = "点位编码最长50个字符")
+    @Schema(description = "指标编码（全局唯一）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "指标编码不能为空")
+    @Size(max = 50, message = "指标编码最长50个字符")
     @TableField("point_code")
     private String pointCode;
 
-    @Schema(description = "点位名称（展示用）", example = "A相电压", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "点位名称不能为空")
-    @Size(max = 100, message = "点位名称最长100个字符")
+    @Schema(description = "指标名称（展示用）", example = "A相电压", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "指标名称不能为空")
+    @Size(max = 100, message = "指标名称最长100个字符")
     @TableField("point_name")
     private String pointName;
 
@@ -45,7 +45,7 @@ public class PointDefinition implements Serializable {
     @TableField("data_type")
     private String dataType;
 
-    @Schema(description = "点位描述", example = "UPS输出A相电压")
+    @Schema(description = "指标描述", example = "UPS输出A相电压")
     @Size(max = 200, message = "描述最长200个字符")
     private String description;
 

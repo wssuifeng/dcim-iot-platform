@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * 告警模版规则行响应 VO（含点位展示回填）
+ * 告警模版规则行响应 VO（含指标展示回填）
  */
 @Schema(description = "告警模版规则行响应")
 @Data
@@ -23,13 +23,13 @@ public class AlarmTemplateItemVO implements Serializable {
     @Schema(description = "所属模版ID")
     private Long templateId;
 
-    @Schema(description = "点位ID（NULL=通用规则）")
+    @Schema(description = "指标ID（NULL=通用规则）")
     private Long pointId;
 
-    @Schema(description = "点位编码（回填）", example = "temperature")
+    @Schema(description = "指标编码（回填）", example = "temperature")
     private String pointCode;
 
-    @Schema(description = "点位名称（回填）", example = "温度")
+    @Schema(description = "指标名称（回填）", example = "温度")
     private String pointName;
 
     @Schema(description = "单位（回填）", example = "℃")

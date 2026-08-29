@@ -67,7 +67,7 @@ public class AlarmTemplateController {
         return Result.success(alarmTemplateService.getTemplate(id));
     }
 
-    @Operation(summary = "查询模版规则行", description = "按点位分组级别排序，含点位名称/编码/单位回填")
+    @Operation(summary = "查询模版规则行", description = "按指标分组级别排序，含指标名称/编码/单位回填")
     @GetMapping("/{id}/items")
     public Result<List<AlarmTemplateItemVO>> items(
             @Parameter(description = "模版ID", required = true) @PathVariable Long id) {
@@ -112,7 +112,7 @@ public class AlarmTemplateController {
         return Result.success(alarmTemplateService.duplicateTemplate(id, newCode, newName));
     }
 
-    @Operation(summary = "新增模版规则行", description = "形状校验复用 METRIC/OFFLINE/COMM 契约；同模版同点位同比较符唯一")
+    @Operation(summary = "新增模版规则行", description = "形状校验复用 METRIC/OFFLINE/COMM 契约；同模版同指标同比较符唯一")
     @PostMapping("/{id}/items")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "CREATE_ALARM_TEMPLATE_ITEM", detail = "模版ID:#id, 规则名:#dto.ruleName")
@@ -122,7 +122,7 @@ public class AlarmTemplateController {
         return Result.success(alarmTemplateService.createItem(id, dto));
     }
 
-    @Operation(summary = "更新模版规则行", description = "点位与规则类型不可变更")
+    @Operation(summary = "更新模版规则行", description = "指标与规则类型不可变更")
     @PutMapping("/items/{itemId}")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     @AuditLog(operation = "UPDATE_ALARM_TEMPLATE_ITEM", detail = "规则行ID:#itemId")

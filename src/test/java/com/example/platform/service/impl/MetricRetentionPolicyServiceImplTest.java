@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:MetricRetentionPolicyServiceImpl 单元测试
- * 覆盖 BIZ-OPEN-02：90 天上限、点位策略优先于全局、全局回退、upsert
+ * 覆盖 BIZ-OPEN-02：90 天上限、指标策略优先于全局、全局回退、upsert
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MetricRetentionPolicyService 单元测试")
@@ -116,7 +116,7 @@ class MetricRetentionPolicyServiceImplTest {
         }
 
         @Test
-        @DisplayName("点位策略不存在时新建")
+        @DisplayName("指标策略不存在时新建")
         void should_createPointPolicy() {
             when(metricRetentionPolicyMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean()))
                     .thenReturn(null);
@@ -138,7 +138,7 @@ class MetricRetentionPolicyServiceImplTest {
     class Resolve {
 
         @Test
-        @DisplayName("点位策略优先")
+        @DisplayName("指标策略优先")
         void should_preferPointPolicy() {
             MetricRetentionPolicy pointPolicy = new MetricRetentionPolicy();
             pointPolicy.setPointId(10L);

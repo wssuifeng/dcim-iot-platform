@@ -1,14 +1,14 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="`基础点位清单 · ${deviceType?.typeName || ''}`"
+    :title="`基础指标清单 · ${deviceType?.typeName || ''}`"
     width="760px"
     destroy-on-close
     @update:model-value="emit('update:visible', $event)"
     @open="loadData"
   >
     <div v-if="canManage" class="template-toolbar">
-      <el-select v-model="selectedPointId" filterable placeholder="选择点位" class="point-select">
+      <el-select v-model="selectedPointId" filterable placeholder="选择指标" class="point-select">
         <el-option
           v-for="item in availablePoints"
           :key="item.id"
@@ -19,14 +19,14 @@
       <el-button type="primary" :icon="Plus" :disabled="!selectedPointId" @click="addPoint">
         添加
       </el-button>
-      <span class="toolbar-tip">新设备建档与网关自动注册时按此清单初始化点位绑定</span>
+      <span class="toolbar-tip">新设备建档与网关自动注册时按此清单初始化指标绑定</span>
     </div>
     <p v-else class="toolbar-tip read-only-tip">
-      该类型的点位清单（新设备建档与网关自动注册时按此初始化点位绑定）——只读视图，编辑需管理员权限
+      该类型的指标清单（新设备建档与网关自动注册时按此初始化指标绑定）——只读视图，编辑需管理员权限
     </p>
 
     <el-table v-loading="loading" :data="drafts" row-key="pointId" max-height="420">
-      <el-table-column label="点位" min-width="220">
+      <el-table-column label="指标" min-width="220">
         <template #default="{ row }">
           <div>{{ pointMeta(row.pointId).pointName }}</div>
           <div class="secondary">{{ pointMeta(row.pointId).pointCode }}</div>
@@ -108,7 +108,7 @@ const availablePoints = computed(() => {
 
 function pointMeta(id) {
   return pointMap.value[id] || {
-    pointName: `点位 #${id}`,
+    pointName: `指标 #${id}`,
     pointCode: '',
     dataType: '-',
     unit: '',
@@ -152,7 +152,7 @@ async function saveTemplates() {
   saving.value = true
   try {
     await saveDeviceTypePointTemplates(props.deviceType.id, drafts.value)
-    ElMessage.success('点位清单已保存')
+    ElMessage.success('指标清单已保存')
     emit('update:visible', false)
   } finally {
     saving.value = false

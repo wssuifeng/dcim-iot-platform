@@ -30,7 +30,7 @@ public class AlarmEvent implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    @Schema(description = "触发点位ID（关联 point_definition，可为空）", example = "1")
+    @Schema(description = "触发指标ID（关联 point_definition，可为空）", example = "1")
     @TableField("point_id")
     private Long pointId;
 

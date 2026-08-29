@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:DeviceTypePointTemplateServiceImpl 单元测试
- * 覆盖 BIZ-OPEN-02：模板覆盖写、点位存在性校验、重复 pointId 拒绝、清空旧模板
+ * 覆盖 BIZ-OPEN-02：模板覆盖写、指标存在性校验、重复 pointId 拒绝、清空旧模板
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DeviceTypePointTemplateService 单元测试")
@@ -115,11 +115,11 @@ class DeviceTypePointTemplateServiceImplTest {
     class SaveTemplates {
 
         @Test
-        @DisplayName("点位不存在应整批拒绝")
+        @DisplayName("指标不存在应整批拒绝")
         void should_throw_when_pointNotFound() {
             when(deviceTypeMapper.selectById(1)).thenReturn(buildType(1));
             when(pointDefinitionService.getPointDefinitionOrThrow(10L))
-                    .thenThrow(new BusinessException("点位不存在"));
+                    .thenThrow(new BusinessException("指标不存在"));
 
             DeviceTypePointTemplateBatchDTO batch = new DeviceTypePointTemplateBatchDTO();
             DeviceTypePointTemplateDTO item = new DeviceTypePointTemplateDTO();
@@ -150,7 +150,7 @@ class DeviceTypePointTemplateServiceImplTest {
 
             assertThatThrownBy(() -> deviceTypePointTemplateService.saveTemplates(1, batch))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("点位定义ID重复");
+                    .hasMessageContaining("指标定义ID重复");
             verify(deviceTypePointTemplateMapper, never()).insert((DeviceTypePointTemplate) any());
         }
 

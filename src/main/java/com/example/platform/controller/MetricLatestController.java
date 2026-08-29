@@ -20,7 +20,7 @@ import java.util.List;
  * <p>任何已认证用户可读，须以 deviceId 入参；服务层按授权设备范围过滤。
  * 跨设备聚合（看板）由后续 BIZ-TRAE-02 看板模块实现。</p>
  */
-@Tag(name = "指标最新值", description = "设备点位最新值快照查询（已认证用户按范围读）")
+@Tag(name = "指标最新值", description = "设备指标最新值快照查询（已认证用户按范围读）")
 @RestController
 @RequestMapping("/metric-latest")
 @Validated
@@ -35,7 +35,7 @@ public class MetricLatestController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "查询某设备全部点位最新值", description = "按授权设备范围过滤")
+    @Operation(summary = "查询某设备全部指标最新值", description = "按授权设备范围过滤")
     @GetMapping("/device/{deviceId}")
     public Result<List<MetricLatestVO>> listByDevice(
             @Parameter(description = "设备ID", required = true) @PathVariable Integer deviceId) {
@@ -49,7 +49,7 @@ public class MetricLatestController {
             @Parameter(description = "当前页码", example = "1") @RequestParam(defaultValue = "1") Integer current,
             @Parameter(description = "每页大小", example = "10") @RequestParam(defaultValue = "10") Integer size,
             @Parameter(description = "设备ID", required = true) @RequestParam Integer deviceId,
-            @Parameter(description = "点位ID（可选）") @RequestParam(required = false) Long pointId) {
+            @Parameter(description = "指标ID（可选）") @RequestParam(required = false) Long pointId) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(metricLatestService.pageLatest(
                 user.userId(), current, size, deviceId, pointId));

@@ -7,7 +7,7 @@ import com.example.platform.entity.DeviceTypePointTemplate;
 import java.util.List;
 
 /*
- * 类功能:设备类型点位模板服务接口
+ * 类功能:设备类型指标模板服务接口
  *
  * 【生效解析】按设备类型查询生效模板项（按排序）。
  * */

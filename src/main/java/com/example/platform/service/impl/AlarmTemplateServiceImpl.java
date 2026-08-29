@@ -109,7 +109,7 @@ public class AlarmTemplateServiceImpl
                 .map(AlarmTemplateItemVO::fromEntity)
                 .collect(Collectors.toCollection(ArrayList::new));
         fillPointFields(items);
-        // 点位分组内按级别升序（最严重在前），跨点位按点位ID稳定排序
+        // 指标分组内按级别升序（最严重在前），跨指标按指标ID稳定排序
         items.sort(Comparator
                 .comparing(AlarmTemplateItemVO::getPointId, Comparator.nullsFirst(Comparator.naturalOrder()))
                 .thenComparing(AlarmTemplateItemVO::getAlarmLevel));
@@ -214,7 +214,7 @@ public class AlarmTemplateServiceImpl
         item.setAlarmLevel(dto.getAlarmLevel());
         item.setEnabled(Boolean.TRUE.equals(dto.getEnabled()) ? ENABLED_ON : ENABLED_OFF);
         item.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
-        // METRIC 规则必须显式指定点位；通用规则（OFFLINE/COMM）点位为空
+        // METRIC 规则必须显式指定指标；通用规则（OFFLINE/COMM）指标为空
         item.setPointId("METRIC".equals(item.getRuleType()) ? dto.getPointId() : null);
         validateItemShape(item);
         checkItemDuplicate(item, null);
@@ -272,7 +272,7 @@ public class AlarmTemplateServiceImpl
         wrapper.eq(AlarmTemplateItem::getTemplateId, template.getId())
                 .eq(AlarmTemplateItem::getEnabled, ENABLED_ON);
         if (pointId != null) {
-            // 指定点位时同时命中该点位 METRIC 规则与通用规则（point_id 为空）
+            // 指定指标时同时命中该指标 METRIC 规则与通用规则（point_id 为空）
             wrapper.and(w -> w.eq(AlarmTemplateItem::getPointId, pointId)
                     .or().isNull(AlarmTemplateItem::getPointId));
         }
@@ -384,7 +384,7 @@ public class AlarmTemplateServiceImpl
             case "METRIC" -> {
                 if (item.getPointId() == null) {
                     throw new BusinessException(ResultCode.ALARM_TEMPLATE_ITEM_INVALID,
-                            "METRIC 规则必须指定点位");
+                            "METRIC 规则必须指定指标");
                 }
                 if (!StringUtils.hasText(item.getOperator()) || item.getThreshold() == null) {
                     throw new BusinessException(ResultCode.ALARM_TEMPLATE_ITEM_INVALID,
@@ -392,7 +392,7 @@ public class AlarmTemplateServiceImpl
                 }
                 if (pointDefinitionService.getById(item.getPointId()) == null) {
                     throw new BusinessException(ResultCode.ALARM_TEMPLATE_ITEM_INVALID,
-                            "点位不存在: " + item.getPointId());
+                            "指标不存在: " + item.getPointId());
                 }
             }
             case "OFFLINE" -> {
@@ -436,7 +436,7 @@ public class AlarmTemplateServiceImpl
         }
         if (itemMapper.selectCount(wrapper) > 0) {
             throw new BusinessException(ResultCode.ALARM_RULE_DUPLICATE,
-                    "同一模版下同点位同比较符的规则行已存在");
+                    "同一模版下同指标同比较符的规则行已存在");
         }
     }
 

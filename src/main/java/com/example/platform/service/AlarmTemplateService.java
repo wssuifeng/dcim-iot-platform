@@ -41,9 +41,9 @@ public interface AlarmTemplateService extends IService<AlarmTemplate> {
     AlarmTemplateVO getTemplate(Long id);
 
     /*
-     * 方法功能:查询模版全部规则行（含点位名称/编码/单位回填）
+     * 方法功能:查询模版全部规则行（含指标名称/编码/单位回填）
      * 参数:templateId-模版ID
-     * 返回数据:List<AlarmTemplateItemVO>-规则行列表（按点位分组+级别排序）
+     * 返回数据:List<AlarmTemplateItemVO>-规则行列表（按指标分组+级别排序）
      * */
     List<AlarmTemplateItemVO> listItems(Long templateId);
 
@@ -83,7 +83,7 @@ public interface AlarmTemplateService extends IService<AlarmTemplate> {
     AlarmTemplateItemVO createItem(Long templateId, AlarmTemplateItemCreateDTO dto);
 
     /*
-     * 方法功能:更新模版规则行（点位与规则类型不可变更）
+     * 方法功能:更新模版规则行（指标与规则类型不可变更）
      * 参数:itemId-规则行ID, dto-更新请求
      * 返回数据:AlarmTemplateItemVO-更新后的规则行
      * */
@@ -98,7 +98,7 @@ public interface AlarmTemplateService extends IService<AlarmTemplate> {
 
     /*
      * 方法功能:解析设备最终生效的告警规则集（设备改绑模版→类型基础模版）
-     * 参数:deviceId-设备ID, pointId-点位ID（可空=返回全部规则含通用规则）
+     * 参数:deviceId-设备ID, pointId-指标ID（可空=返回全部规则含通用规则）
      * 返回数据:List<PointAlarmRuleVO>-生效规则（仅启用行，含来源标记 TEMPLATE/DEVICE_OVERRIDE）
      * */
     List<PointAlarmRuleVO> findEffectiveRules(Integer deviceId, Long pointId);

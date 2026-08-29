@@ -2,13 +2,13 @@
   <section class="page-shell">
     <header class="page-header">
       <div>
-        <h1>指标与点位</h1>
-        <p>点位定义、数据保留策略及兼容指标字典</p>
+        <h1>指标字典</h1>
+        <p>指标定义、数据保留策略及兼容指标字典</p>
       </div>
     </header>
 
     <el-tabs v-model="activeTab">
-      <el-tab-pane label="点位定义" name="points">
+      <el-tab-pane label="指标定义" name="points">
         <div class="tab-toolbar">
           <el-form :inline="true" :model="pointFilters">
             <el-form-item label="关键字">
@@ -32,13 +32,13 @@
             </el-form-item>
           </el-form>
           <el-button v-if="canManagePoints" type="primary" :icon="Plus" @click="createPoint">
-            新增点位
+            新增指标
           </el-button>
         </div>
 
         <el-table v-loading="pointLoading" :data="points" row-key="id">
-          <el-table-column prop="pointCode" label="点位编码" min-width="160" />
-          <el-table-column prop="pointName" label="点位名称" min-width="160" />
+          <el-table-column prop="pointCode" label="指标编码" min-width="160" />
+          <el-table-column prop="pointName" label="指标名称" min-width="160" />
           <el-table-column label="类型" width="120">
             <template #default="{ row }"><el-tag>{{ row.dataType }}</el-tag></template>
           </el-table-column>
@@ -67,7 +67,7 @@
 
       <el-tab-pane label="保留策略" name="retention">
         <div class="tab-toolbar compact">
-          <span class="section-note">点位策略优先于全局默认，最大保留 90 天</span>
+          <span class="section-note">指标策略优先于全局默认，最大保留 90 天</span>
           <el-button
             v-if="canManageRetention"
             type="primary"
@@ -128,15 +128,15 @@ import RetentionPolicyDialog from './RetentionPolicyDialog.vue'
 defineOptions({ name: 'MetricPointManagement' })
 
 const authStore = useAuthStore()
-// 组织级点位为组织共享资源，新增/编辑仅 ORG_ADMIN（OPERATOR 不可修改共享配置）
+// 指标定义为平台级共享资源，新增/编辑仅 ADMIN（OPERATOR 不可修改共享配置）
 const canManagePoints = computed(
   () => authStore.isAdmin,
 )
-// 删除点位仅 ORG_ADMIN
+// 删除指标仅 ADMIN
 const canDeletePoint = computed(
   () => authStore.isAdmin,
 )
-// 保留策略为平台级全局配置，仅 PLATFORM_ADMIN 可管理
+// 保留策略为平台级全局配置，仅 ADMIN 可管理
 const canManageRetention = computed(() => authStore.isAdmin)
 const activeTab = ref('points')
 const pointLoading = ref(false)
@@ -199,12 +199,12 @@ function editPoint(row) {
 async function savePoint(payload) {
   if (pointDialogMode.value === 'create') {
     await createPointDefinition(payload)
-    ElMessage.success('点位定义已创建')
+    ElMessage.success('指标定义已创建')
   } else {
     const updatePayload = { ...payload }
     delete updatePayload.pointCode
     await updatePointDefinition(currentPoint.value.id, updatePayload)
-    ElMessage.success('点位定义已更新')
+    ElMessage.success('指标定义已更新')
   }
   pointDialogVisible.value = false
   await Promise.all([fetchPoints(), fetchAllPoints(), fetchRetentionPolicies()])
@@ -212,13 +212,13 @@ async function savePoint(payload) {
 
 async function deletePoint(row) {
   const confirmed = await ElMessageBox.confirm(
-    `确认删除点位“${row.pointName}”？`,
+    `确认删除指标“${row.pointName}”？`,
     '删除确认',
     { type: 'warning' },
   ).catch(() => false)
   if (!confirmed) return
   await deletePointDefinition(row.id)
-  ElMessage.success('点位定义已删除')
+  ElMessage.success('指标定义已删除')
   await Promise.all([fetchPoints(), fetchAllPoints(), fetchRetentionPolicies()])
 }
 
@@ -234,7 +234,7 @@ async function fetchRetentionPolicies() {
 
 function pointName(pointId) {
   const point = allPoints.value.find((item) => item.id === pointId)
-  return point ? `${point.pointName} (${point.pointCode})` : `点位 #${pointId}`
+  return point ? `${point.pointName} (${point.pointCode})` : `指标 #${pointId}`
 }
 
 function createPolicy() {

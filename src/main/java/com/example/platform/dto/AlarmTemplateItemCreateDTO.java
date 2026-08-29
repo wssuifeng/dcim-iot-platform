@@ -24,7 +24,7 @@ public class AlarmTemplateItemCreateDTO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "点位定义ID（METRIC 规则必填；通用规则如 OFFLINE 不传）", example = "1")
+    @Schema(description = "指标定义ID（METRIC 规则必填；通用规则如 OFFLINE 不传）", example = "1")
     private Long pointId;
 
     @Schema(description = "规则类型：METRIC-阈值 / OFFLINE-离线 / COMM-通信异常", example = "METRIC",

@@ -10,9 +10,9 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 设备类型点位模板批量请求 DTO（一次性设置某类型的全部模板项，覆盖写）
+ * 设备类型指标模板批量请求 DTO（一次性设置某类型的全部模板项，覆盖写）
  */
-@Schema(description = "设备类型点位模板批量保存请求")
+@Schema(description = "设备类型指标模板批量保存请求")
 @Data
 public class DeviceTypePointTemplateBatchDTO implements Serializable {
     @Serial

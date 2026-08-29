@@ -197,7 +197,7 @@ class AlarmTemplateServiceImplTest {
         }
 
         @Test
-        @DisplayName("指定点位时通用规则（OFFLINE）同时命中")
+        @DisplayName("指定指标时通用规则（OFFLINE）同时命中")
         void should_includeGenericRules_whenPointSpecified() {
             when(deviceMapper.selectById(DEVICE_ID)).thenReturn(device(null));
             when(deviceTypeMapper.selectById(TYPE_ID)).thenReturn(type(BASE_TEMPLATE_ID));
@@ -230,7 +230,7 @@ class AlarmTemplateServiceImplTest {
         }
 
         @Test
-        @DisplayName("METRIC 规则缺点位拒绝（4049）")
+        @DisplayName("METRIC 规则缺指标拒绝（4049）")
         void should_rejectMetricWithoutPoint() {
             when(templateMapper.selectById(BASE_TEMPLATE_ID)).thenReturn(template(BASE_TEMPLATE_ID));
 
@@ -263,7 +263,7 @@ class AlarmTemplateServiceImplTest {
         }
 
         @Test
-        @DisplayName("同模版同点位同比较符重复拒绝（4043）")
+        @DisplayName("同模版同指标同比较符重复拒绝（4043）")
         void should_rejectDuplicateItem() {
             when(templateMapper.selectById(BASE_TEMPLATE_ID)).thenReturn(template(BASE_TEMPLATE_ID));
             when(pointDefinitionService.getById(POINT_TEMP)).thenReturn(new PointDefinition());
@@ -276,7 +276,7 @@ class AlarmTemplateServiceImplTest {
         }
 
         @Test
-        @DisplayName("同点位不同比较符的多级阈值合法创建")
+        @DisplayName("同指标不同比较符的多级阈值合法创建")
         void should_createMultiLevelThresholds() {
             when(templateMapper.selectById(BASE_TEMPLATE_ID)).thenReturn(template(BASE_TEMPLATE_ID));
             when(pointDefinitionService.getById(POINT_TEMP)).thenReturn(new PointDefinition());

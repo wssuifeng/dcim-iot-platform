@@ -20,7 +20,7 @@ import java.util.List;
  *
  * 【upsert 策略】
  *   - pointId 为 null（全局默认）：按 pointId IS NULL 唯一记录 upsert；天数上限 90 天
- *   - pointId 非 null（单点策略）：校验点位存在；按 pointId 唯一键 upsert
+ *   - pointId 非 null（单点策略）：校验指标存在；按 pointId 唯一键 upsert
  *
  * 【解析有效保留天数】
  *   - 优先取单点策略的 retentionDays
@@ -54,19 +54,19 @@ public class MetricRetentionPolicyServiceImpl
             return global;
         }
 
-        // 单点策略：按 pointId 唯一 upsert（不强制点位存在，允许点位先于策略删除后回收）
+        // 单点策略：按 pointId 唯一 upsert（不强制指标存在，允许指标先于策略删除后回收）
         MetricRetentionPolicy existing = findByPointId(dto.getPointId());
         if (existing != null) {
             existing.setRetentionDays(dto.getRetentionDays());
             updateById(existing);
-            log.info("点位 {} 指标保留策略更新为 {} 天", dto.getPointId(), dto.getRetentionDays());
+            log.info("指标 {} 指标保留策略更新为 {} 天", dto.getPointId(), dto.getRetentionDays());
             return existing;
         }
         MetricRetentionPolicy policy = new MetricRetentionPolicy();
         policy.setPointId(dto.getPointId());
         policy.setRetentionDays(dto.getRetentionDays());
         save(policy);
-        log.info("点位 {} 指标保留策略创建为 {} 天", dto.getPointId(), dto.getRetentionDays());
+        log.info("指标 {} 指标保留策略创建为 {} 天", dto.getPointId(), dto.getRetentionDays());
         return policy;
     }
 

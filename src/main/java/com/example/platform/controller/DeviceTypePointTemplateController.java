@@ -18,11 +18,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 设备类型点位模板接口层
+ * 设备类型指标模板接口层
  *
  * <p>模板按设备类型整批覆盖保存；查询返回生效模板，按 sortOrder 升序。</p>
  */
-@Tag(name = "设备类型点位模板", description = "类型点位模板读写与生效模板解析")
+@Tag(name = "设备类型指标模板", description = "类型指标模板读写与生效模板解析")
 @RestController
 @RequestMapping("/point-templates/device-types/{typeId}")
 @Validated

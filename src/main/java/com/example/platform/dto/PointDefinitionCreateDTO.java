@@ -10,22 +10,22 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 点位定义新增请求 DTO（ADMIN 维护全局点位字典）
+ * 指标定义新增请求 DTO（ADMIN 维护全局指标字典）
  */
-@Schema(description = "点位定义新增请求")
+@Schema(description = "指标定义新增请求")
 @Data
 public class PointDefinitionCreateDTO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "点位编码（全局唯一）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "点位编码不能为空")
-    @Size(max = 50, message = "点位编码最长50个字符")
+    @Schema(description = "指标编码（全局唯一）", example = "voltage_a", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "指标编码不能为空")
+    @Size(max = 50, message = "指标编码最长50个字符")
     private String pointCode;
 
-    @Schema(description = "点位名称（展示用）", example = "A相电压", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "点位名称不能为空")
-    @Size(max = 100, message = "点位名称最长100个字符")
+    @Schema(description = "指标名称（展示用）", example = "A相电压", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "指标名称不能为空")
+    @Size(max = 100, message = "指标名称最长100个字符")
     private String pointName;
 
     @Schema(description = "单位", example = "V")
@@ -37,7 +37,7 @@ public class PointDefinitionCreateDTO implements Serializable {
     @Pattern(regexp = "^(NUMBER|BOOLEAN|STRING)$", message = "数据类型仅允许 NUMBER/BOOLEAN/STRING")
     private String dataType;
 
-    @Schema(description = "点位描述", example = "UPS输出A相电压")
+    @Schema(description = "指标描述", example = "UPS输出A相电压")
     @Size(max = 200, message = "描述最长200个字符")
     private String description;
 }

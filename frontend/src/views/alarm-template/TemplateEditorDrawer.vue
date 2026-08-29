@@ -10,7 +10,7 @@
     <div class="editor-body">
       <div v-if="canWrite" class="editor-toolbar">
         <el-button type="primary" :icon="Plus" size="small" @click="handleAdd">新增规则行</el-button>
-        <span class="editor-tip">METRIC 规则须选点位；OFFLINE 规则阈值=离线分钟数</span>
+        <span class="editor-tip">METRIC 规则须选指标；OFFLINE 规则阈值=离线分钟数</span>
       </div>
 
       <!-- 通用规则组（OFFLINE/COMM） -->
@@ -33,7 +33,7 @@
         </div>
       </div>
 
-      <!-- 点位分组（METRIC） -->
+      <!-- 指标分组（METRIC） -->
       <div v-for="group in pointGroups" :key="group.pointId" class="rule-group">
         <div class="rule-group-title">
           {{ group.pointName }}<span v-if="group.unit" class="rule-group-unit">{{ group.unit }}</span>
@@ -66,8 +66,8 @@
             <el-radio-button value="OFFLINE">离线</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="itemForm.ruleType === 'METRIC'" label="点位" required>
-          <el-select v-model="itemForm.pointId" :disabled="!!itemForm.id" filterable placeholder="选择点位" style="width: 100%">
+        <el-form-item v-if="itemForm.ruleType === 'METRIC'" label="指标" required>
+          <el-select v-model="itemForm.pointId" :disabled="!!itemForm.id" filterable placeholder="选择指标" style="width: 100%">
             <el-option v-for="p in points" :key="p.id" :value="p.id" :label="`${p.pointName}（${p.pointCode}）`" />
           </el-select>
         </el-form-item>
@@ -144,7 +144,7 @@ const pointGroups = computed(() => {
     if (!groups.has(item.pointId)) {
       groups.set(item.pointId, {
         pointId: item.pointId,
-        pointName: item.pointName || `点位${item.pointId}`,
+        pointName: item.pointName || `指标${item.pointId}`,
         unit: item.unit || '',
         items: [],
       })
@@ -217,7 +217,7 @@ async function handleSaveItem() {
     return
   }
   if (itemForm.ruleType === 'METRIC' && !itemForm.pointId) {
-    ElMessage.warning('METRIC 规则必须选择点位')
+    ElMessage.warning('METRIC 规则必须选择指标')
     return
   }
   if (itemForm.threshold === null || itemForm.threshold === undefined) {

@@ -25,7 +25,7 @@ public interface MetricLatestService extends IService<MetricLatest> {
                               java.math.BigDecimal value, java.time.LocalDateTime sampleTime);
 
     /*
-     * 方法功能:按设备查询所有点位的最新值（带点位名称/编码/单位）
+     * 方法功能:按设备查询所有指标的最新值（带指标名称/编码/单位）
      * */
     List<MetricLatestVO> listByDevice(Integer deviceId, Long currentUserId);
 

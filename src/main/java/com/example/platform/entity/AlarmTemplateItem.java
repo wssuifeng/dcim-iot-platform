@@ -33,7 +33,7 @@ public class AlarmTemplateItem implements Serializable {
     @TableField("template_id")
     private Long templateId;
 
-    @Schema(description = "点位定义ID（NULL=通用规则如 OFFLINE/COMM）", example = "1")
+    @Schema(description = "指标定义ID（NULL=通用规则如 OFFLINE/COMM）", example = "1")
     @TableField("point_id")
     private Long pointId;
 

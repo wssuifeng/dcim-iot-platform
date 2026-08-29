@@ -37,7 +37,7 @@ public class MetricSampleBatchResultVO implements Serializable {
         @Schema(description = "错误码", example = "4033")
         private int errorCode;
 
-        @Schema(description = "错误信息", example = "设备点位未绑定或已停用")
+        @Schema(description = "错误信息", example = "设备指标未绑定或已停用")
         private String message;
     }
 }

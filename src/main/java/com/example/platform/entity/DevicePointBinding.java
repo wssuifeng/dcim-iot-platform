@@ -10,10 +10,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 设备点位绑定实体类，映射 device_point_binding 表，
- * 描述某台具体设备（devices）实际启用的点位
+ * 设备指标绑定实体类，映射 device_point_binding 表，
+ * 描述某台具体设备（devices）实际启用的指标
  */
-@Schema(description = "设备点位绑定")
+@Schema(description = "设备指标绑定")
 @Data
 @TableName("device_point_binding")
 public class DevicePointBinding implements Serializable {
@@ -29,8 +29,8 @@ public class DevicePointBinding implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    @Schema(description = "点位定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "点位定义不能为空")
+    @Schema(description = "指标定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "指标定义不能为空")
     @TableField("point_id")
     private Long pointId;
 

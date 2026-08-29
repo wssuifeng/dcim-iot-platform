@@ -15,7 +15,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * 告警模版规则行更新请求 DTO（点位与规则类型创建后不可变更）
+ * 告警模版规则行更新请求 DTO（指标与规则类型创建后不可变更）
  */
 @Schema(description = "告警模版规则行更新请求")
 @Data

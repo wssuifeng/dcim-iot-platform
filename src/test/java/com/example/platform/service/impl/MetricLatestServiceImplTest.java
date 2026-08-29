@@ -165,7 +165,7 @@ class MetricLatestServiceImplTest {
         }
 
         @Test
-        @DisplayName("正常返回 VO 列表（带点位名称/单位）")
+        @DisplayName("正常返回 VO 列表（带指标名称/单位）")
         void should_returnVOList() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
 

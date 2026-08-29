@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /*
- * 类功能:设备访问校验工具，供点位/指标/绑定等模块共享调用
+ * 类功能:设备访问校验工具，供指标/指标/绑定等模块共享调用
  *
  * 单租户收束后不再有组织级数据范围，本工具退化为设备存在性检查；
  * 保留类名以减少调用方改动，访问控制由控制器 RBAC 角色保证。

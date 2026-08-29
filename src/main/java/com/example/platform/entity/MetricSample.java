@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 指标采样实体类，映射 metric_sample 表，记录设备点位的历史采样序列
+ * 指标采样实体类，映射 metric_sample 表，记录设备指标的历史采样序列
  * 注：此表无逻辑删除字段（海量历史数据，按保留策略物理清理，见 metric_retention_policy）
  */
 @Schema(description = "指标采样历史")
@@ -30,8 +30,8 @@ public class MetricSample implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    @Schema(description = "点位定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "点位定义不能为空")
+    @Schema(description = "指标定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "指标定义不能为空")
     @TableField("point_id")
     private Long pointId;
 

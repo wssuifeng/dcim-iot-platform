@@ -61,7 +61,7 @@ public final class GatewaySignUtils {
 
     /*
      * 方法功能:计算幂等去重键 sha256(deviceCode:pointCode:seq) 的十六进制表示
-     * 参数:deviceCode-设备编码, pointCode-点位编码, seq-网关侧单调递增序号
+     * 参数:deviceCode-设备编码, pointCode-指标编码, seq-网关侧单调递增序号
      * 返回数据:String-64位十六进制去重键
      * */
     public static String dedupKey(String deviceCode, String pointCode, long seq) {

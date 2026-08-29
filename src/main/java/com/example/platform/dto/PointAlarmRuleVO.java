@@ -8,9 +8,9 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 点位告警规则 VO（含点位展示回填与来源标记）
+ * 指标告警规则 VO（含指标展示回填与来源标记）
  */
-@Schema(description = "点位告警规则响应")
+@Schema(description = "指标告警规则响应")
 @Data
 public class PointAlarmRuleVO implements Serializable {
     @Serial
@@ -28,13 +28,13 @@ public class PointAlarmRuleVO implements Serializable {
     @Schema(description = "设备ID（NULL=模板级规则）")
     private Integer deviceId;
 
-    @Schema(description = "点位ID（NULL=通用规则）")
+    @Schema(description = "指标ID（NULL=通用规则）")
     private Long pointId;
 
-    @Schema(description = "点位编码（回填）", example = "temperature")
+    @Schema(description = "指标编码（回填）", example = "temperature")
     private String pointCode;
 
-    @Schema(description = "点位名称（回填）", example = "温度")
+    @Schema(description = "指标名称（回填）", example = "温度")
     private String pointName;
 
     @Schema(description = "单位（回填）", example = "℃")

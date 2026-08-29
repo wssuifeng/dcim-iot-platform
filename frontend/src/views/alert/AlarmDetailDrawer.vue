@@ -14,7 +14,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="告警级别">{{ levelLabel(detail.alarmLevel) }}</el-descriptions-item>
         <el-descriptions-item label="设备">{{ deviceLabel(detail.deviceId) }}</el-descriptions-item>
-        <el-descriptions-item label="点位ID">{{ detail.pointId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="指标ID">{{ detail.pointId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="告警类型">{{ detail.alarmType || '-' }}</el-descriptions-item>
         <el-descriptions-item label="机房">
           {{ roomLabel(detail.cloudRoomId) }}

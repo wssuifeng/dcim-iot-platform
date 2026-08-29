@@ -8,7 +8,7 @@
     @open="initializeForm"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="95px">
-      <el-form-item label="适用点位" prop="pointId">
+      <el-form-item label="适用指标" prop="pointId">
         <el-select v-model="form.pointId" filterable class="full-width">
           <el-option label="全局默认" :value="null" />
           <el-option

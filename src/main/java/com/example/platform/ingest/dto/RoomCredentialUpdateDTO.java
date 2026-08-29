@@ -18,6 +18,6 @@ public class RoomCredentialUpdateDTO implements Serializable {
     @Schema(description = "首包自动注册开关：1=开启 0=关闭（可空不改）", example = "1")
     private Integer autoRegister;
 
-    @Schema(description = "自动注册默认设备类型ID（点位推断失败时兜底；可空不改）", example = "4")
+    @Schema(description = "自动注册默认设备类型ID（指标推断失败时兜底；可空不改）", example = "4")
     private Integer defaultTypeId;
 }

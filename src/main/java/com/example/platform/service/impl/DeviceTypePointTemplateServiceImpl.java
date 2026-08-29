@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /*
- * 类功能:设备类型点位模板服务实现类
+ * 类功能:设备类型指标模板服务实现类
  *
  * 【模板覆盖写策略】
  * 1. 校验 typeId 对应的 device_types 存在且为五类产品类型
@@ -107,7 +107,7 @@ public class DeviceTypePointTemplateServiceImpl
             save(template);
             newTemplates.add(template);
         }
-        log.info("设备类型点位模板覆盖保存完成 typeId={} count={}", typeId, newTemplates.size());
+        log.info("设备类型指标模板覆盖保存完成 typeId={} count={}", typeId, newTemplates.size());
         return newTemplates;
     }
 
@@ -117,7 +117,7 @@ public class DeviceTypePointTemplateServiceImpl
         LambdaQueryWrapper<DeviceTypePointTemplate> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceTypePointTemplate::getTypeId, typeId);
         remove(wrapper);
-        log.info("已清空设备类型 {} 的点位模板", typeId);
+        log.info("已清空设备类型 {} 的指标模板", typeId);
     }
 
     // ===================== 内部辅助 =====================
@@ -129,7 +129,7 @@ public class DeviceTypePointTemplateServiceImpl
         }
         if (!DevicePointMetricContract.isSupportedDeviceType(deviceType.getTypeCode())) {
             throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                    "点位模板仅支持 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR");
+                    "指标模板仅支持 UPS/PDU_METER/PRECISION_AC/TEMP_HUMIDITY/LEAK_DETECTOR");
         }
     }
 
@@ -139,7 +139,7 @@ public class DeviceTypePointTemplateServiceImpl
             PointDefinition point = pointDefinitionService.getPointDefinitionOrThrow(item.getPointId());
             if (seenPointIds.contains(item.getPointId())) {
                 throw new BusinessException(ResultCode.INVALID_PARAMETER,
-                        "模板项中点位定义ID重复: " + item.getPointId());
+                        "模板项中指标定义ID重复: " + item.getPointId());
             }
             seenPointIds.add(item.getPointId());
         }

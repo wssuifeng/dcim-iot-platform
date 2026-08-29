@@ -35,10 +35,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /*
- * 类功能:点位定义服务实现类
+ * 类功能:指标定义服务实现类
  *
  * 【编码唯一】point_code 全局唯一。
- * 【删除保护】点位被模板/绑定/规则任一引用时拒绝删除（4035）。
+ * 【删除保护】指标被模板/绑定/规则任一引用时拒绝删除（4035）。
  * */
 @Slf4j
 @Service
@@ -51,7 +51,7 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
     private final DevicePointBindingMapper bindingMapper;
     private final AlarmTemplateItemMapper alarmTemplateItemMapper;
 
-    // 注：不注入 DeviceTypePointTemplateService——该服务反向依赖本服务校验点位，
+    // 注：不注入 DeviceTypePointTemplateService——该服务反向依赖本服务校验指标，
     // 注入会形成循环依赖；模板读写一律走 Mapper 层完成。
 
     @Override
@@ -71,9 +71,9 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         point.setDataType(dataType);
         point.setDescription(createDTO.getDescription());
         if (!save(point)) {
-            throw new BusinessException("创建点位定义失败，请稍后重试");
+            throw new BusinessException("创建指标定义失败，请稍后重试");
         }
-        log.info("点位定义创建成功 pointCode={} operator={}", point.getPointCode(), currentUserId);
+        log.info("指标定义创建成功 pointCode={} operator={}", point.getPointCode(), currentUserId);
         return point;
     }
 
@@ -105,7 +105,7 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
             point.setDescription(updateDTO.getDescription());
         }
         if (!updateById(point)) {
-            throw new BusinessException("更新点位定义失败");
+            throw new BusinessException("更新指标定义失败");
         }
         return point;
     }
@@ -116,14 +116,14 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         PointDefinition point = getPointDefinitionOrThrow(id);
         ensureNotReferenced(id);
         removeById(id);
-        log.info("点位定义删除 pointId={} pointCode={} operator={}", id, point.getPointCode(), currentUserId);
+        log.info("指标定义删除 pointId={} pointCode={} operator={}", id, point.getPointCode(), currentUserId);
     }
 
     @Override
     public PointDefinition getPointDefinitionOrThrow(Long id) {
         PointDefinition point = getById(id);
         if (point == null) {
-            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "点位定义不存在: " + id);
+            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "指标定义不存在: " + id);
         }
         return point;
     }
@@ -218,9 +218,9 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
     @Transactional(rollbackFor = Exception.class)
     public void importPackage(PointResourceExportPackage pkg, Long currentUserId) {
         if (pkg == null || pkg.getPoints() == null || pkg.getPoints().isEmpty()) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER, "导入包为空或缺少点位数据");
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "导入包为空或缺少指标数据");
         }
-        // 1. 导入点位（编码冲突时复用已有）
+        // 1. 导入指标（编码冲突时复用已有）
         Map<String, Long> codeToId = new HashMap<>();
         for (PointResourceExportPackage.PointItem item : pkg.getPoints()) {
             String code = item.getPointCode();
@@ -268,7 +268,7 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
                 }
             }
         }
-        log.info("点位资源包导入完成 points={} operator={}", pkg.getPoints().size(), currentUserId);
+        log.info("指标资源包导入完成 points={} operator={}", pkg.getPoints().size(), currentUserId);
     }
 
     // ===================== 内部辅助 =====================
@@ -290,17 +290,17 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         LambdaQueryWrapper<DeviceTypePointTemplate> templateWrapper = new LambdaQueryWrapper<>();
         templateWrapper.eq(DeviceTypePointTemplate::getPointId, pointId);
         if (templateMapper.selectCount(templateWrapper) > 0) {
-            throw new BusinessException(ResultCode.POINT_IN_USE, "点位被类型模板引用，禁止删除");
+            throw new BusinessException(ResultCode.POINT_IN_USE, "指标被类型模板引用，禁止删除");
         }
         LambdaQueryWrapper<DevicePointBinding> bindingWrapper = new LambdaQueryWrapper<>();
         bindingWrapper.eq(DevicePointBinding::getPointId, pointId);
         if (bindingMapper.selectCount(bindingWrapper) > 0) {
-            throw new BusinessException(ResultCode.POINT_IN_USE, "点位被设备绑定引用，禁止删除");
+            throw new BusinessException(ResultCode.POINT_IN_USE, "指标被设备绑定引用，禁止删除");
         }
         LambdaQueryWrapper<AlarmTemplateItem> ruleWrapper = new LambdaQueryWrapper<>();
         ruleWrapper.eq(AlarmTemplateItem::getPointId, pointId);
         if (alarmTemplateItemMapper.selectCount(ruleWrapper) > 0) {
-            throw new BusinessException(ResultCode.POINT_IN_USE, "点位被告警模版规则引用，禁止删除");
+            throw new BusinessException(ResultCode.POINT_IN_USE, "指标被告警模版规则引用，禁止删除");
         }
     }
 
@@ -309,7 +309,7 @@ public class PointDefinitionServiceImpl extends ServiceImpl<PointDefinitionMappe
         wrapper.eq(PointDefinition::getPointCode, pointCode);
         if (count(wrapper) > 0) {
             throw new BusinessException(ResultCode.POINT_CODE_EXISTS,
-                    "点位编码已存在: " + pointCode);
+                    "指标编码已存在: " + pointCode);
         }
     }
 

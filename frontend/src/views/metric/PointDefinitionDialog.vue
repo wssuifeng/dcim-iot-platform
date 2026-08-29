@@ -1,17 +1,17 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="mode === 'create' ? '新增点位定义' : '编辑点位定义'"
+    :title="mode === 'create' ? '新增指标定义' : '编辑指标定义'"
     width="560px"
     destroy-on-close
     @update:model-value="emit('update:visible', $event)"
     @open="initializeForm"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="95px">
-      <el-form-item label="点位编码" prop="pointCode">
+      <el-form-item label="指标编码" prop="pointCode">
         <el-input v-model="form.pointCode" :disabled="mode === 'edit'" maxlength="64" />
       </el-form-item>
-      <el-form-item label="点位名称" prop="pointName">
+      <el-form-item label="指标名称" prop="pointName">
         <el-input v-model="form.pointName" maxlength="100" />
       </el-form-item>
       <el-form-item label="数据类型" prop="dataType">
@@ -53,10 +53,10 @@ const form = reactive({
 })
 const rules = {
   pointCode: [
-    { required: true, message: '请输入点位编码', trigger: 'blur' },
-    { pattern: /^[A-Za-z0-9_.-]+$/, message: '点位编码格式不正确', trigger: 'blur' },
+    { required: true, message: '请输入指标编码', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9_.-]+$/, message: '指标编码格式不正确', trigger: 'blur' },
   ],
-  pointName: [{ required: true, message: '请输入点位名称', trigger: 'blur' }],
+  pointName: [{ required: true, message: '请输入指标名称', trigger: 'blur' }],
   dataType: [{ required: true, message: '请选择数据类型', trigger: 'change' }],
 }
 

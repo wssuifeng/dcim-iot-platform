@@ -23,11 +23,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 平台级点位资源管理接口层（ADMIN 专属，挂 /platform/** 前缀）
+ * 平台级指标资源管理接口层（ADMIN 专属，挂 /platform/** 前缀）
  *
- * <p>管理全局点位与默认模板：导入包可导入为全局资源（点位+模板）。</p>
+ * <p>管理全局指标与默认模板：导入包可导入为全局资源（指标+模板）。</p>
  */
-@Tag(name = "平台级点位资源", description = "全局点位字典与默认模板管理（ADMIN 专属）")
+@Tag(name = "平台级指标资源", description = "全局指标字典与默认模板管理（ADMIN 专属）")
 @RestController
 @RequestMapping("/platform")
 @Validated
@@ -45,7 +45,7 @@ public class PlatformPointController {
         this.currentUserContext = currentUserContext;
     }
 
-    @Operation(summary = "新增平台级点位定义", description = "创建全局共享点位")
+    @Operation(summary = "新增平台级指标定义", description = "创建全局共享指标")
     @PostMapping("/point-definitions")
     @PreAuthorize("hasRole('ADMIN')")
     @AuditLog(operation = "CREATE_PLATFORM_POINT", detail = "编码:#createDTO.pointCode")
@@ -54,23 +54,23 @@ public class PlatformPointController {
         return Result.success(pointDefinitionService.createPlatformPointDefinition(createDTO, user.userId()));
     }
 
-    @Operation(summary = "更新平台级点位定义", description = "仅 ADMIN")
+    @Operation(summary = "更新平台级指标定义", description = "仅 ADMIN")
     @PutMapping("/point-definitions/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @AuditLog(operation = "UPDATE_PLATFORM_POINT", detail = "点位ID:#id")
+    @AuditLog(operation = "UPDATE_PLATFORM_POINT", detail = "指标ID:#id")
     public Result<PointDefinition> updatePoint(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long id,
+            @Parameter(description = "指标ID", required = true) @PathVariable Long id,
             @Valid @RequestBody PointDefinitionUpdateDTO updateDTO) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         return Result.success(pointDefinitionService.updatePointDefinition(id, updateDTO, user.userId()));
     }
 
-    @Operation(summary = "删除平台级点位定义", description = "被引用时拒绝（4035）")
+    @Operation(summary = "删除平台级指标定义", description = "被引用时拒绝（4035）")
     @DeleteMapping("/point-definitions/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @AuditLog(operation = "DELETE_PLATFORM_POINT", detail = "点位ID:#id")
+    @AuditLog(operation = "DELETE_PLATFORM_POINT", detail = "指标ID:#id")
     public Result<Void> deletePoint(
-            @Parameter(description = "点位ID", required = true) @PathVariable Long id) {
+            @Parameter(description = "指标ID", required = true) @PathVariable Long id) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         pointDefinitionService.deletePointDefinition(id, user.userId());
         return Result.success();
@@ -94,10 +94,10 @@ public class PlatformPointController {
         return Result.success(templateService.saveTemplates(typeId, batchDTO, user.userId()));
     }
 
-    @Operation(summary = "导入资源包", description = "导入点位资源包为全局资源")
+    @Operation(summary = "导入资源包", description = "导入指标资源包为全局资源")
     @PostMapping("/point-definitions/import")
     @PreAuthorize("hasRole('ADMIN')")
-    @AuditLog(operation = "IMPORT_PLATFORM_POINT_RESOURCES", detail = "点位数:#pkg.points.size")
+    @AuditLog(operation = "IMPORT_PLATFORM_POINT_RESOURCES", detail = "指标数:#pkg.points.size")
     public Result<Void> importAsPlatform(@Valid @RequestBody PointResourceExportPackage pkg) {
         CurrentUser user = currentUserContext.requireCurrentUser();
         pointDefinitionService.importPackage(pkg, user.userId());

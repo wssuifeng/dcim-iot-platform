@@ -23,13 +23,13 @@ public class MetricLatestVO implements Serializable {
     @Schema(description = "设备ID")
     private Integer deviceId;
 
-    @Schema(description = "点位定义ID")
+    @Schema(description = "指标定义ID")
     private Long pointId;
 
-    @Schema(description = "点位编码", example = "voltage_a")
+    @Schema(description = "指标编码", example = "voltage_a")
     private String pointCode;
 
-    @Schema(description = "点位名称", example = "A相电压")
+    @Schema(description = "指标名称", example = "A相电压")
     private String pointName;
 
     @Schema(description = "单位", example = "V")

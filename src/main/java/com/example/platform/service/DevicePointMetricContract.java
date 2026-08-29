@@ -3,7 +3,7 @@ package com.example.platform.service;
 import java.util.Set;
 
 /**
- * BIZ-OPEN-02 设备点位指标业务契约常量。
+ * BIZ-OPEN-02 设备指标业务契约常量。
  */
 public final class DevicePointMetricContract {
 

@@ -62,7 +62,7 @@ public class IngestHttpController {
     }
 
     @Operation(summary = "网关设备清单上报",
-            description = "清单上报式接入：auto_register=1 时逐台导入（已存在跳过并补建缺失点位绑定），"
+            description = "清单上报式接入：auto_register=1 时逐台导入（已存在跳过并补建缺失指标绑定），"
                     + "否则仅返回 unknown 比对结果供前端人工导入；单批 ≤ 500 台")
     @PostMapping("/inventory")
     public Result<IngestInventoryResultVO> inventory(@Valid @RequestBody IngestInventoryDTO inventory,

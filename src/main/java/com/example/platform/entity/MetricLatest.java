@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 指标最新值实体类，映射 metric_latest 表，记录设备点位的当前值快照
+ * 指标最新值实体类，映射 metric_latest 表，记录设备指标的当前值快照
  */
 @Schema(description = "指标最新值快照")
 @Data
@@ -29,8 +29,8 @@ public class MetricLatest implements Serializable {
     @TableField("device_id")
     private Integer deviceId;
 
-    @Schema(description = "点位定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "点位定义不能为空")
+    @Schema(description = "指标定义ID（关联 point_definition）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "指标定义不能为空")
     @TableField("point_id")
     private Long pointId;
 

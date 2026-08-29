@@ -19,7 +19,7 @@ public class AlarmEventVO {
     @Schema(description = "设备ID")
     private Integer deviceId;
 
-    @Schema(description = "触发点位ID")
+    @Schema(description = "触发指标ID")
     private Long pointId;
 
     @Schema(description = "告警类型")
@@ -55,10 +55,10 @@ public class AlarmEventVO {
     @Schema(description = "设备名称（冗余回填，列表直显）", example = "机房A-温湿度-01")
     private String deviceName;
 
-    @Schema(description = "点位名称（冗余回填，通用告警为空）", example = "温度")
+    @Schema(description = "指标名称（冗余回填，通用告警为空）", example = "温度")
     private String pointName;
 
-    @Schema(description = "点位单位（冗余回填，前端渲染 38.5℃ 用）", example = "℃")
+    @Schema(description = "指标单位（冗余回填，前端渲染 38.5℃ 用）", example = "℃")
     private String pointUnit;
 
     public static AlarmEventVO fromEntity(AlarmEvent event) {

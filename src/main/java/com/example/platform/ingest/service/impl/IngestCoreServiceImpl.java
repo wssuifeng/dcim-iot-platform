@@ -151,7 +151,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         return device;
     }
 
-    // 首包自动注册：凭证开启即走，类型取 点位推断 > 凭证默认；失败降级 DEVICE_NOT_FOUND
+    // 首包自动注册：凭证开启即走，类型取 指标推断 > 凭证默认；失败降级 DEVICE_NOT_FOUND
     private Device tryAutoRegister(String deviceCode, String pointCode, IngestCredential credential) {
         if (credential.getAutoRegister() == null || credential.getAutoRegister() != 1) {
             return null;
@@ -166,7 +166,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
             }
             Device device = deviceService.autoRegisterDevice(
                     deviceCode, credential.getCloudRoomId(), typeId, credential.getId());
-            // 模板点位绑定：自动注册设备开箱即可收数（currentUserId 传凭证ID 供审计）
+            // 模板指标绑定：自动注册设备开箱即可收数（currentUserId 传凭证ID 供审计）
             devicePointBindingService.initBindingsFromTemplate(
                     device.getId(), typeId, credential.getId());
             log.info("首包自动注册 deviceCode={} roomId={} typeId={} credentialId={}",
@@ -186,7 +186,7 @@ public class IngestCoreServiceImpl implements IngestCoreService {
         PointDefinition point = pointDefinitionService.getOne(new LambdaQueryWrapper<PointDefinition>()
                 .eq(PointDefinition::getPointCode, pointCode));
         if (point == null) {
-            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "点位不存在: " + pointCode);
+            throw new BusinessException(ResultCode.RESOURCE_NOT_FOUND, "指标不存在: " + pointCode);
         }
         cache.put(pointCode, point);
         return point;

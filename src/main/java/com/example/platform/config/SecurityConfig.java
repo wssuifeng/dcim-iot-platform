@@ -151,7 +151,7 @@ public class SecurityConfig {
                                 .hasAnyRole(ADMIN_ONLY_ROLES);
                         // 管理员：其他业务删除操作
                         auth.requestMatchers(HttpMethod.DELETE).hasAnyRole(ADMIN_ONLY_ROLES);
-                        // 管理员/运维：设备/点位/采样写入（其余写接口由 @PreAuthorize 细化）
+                        // 管理员/运维：设备/指标/采样写入（其余写接口由 @PreAuthorize 细化）
                         auth.requestMatchers(HttpMethod.POST, "/devices", "/metric-samples",
                                 "/metric-samples/batch", "/point-definitions",
                                 "/alarm-templates").hasAnyRole(BUSINESS_WRITE_ROLES);

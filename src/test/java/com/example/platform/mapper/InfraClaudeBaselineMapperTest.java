@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 确认表结构、外键约束、MyBatis-Plus 自动填充（create_time/update_time）、
  * 逻辑删除（deleted）等基础设施按契约正确工作。
  *
- * 覆盖对象：PointDefinition -> AlarmEvent（点位与告警事件链路）。
+ * 覆盖对象：PointDefinition -> AlarmEvent（指标与告警事件链路）。
  * 单租户收束后 Organization/DataScopeAssignment 链路已删除，不再覆盖。
  * 具体业务逻辑（如告警状态机流转规则）由 INFRA-CLAUDE-02 负责，
  * 本测试仅验证持久化层本身可用。
@@ -42,7 +42,7 @@ class InfraClaudeBaselineMapperTest {
         PointDefinition point = new PointDefinition();
         String code = "test_point_" + System.nanoTime();
         point.setPointCode(code);
-        point.setPointName("测试点位");
+        point.setPointName("测试指标");
         point.setUnit("V");
         point.setDataType("NUMBER");
         pointDefinitionMapper.insert(point);
@@ -51,7 +51,7 @@ class InfraClaudeBaselineMapperTest {
 
         PointDefinition duplicate = new PointDefinition();
         duplicate.setPointCode(code);
-        duplicate.setPointName("重复编码点位");
+        duplicate.setPointName("重复编码指标");
         duplicate.setDataType("NUMBER");
 
         assertThrows(Exception.class, () -> pointDefinitionMapper.insert(duplicate),

@@ -101,7 +101,7 @@ class PointDefinitionServiceImplTest {
     }
 
     @Nested
-    @DisplayName("createPointDefinition - 新增点位")
+    @DisplayName("createPointDefinition - 新增指标")
     class Create {
 
         @Test
@@ -144,7 +144,7 @@ class PointDefinitionServiceImplTest {
     class Update {
 
         @Test
-        @DisplayName("正常更新点位字段")
+        @DisplayName("正常更新指标字段")
         void should_update_fields() {
             when(pointDefinitionMapper.selectById(5L)).thenReturn(buildPoint(5L, "temperature"));
             when(pointDefinitionMapper.updateById(any(PointDefinition.class))).thenReturn(1);
@@ -165,7 +165,7 @@ class PointDefinitionServiceImplTest {
     class Delete {
 
         @Test
-        @DisplayName("被告警模版规则引用的点位拒绝删除（4035）")
+        @DisplayName("被告警模版规则引用的指标拒绝删除（4035）")
         void should_reject_whenReferencedByRule() {
             when(pointDefinitionMapper.selectById(5L)).thenReturn(buildPoint(5L, "temperature"));
             lenient().when(templateMapper.selectCount(any())).thenReturn(0L);

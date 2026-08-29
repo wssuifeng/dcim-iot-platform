@@ -77,7 +77,7 @@ class IngestHttpIntegrationTest {
     void sameSeqDifferentPointIsNotDuplicate() throws Exception {
         IngestCredential credential = createCredential(-2001L);
 
-        // 幂等键 = deviceCode+pointCode+seq：同 seq 不同点位是两条合法数据
+        // 幂等键 = deviceCode+pointCode+seq：同 seq 不同指标是两条合法数据
         MvcResult result = postSamples(credential, 200,
                 item("IT-DEV-A", 22.5, LocalDateTime.now(), 7L),
                 itemVoltage("IT-DEV-A", 220.1, LocalDateTime.now(), 7L));
@@ -114,7 +114,7 @@ class IngestHttpIntegrationTest {
         JsonNode data = dataOf(result);
         assertThat(data.get("accepted").asInt()).isEqualTo(1);
         assertThat(data.get("failed").asInt()).isEqualTo(2);
-        assertThat(data.get("failures").toString()).contains("4023").contains("未启用点位");
+        assertThat(data.get("failures").toString()).contains("4023").contains("未启用指标");
     }
 
     @Test
@@ -256,7 +256,7 @@ class IngestHttpIntegrationTest {
 
     @Test
     void autoRegisterWithoutCredentialDefaultTypeInfersFromPointCode() throws Exception {
-        // 凭证未配默认类型：首包按点位编码推断（IT_TEST_TEMP 含 temp → TEMP_HUMIDITY）
+        // 凭证未配默认类型：首包按指标编码推断（IT_TEST_TEMP 含 temp → TEMP_HUMIDITY）
         IngestCredential credential = createCredential(-2001L);
         credentialService.updateAutoRegister(credential.getCloudRoomId(), 1, null, 1L);
 
@@ -269,7 +269,7 @@ class IngestHttpIntegrationTest {
                 .andExpect(status().isOk()).andReturn();
 
         assertThat(dataOf(result).get("accepted").asInt()).isEqualTo(1);
-        // temperature 推断为 TEMP_HUMIDITY(id=1, V3 种子)——但注意 V9 点位绑定在 type 1
+        // temperature 推断为 TEMP_HUMIDITY(id=1, V3 种子)——但注意 V9 指标绑定在 type 1
         mockMvc.perform(get("/devices/code-available")
                         .param("code", "IT-INFER-NEW")
                         .header("Authorization", "Bearer " + loginToken()))

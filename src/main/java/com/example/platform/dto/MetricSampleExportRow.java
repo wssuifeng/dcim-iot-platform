@@ -26,12 +26,12 @@ public class MetricSampleExportRow implements Serializable {
     @Schema(description = "设备ID")
     private Integer deviceId;
 
-    @ExcelProperty("点位编码")
-    @Schema(description = "点位编码")
+    @ExcelProperty("指标编码")
+    @Schema(description = "指标编码")
     private String pointCode;
 
-    @ExcelProperty("点位名称")
-    @Schema(description = "点位名称")
+    @ExcelProperty("指标名称")
+    @Schema(description = "指标名称")
     private String pointName;
 
     @ExcelProperty("采样值")

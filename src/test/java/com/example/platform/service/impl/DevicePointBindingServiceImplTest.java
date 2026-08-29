@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 /*
  * 类功能:DevicePointBindingServiceImpl 单元测试
- * 覆盖 BIZ-OPEN-02：设备点位绑定 CRUD + 设备访问校验 + 模板拷贝初始化
+ * 覆盖 BIZ-OPEN-02：设备指标绑定 CRUD + 设备访问校验 + 模板拷贝初始化
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DevicePointBindingService 单元测试")
@@ -94,7 +94,7 @@ class DevicePointBindingServiceImplTest {
     }
 
     @Nested
-    @DisplayName("bindPoint - 绑定点位")
+    @DisplayName("bindPoint - 绑定指标")
     class Bind {
 
         @Test
@@ -113,12 +113,12 @@ class DevicePointBindingServiceImplTest {
         }
 
         @Test
-        @DisplayName("点位不存在应失败")
+        @DisplayName("指标不存在应失败")
         void should_throw_when_pointNotFound() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(buildDevice(1, 1));
             when(pointDefinitionService.getPointDefinitionOrThrow(100L))
-                    .thenThrow(new BusinessException("点位不存在"));
+                    .thenThrow(new BusinessException("指标不存在"));
 
             DevicePointBindingDTO dto = new DevicePointBindingDTO();
             dto.setDeviceId(1);
@@ -126,12 +126,12 @@ class DevicePointBindingServiceImplTest {
 
             assertThatThrownBy(() -> devicePointBindingService.bindPoint(dto, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("点位不存在");
+                    .hasMessageContaining("指标不存在");
             verify(devicePointBindingMapper, never()).insert((DevicePointBinding) any());
         }
 
         @Test
-        @DisplayName("已绑定相同点位应拒绝")
+        @DisplayName("已绑定相同指标应拒绝")
         void should_throw_when_alreadyBound() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(buildDevice(1, 1));
@@ -146,12 +146,12 @@ class DevicePointBindingServiceImplTest {
 
             assertThatThrownBy(() -> devicePointBindingService.bindPoint(dto, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("已绑定点位");
+                    .hasMessageContaining("已绑定指标");
             verify(devicePointBindingMapper, never()).insert((DevicePointBinding) any());
         }
 
         @Test
-        @DisplayName("正常绑定点位")
+        @DisplayName("正常绑定指标")
         void should_bindPoint() {
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID)))
                     .thenReturn(buildDevice(1, 1));
@@ -191,7 +191,7 @@ class DevicePointBindingServiceImplTest {
         }
 
         @Test
-        @DisplayName("按模板批量插入未绑定的新点位（已绑定跳过）")
+        @DisplayName("按模板批量插入未绑定的新指标（已绑定跳过）")
         void should_copyUnboundTemplatePoints() {
             Device device = buildDevice(1, 1);
             when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(device);
@@ -203,7 +203,7 @@ class DevicePointBindingServiceImplTest {
             when(deviceTypePointTemplateService.listEffectiveTemplates(1, CURRENT_USER_ID))
                     .thenReturn(List.of(t1, t2));
 
-            // 设备已绑定点位 10
+            // 设备已绑定指标 10
             DevicePointBinding existing = new DevicePointBinding();
             existing.setDeviceId(1);
             existing.setPointId(10L);
@@ -289,7 +289,7 @@ class DevicePointBindingServiceImplTest {
     class ActiveBinding {
 
         @Test
-        @DisplayName("未启用点位绑定应拒绝采样")
+        @DisplayName("未启用指标绑定应拒绝采样")
         void should_throw_when_activeBindingMissing() {
             when(deviceScopeHelper.ensureDeviceAccess(1, CURRENT_USER_ID))
                     .thenReturn(buildDevice(1, 1));
@@ -299,7 +299,7 @@ class DevicePointBindingServiceImplTest {
             assertThatThrownBy(() -> devicePointBindingService
                     .getActiveBindingOrThrow(1, 10L, CURRENT_USER_ID))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("未启用点位");
+                    .hasMessageContaining("未启用指标");
         }
     }
 }

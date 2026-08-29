@@ -21,7 +21,7 @@ public interface MetricRetentionPolicyService extends IService<MetricRetentionPo
     MetricRetentionPolicy findByPointId(Long pointId);
 
     /*
-     * 方法功能:解析某点位的有效保留天数（优先点位策略，回退全局默认 90 天）
+     * 方法功能:解析某指标的有效保留天数（优先指标策略，回退全局默认 90 天）
      * */
     int resolveEffectiveRetentionDays(Long pointId);
 

@@ -145,8 +145,8 @@
 |------|----|------|
 | CloudRoom | sys_cloud_room | 机房 = 接入主体：创建即初始化 AccessKey/SecretKey，网关凭签名上报；驾驶舱健康度/网关状态由统计聚合计算 |
 | Device | devices | `deviceCode` 全局寻址；`alarmTemplateId` 设备级模版绑定（可空，为空跟随类型） |
-| DeviceType | device_types | 类型目录 + `alarmTemplateId` 基础模版绑定；类型级点位模板（device_type_point_template） |
-| PointDefinition / DevicePointBinding | point_definition / device_point_binding | 平台级点位字典与设备点位绑定 |
+| DeviceType | device_types | 类型目录 + `alarmTemplateId` 基础模版绑定；类型级指标模板（device_type_point_template） |
+| PointDefinition / DevicePointBinding | point_definition / device_point_binding | 平台级指标字典与设备指标绑定 |
 | MetricSample / MetricLatest / MetricRetentionPolicy | metric_sample / metric_latest / metric_retention_policy | 采样时序 + 最新值 + TTL 保留策略 |
 | AlarmTemplate / AlarmTemplateItem | alarm_template / alarm_template_item | V15 一级告警模版实体：规则融合模版，类型绑基础版、设备可改绑自定义版、复制即自定义起点 |
 | AlarmEvent / AlarmStateTransition / AlarmHandlingRecord | alarm_event / alarm_state_transition / alarm_handling_record | 告警状态机 TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED；`alarmLevel` 1-5（数字越小越紧急），逻辑删除 |
