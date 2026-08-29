@@ -34,6 +34,8 @@ docker compose up -d --build
 cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 ```
 
+> 多项目并行开发端口冲突时：后端 `SERVER_PORT=8081 ./mvnw spring-boot:run`，前端 `DEV_PORT=5174 API_TARGET=http://localhost:8081 npm run dev`。
+
 ---
 
 ## 二、这是什么
@@ -108,12 +110,12 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 │   ├── migration/             # Flyway V1–V15（V10 用户域收束，V11 接收门，V12 仿真退役，
 │   │                          #   V13 设备接入打通，V14 机房凭证合一，V15 告警模版）
 │   └── seed/                  # V9 开发种子（仅 dev profile；设备零预置，留给接入全流程）
-├── frontend/                  # Vue3 管理后台（机房工作台 + 全局告警流 + 跨机房检索，，驾驶舱仪表盘 + 日/夜双主题）
+├── frontend/                  # Vue3 管理后台（机房工作台 + 全局告警流 + 跨机房检索 + 驾驶舱仪表盘 + 日/夜双主题）
 ├── docker/mosquitto/          # MQTT broker 配置（数据接收门北向通道）
 └── docs/                      # 架构决策记录 + 实施计划书
 ```
 
-启动后访问 `/swagger-ui.html` 查看实时 API 文档；`/druid/index.html` 查看 SQL 监控（dev）。
+启动后访问 `/api/swagger-ui.html` 查看实时 API 文档（应用 context-path 为 `/api`）；`/api/druid/index.html` 查看 SQL 监控（dev）。
 
 ---
 
@@ -121,7 +123,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 | 命令 | 用途 |
 |------|------|
-| `./mvnw test` | 全量测试（282 个用例） |
+| `./mvnw test` | 全量测试（280+ 用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
@@ -154,4 +156,4 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 ---
 
-*基于 refactor/depivot 分支编写，最后更新于 2026-08-28（机房工作台架构基线：主从式下钻 + 通知队列化音效 + 跨机房对比）。*
+*基于 refactor/depivot 分支编写，最后更新于 2026-08-29（机房工作台架构基线；补充本地开发端口覆盖说明）。*

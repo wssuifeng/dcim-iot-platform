@@ -14,7 +14,7 @@
 
 - **项目**：dcim-iot-platform — 数据中心动环监控平台产品化仓库，基于 IoT-Platform v1.0 演进
 - **技术栈**：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + **MySQL 9.6.0** + Redis 7 + JDK 17
-- **当前版本**：第四阶段产品化基线（历史代码约等于 v4.2/v4.4 文档状态）
+- **当前版本**：`refactor/depivot` 分支（README 路线图阶段一~六全部完成，当前为机房工作台架构基线）；历史 v4.x 文档状态仅作参考
 - **分层架构**：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 
 ---
@@ -41,7 +41,7 @@
 - **注入方式**：Lombok `@RequiredArgsConstructor` 构造器注入，**不用 `@Autowired` 字段注入**
 - **缓存**：统一走 `CacheService` 接口，**不直接使用 `RedisTemplate`**
 - **XSS 防御**：请求参数由 `XssFilter` 统一 HTML 转义
-- **API 文档**：接口说明用 Swagger 注解（`@Tag`/`@Operation`/`@Schema`），启动后访问 `/swagger-ui.html`，**不要再在 src 下创建 README**
+- **API 文档**：接口说明用 Swagger 注解（`@Tag`/`@Operation`/`@Schema`），启动后访问 `/api/swagger-ui.html`（context-path 为 `/api`），**不要再在 src 下创建 README**
 
 ### 3.1 注释规范
 
@@ -93,8 +93,9 @@
 - ❌ 不要直接操作 `RedisTemplate`，走 `CacheService`
 - ❌ 不要硬编码错误码，扩展 `ResultCode` 枚举
 - ❌ 不要在实体类用 `@Autowired`
-- ❌ 不要在 Service 接口描述与 ServiceImpl 实现之间制造矛盾（曾发生 DictMetric 缓存描述冲突）
-- ❌ 不要把 DictMetric 描述成 "ConcurrentHashMap 内存缓存"——**已迁移到 Redis**（v4.0）
+- ❌ 不要在 Service 接口描述与 ServiceImpl 实现之间制造矛盾（曾发生缓存描述冲突）
+- ❌ 不要引用已删除的 v1.0 老链（DeviceData/Alert/DictMetric/NotificationLog/`getEffectiveRuleConfig`）——现行链是 ingest 门 + MetricSample + AlarmEvent 状态机 + V15 告警模版
+- ❌ 不要用 `updateById` 显式置空字段——MyBatis-Plus 会忽略 null（解绑告警模版等场景必须用 `LambdaUpdateWrapper.set`，踩过坑）
 - ❌ 不要让任何 Java 类完全无注释——至少要有类级功能描述
 
 ---
@@ -118,9 +119,9 @@
 |---------|--------|
 | 任意任务（必读） | `README.md` + 本文件 |
 | 第四阶段产品化任务 | 外部公共控制包中的 `01-全员必读.md`、任务分发清单和当前 Agent 任务卡 |
-| 新增/改需求 | 外部公共控制包和第三阶段最终设计；已删除的 `开发流程学习文档/` 不再作为事实来源 |
+| 新增/改需求 | 仓库内 `docs/`（ADR + 阶段计划书 + 文档导览）为主；外部公共控制包仅适用于 stage4 工作流任务 |
 | 改业务代码 | `README.md` 结构树 → **直接读对应 `.java`**（代码最权威，勿读已删除的旧 README） |
-| 改 API / 查接口 | 启动后访问 `/swagger-ui.html`（实时从注解生成） |
+| 改 API / 查接口 | 启动后访问 `/api/swagger-ui.html`（实时从注解生成） |
 | 学习某模块原理 | 直接读对应源码、测试、Swagger 注解和公共控制包中的共享契约 |
 | 涉及架构决策 | `git log` + 相关代码注释 |
 
@@ -128,30 +129,33 @@
 
 ## 7. 当前状态
 
-- **当前产品化基线**：`0b6b0cc chore: remove obsolete productization docs`
+- **当前基线**：`refactor/depivot` 分支（阶段六：机房工作台架构基线，最新提交见 `git log`）
 - **协作主仓库**：`git@github.com:wssuifeng/dcim-iot-platform.git`
 - **上游基础仓库**：`git@github.com:wssuifeng/iot-platform.git`，仅作 v1.0 参考
-- **集成目标**：`stage4/integration`
-- **当前工作流**：多 Agent 独立分支开发，PR 或补丁先合入 `stage4/integration`，通过门控后再进入 `main`
-- **产品化控制包**：第四阶段公共控制包优先于本文中的历史路线图、旧角色和旧迁移说明
+- **集成目标**：`stage4/integration`（第四阶段工作流的历史目标；阶段五/六工作直接在 `refactor/depivot` 进行）
+- **当前工作流**：阶段五/六沿 README 路线图直接在 `refactor/depivot` 提交；stage4 多 Agent 门控流程仅适用于第四阶段任务
 
 ---
 
 ## 8. 关键业务模型速查
 
-> 本节是 v1.0 基础模型速查。第四阶段产品化将引入 `PLATFORM_ADMIN`、`ORG_ADMIN`、组织、机房、数据范围、设备点位、告警状态机和站内通知等新模型，具体以公共控制包为准。
+> 以实体类与 Flyway 迁移（V1–V15）为准。机房即接入主体，设备零预置，首包自动注册建档。
 
 | 实体 | 表 | 要点 |
 |------|----|------|
-| Device | devices | 设备 CRUD，`status`：0-离线/1-在线/2-故障 |
-| DeviceType | device_types | 设备类型，承载类型级告警规则（降级方案） |
-| DeviceData | device_data | 上报数据，单条/批量，触发告警检查 |
-| Alert | alerts | 告警记录，`alertLevel`：1-紧急 … 5-提示（数字越小越紧急） |
-| DictMetric | dict_metric | 指标元数据，Redis 缓存，填充告警消息中文/单位 |
-| SysUser | sys_user | RBAC 三级角色：ADMIN/OPERATOR/VIEWER |
-| SysAuditLog | sys_audit_log | 操作审计，过期自动清理 |
-| NotificationLog | notification_log | 通知发送日志，记录 EMAIL/WEBSOCKET 推送结果 |
+| CloudRoom | sys_cloud_room | 机房 = 接入主体：创建即初始化 AccessKey/SecretKey，网关凭签名上报；驾驶舱健康度/网关状态由统计聚合计算 |
+| Device | devices | `deviceCode` 全局寻址；`alarmTemplateId` 设备级模版绑定（可空，为空跟随类型） |
+| DeviceType | device_types | 类型目录 + `alarmTemplateId` 基础模版绑定；类型级点位模板（device_type_point_template） |
+| PointDefinition / DevicePointBinding | point_definition / device_point_binding | 平台级点位字典与设备点位绑定 |
+| MetricSample / MetricLatest / MetricRetentionPolicy | metric_sample / metric_latest / metric_retention_policy | 采样时序 + 最新值 + TTL 保留策略 |
+| AlarmTemplate / AlarmTemplateItem | alarm_template / alarm_template_item | V15 一级告警模版实体：规则融合模版，类型绑基础版、设备可改绑自定义版、复制即自定义起点 |
+| AlarmEvent / AlarmStateTransition / AlarmHandlingRecord | alarm_event / alarm_state_transition / alarm_handling_record | 告警状态机 TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED；`alarmLevel` 1-5（数字越小越紧急），逻辑删除 |
+| InAppNotification / AlarmNotificationLog | in_app_notification / alarm_notification_log | 站内通知（头部铃铛模态框）与通知发送日志/去重 |
+| SysUser | sys_user | 单租户三角色：ADMIN/OPERATOR/VIEWER（role 写入 JWT） |
+| SysAuditLog | sys_audit_log | 结构化操作审计 |
 
-**告警规则降级策略**：设备级配置优先，缺失时降级到类型级配置（`getEffectiveRuleConfig`）。
+**告警模版解析链**：设备 `alarmTemplateId` 优先，为空降级类型 `alarmTemplateId`（自动注册设备零配置跟随类型）；解绑必须用 `LambdaUpdateWrapper.set` 显式置空。
 
-**告警升级判定**：`rule.level < existingAlert.alertLevel` 时升级（数字小 = 更紧急）。
+**告警评估与升级**：`AlarmEvaluateServiceImpl` 对上报采样做模版规则阈值评估，命中最严重级别触发；`rule.level < 现有告警级别` 时升级（数字小 = 更紧急）。
+
+**数据入口**：ingest 门（HTTP/MQTT 双协议，Gateway 签名鉴权）→ 机房归属校验 → `deviceCode+pointCode+seq` 幂等去重 → 采样落库 → 告警评估与通知。旧 v1.0 链（DeviceData/Alert/DictMetric/NotificationLog）已删除，勿再引用。
