@@ -6,6 +6,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -40,7 +41,7 @@ public class AlarmTemplateItemUpdateDTO implements Serializable {
 
     @Schema(description = "告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示", example = "2",
             allowableValues = {"1", "2", "3", "4", "5"}, requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "告警级别不能为空")
+    @NotNull(message = "告警级别不能为空")
     @Min(value = 1, message = "告警级别最小为1")
     @Max(value = 5, message = "告警级别最大为5")
     private Integer alarmLevel;
