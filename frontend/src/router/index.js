@@ -104,6 +104,12 @@ const routes = [
         component: () => import('@/views/audit-log/index.vue'),
         meta: { title: '审计日志', icon: 'Document', navigation: true, navigationOrder: 80, roles: AUDIT_ROLES },
       },
+      {
+        path: 'webhook-channels',
+        name: 'webhook-channels',
+        component: () => import('@/views/webhook-channel/index.vue'),
+        meta: { title: '告警通道', icon: 'Bell', navigation: true, navigationOrder: 85, roles: [ADMIN] },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

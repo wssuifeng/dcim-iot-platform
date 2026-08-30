@@ -13,6 +13,7 @@ import com.example.platform.service.AlarmDispatchService;
 import com.example.platform.service.AlarmEmailSender;
 import com.example.platform.service.AlarmEventService;
 import com.example.platform.service.AlarmRecipientResolver;
+import com.example.platform.service.AlarmWebhookDispatcher;
 import com.example.platform.service.InAppNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +64,7 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
     private final InAppNotificationService inAppNotificationService;
     private final AlarmNotificationLogMapper notificationLogMapper;
     private final SysUserMapper sysUserMapper;
+    private final AlarmWebhookDispatcher webhookDispatcher;
 
     @Value("${notify.mail.enabled:false}")
     private boolean mailEnabled;
@@ -102,6 +104,8 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
             }
             sendFallbackEmail(alarmEvent, offlineUsers);
             notifyInApp(alarmEvent, recipients, event.kind());
+            // S8-2：IM webhook 渠道并行分发（逐渠道容错+退避重试在分发器内完成）
+            webhookDispatcher.dispatch(alarmEvent, summary.eventType());
             log.info("告警分发完成 alarmEventId={} kind={} recipients={} online={} offline={}",
                     alarmEvent.getId(), event.kind(), recipients.size(),
                     onlineUsers.size(), offlineUsers.size());
@@ -132,6 +136,8 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
             }
             // D24 恢复不打扰：仅 WS 摘要 + 站内通知，不发邮件
             notifyInApp(alarmEvent, recipients, "RECOVERED");
+            // S8-2：恢复事件也推 IM webhook（恢复在 IM 渠道是关键信息，邮件策略不适用）
+            webhookDispatcher.dispatch(alarmEvent, "ALARM_RECOVERED");
         } catch (Exception ex) {
             log.error("告警恢复分发异常 alarmEventId={}", event.alarmEventId(), ex);
         }
