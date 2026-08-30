@@ -96,9 +96,7 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
                 }
             }
 
-            WebSocketSummary summary = buildSummary(alarmEvent,
-                    AlarmEventTriggeredEvent.KIND_CREATED.equals(event.kind())
-                            ? "ALARM_CREATED" : "ALARM_UPGRADED");
+            WebSocketSummary summary = buildSummary(alarmEvent, resolveTriggeredEventType(event.kind()));
             for (Long userId : onlineUsers) {
                 pushWebSocket(alarmEvent, userId, summary);
             }
@@ -149,6 +147,14 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
                     alarmEvent.getId(), ex.getMessage());
             return Set.of();
         }
+    }
+
+    // 自动链路事件 → WS 摘要事件类型（ALARM_CREATED/UPGRADED/RESEND）
+    private String resolveTriggeredEventType(String kind) {
+        if (AlarmEventTriggeredEvent.KIND_CREATED.equals(kind)) {
+            return "ALARM_CREATED";
+        }
+        return AlarmEventTriggeredEvent.KIND_RESEND.equals(kind) ? "ALARM_RESEND" : "ALARM_UPGRADED";
     }
 
     private WebSocketSummary buildSummary(AlarmEvent alarmEvent, String eventType) {
@@ -205,6 +211,7 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
             String title = switch (kind) {
                 case AlarmEventTriggeredEvent.KIND_CREATED -> "新增告警";
                 case AlarmEventTriggeredEvent.KIND_UPGRADED -> "告警升级";
+                case AlarmEventTriggeredEvent.KIND_RESEND -> "告警持续未恢复";
                 case "RECOVERED" -> "告警恢复";
                 default -> "告警更新";
             };

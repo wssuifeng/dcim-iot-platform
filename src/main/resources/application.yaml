@@ -121,7 +121,11 @@ rate-limit:
   window-seconds: 60
   max-requests: ${RATE_LIMIT_MAX_REQUESTS:1000}
 
-# ==================== 告警通知配置 ====================
+# ==================== 告警评估与通知配置 ====================
+alarm:
+  # 恢复侧静默窗口（秒）：恢复要求窗口内无越限采样（S8-1 防抖在恢复侧）
+  quiet-window-sec: ${ALARM_QUIET_WINDOW_SEC:300}
+
 notify:
   mail:
     enabled: false

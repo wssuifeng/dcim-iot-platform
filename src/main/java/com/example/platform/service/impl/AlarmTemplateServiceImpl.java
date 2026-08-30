@@ -8,6 +8,7 @@ import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
 import com.example.platform.common.util.PaginationUtils;
 import com.example.platform.dto.AlarmTemplateItemCreateDTO;
+import com.example.platform.dto.AlarmTemplateItemMechanismDTO;
 import com.example.platform.dto.AlarmTemplateItemUpdateDTO;
 import com.example.platform.dto.AlarmTemplateItemVO;
 import com.example.platform.dto.AlarmTemplateSaveDTO;
@@ -192,6 +193,11 @@ public class AlarmTemplateServiceImpl
             copyItem.setRuleName(item.getRuleName());
             copyItem.setOperator(item.getOperator());
             copyItem.setThreshold(item.getThreshold());
+            copyItem.setBreachCount(item.getBreachCount());
+            copyItem.setRateLimit(item.getRateLimit());
+            copyItem.setRateWindowSec(item.getRateWindowSec());
+            copyItem.setReAlarmSec(item.getReAlarmSec());
+            copyItem.setHysteresis(item.getHysteresis());
             copyItem.setAlarmLevel(item.getAlarmLevel());
             copyItem.setEnabled(item.getEnabled());
             copyItem.setSortOrder(item.getSortOrder());
@@ -216,6 +222,8 @@ public class AlarmTemplateServiceImpl
         item.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
         // METRIC 规则必须显式指定指标；通用规则（OFFLINE/COMM）指标为空
         item.setPointId("METRIC".equals(item.getRuleType()) ? dto.getPointId() : null);
+        applyMechanismGroup(item, dto.getMechanism());
+        normalizeMechanismFields(item);
         validateItemShape(item);
         checkItemDuplicate(item, null);
         if (itemMapper.insert(item) <= 0) {
@@ -240,12 +248,23 @@ public class AlarmTemplateServiceImpl
         if (dto.getSortOrder() != null) {
             item.setSortOrder(dto.getSortOrder());
         }
+        // 机制字段整组语义：不传=保持现值（如启用开关的部分更新）；传了=整组替换，组内 null=禁用该项
+        if (dto.getMechanism() != null) {
+            applyMechanismGroup(item, dto.getMechanism());
+        }
+        normalizeMechanismFields(item);
         validateItemShape(item);
         checkItemDuplicate(item, itemId);
         if (itemMapper.updateById(item) <= 0) {
             throw new BusinessException(ResultCode.ALARM_TEMPLATE_ITEM_INVALID, "更新规则行失败");
         }
-        AlarmTemplateItemVO vo = AlarmTemplateItemVO.fromEntity(item);
+        if (item.getRateLimit() == null) {
+            // updateById 忽略 null 字段（MyBatis-Plus 行为）：关闭 M2 需显式 set null 清库
+            LambdaUpdateWrapper<AlarmTemplateItem> clearRate = new LambdaUpdateWrapper<>();
+            clearRate.eq(AlarmTemplateItem::getId, itemId)
+                    .set(AlarmTemplateItem::getRateLimit, null);
+            itemMapper.update(null, clearRate);
+        }        AlarmTemplateItemVO vo = AlarmTemplateItemVO.fromEntity(item);
         fillPointFields(List.of(vo));
         return vo;
     }
@@ -449,10 +468,43 @@ public class AlarmTemplateServiceImpl
         vo.setRuleName(item.getRuleName());
         vo.setOperator(item.getOperator());
         vo.setThreshold(item.getThreshold());
+        vo.setBreachCount(item.getBreachCount());
+        vo.setRateLimit(item.getRateLimit());
+        vo.setRateWindowSec(item.getRateWindowSec());
+        vo.setReAlarmSec(item.getReAlarmSec());
+        vo.setHysteresis(item.getHysteresis());
         vo.setAlarmLevel(item.getAlarmLevel());
         vo.setEnabled(item.getEnabled());
         vo.setSource(source);
         return vo;
+    }
+
+    // 机制字段组应用：组内 null 回"不启用"默认值（breach=0 / rate=NULL / window=60 / reAlarm=0 / hysteresis=0）
+    private void applyMechanismGroup(AlarmTemplateItem item, AlarmTemplateItemMechanismDTO mechanism) {
+        if (mechanism == null) {
+            item.setBreachCount(0);
+            item.setRateLimit(null);
+            item.setRateWindowSec(60);
+            item.setReAlarmSec(0);
+            item.setHysteresis(BigDecimal.ZERO);
+            return;
+        }
+        item.setBreachCount(mechanism.getBreachCount() != null ? mechanism.getBreachCount() : 0);
+        item.setRateLimit(mechanism.getRateLimit());
+        item.setRateWindowSec(mechanism.getRateWindowSec() != null ? mechanism.getRateWindowSec() : 60);
+        item.setReAlarmSec(mechanism.getReAlarmSec() != null ? mechanism.getReAlarmSec() : 0);
+        item.setHysteresis(mechanism.getHysteresis() != null ? mechanism.getHysteresis() : BigDecimal.ZERO);
+    }
+
+    // 机制字段仅对 METRIC 规则有意义：OFFLINE/COMM 强制回默认值，避免脏配置
+    private void normalizeMechanismFields(AlarmTemplateItem item) {
+        if (!"METRIC".equals(item.getRuleType())) {
+            item.setBreachCount(0);
+            item.setRateLimit(null);
+            item.setRateWindowSec(60);
+            item.setReAlarmSec(0);
+            item.setHysteresis(BigDecimal.ZERO);
+        }
     }
 
     private void fillRefCounts(List<AlarmTemplateVO> vos) {

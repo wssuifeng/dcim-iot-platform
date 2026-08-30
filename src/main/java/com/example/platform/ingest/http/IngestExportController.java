@@ -97,7 +97,9 @@ public class IngestExportController {
                     continue;
                 }
                 thresholds.add(new ThresholdItem(pointCode, item.getOperator(),
-                        item.getThreshold(), item.getAlarmLevel()));
+                        item.getThreshold(), item.getAlarmLevel(),
+                        item.getBreachCount(), item.getRateLimit(),
+                        item.getRateWindowSec(), item.getReAlarmSec(), item.getHysteresis()));
             }
         }
 
@@ -112,9 +114,12 @@ public class IngestExportController {
     }
 
     /**
-     * 阈值条目
+     * 阈值条目（S8-1 起携带机制字段透出：网关侧仅透传展示，判定仍在平台）
      */
     public record ThresholdItem(String pointCode, String operator,
-                                java.math.BigDecimal threshold, Integer alarmLevel) {
+                                java.math.BigDecimal threshold, Integer alarmLevel,
+                                Integer breachCount, java.math.BigDecimal rateLimit,
+                                Integer rateWindowSec, Integer reAlarmSec,
+                                java.math.BigDecimal hysteresis) {
     }
 }

@@ -59,6 +59,26 @@ public class AlarmTemplateItem implements Serializable {
     @TableField("threshold")
     private BigDecimal threshold;
 
+    @Schema(description = "M1 连续越限次数：≤1 不启用（首点越限即告警）；≥2 连续 N 个采样点越限才告警", example = "3")
+    @TableField("breach_count")
+    private Integer breachCount;
+
+    @Schema(description = "M2 变化量限值：NULL 不启用；窗口内|当前-最早|超过即直接告警；累计量指标禁用", example = "5.0")
+    @TableField("rate_limit")
+    private BigDecimal rateLimit;
+
+    @Schema(description = "M2 变化量窗口（秒），1-86400；窗口内不足两条采样时跳过该机制", example = "60")
+    @TableField("rate_window_sec")
+    private Integer rateWindowSec;
+
+    @Schema(description = "M3 再告警间隔（秒）：0 不启用；活动告警持续越限且距最近一次成功通知超过该值时重发通知", example = "1800")
+    @TableField("re_alarm_sec")
+    private Integer reAlarmSec;
+
+    @Schema(description = "恢复迟滞：0 不启用；GT 安全区=value<threshold-hysteresis，LT 安全区=value>threshold+hysteresis", example = "1.5")
+    @TableField("hysteresis")
+    private BigDecimal hysteresis;
+
     @Schema(description = "告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示（数字小=严重）", example = "2",
             allowableValues = {"1", "2", "3", "4", "5"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "告警级别不能为空")

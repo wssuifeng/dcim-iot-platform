@@ -47,6 +47,21 @@ public class AlarmTemplateItemVO implements Serializable {
     @Schema(description = "阈值")
     private BigDecimal threshold;
 
+    @Schema(description = "M1 连续越限次数：≤1 不启用；≥2 连续 N 个采样点越限才告警")
+    private Integer breachCount;
+
+    @Schema(description = "M2 变化量限值：NULL 不启用；窗口内变化量超过即直接告警")
+    private BigDecimal rateLimit;
+
+    @Schema(description = "M2 变化量窗口（秒）")
+    private Integer rateWindowSec;
+
+    @Schema(description = "M3 再告警间隔（秒）：0 不启用")
+    private Integer reAlarmSec;
+
+    @Schema(description = "恢复迟滞：0 不启用")
+    private BigDecimal hysteresis;
+
     @Schema(description = "告警级别：1-5")
     private Integer alarmLevel;
 
@@ -65,6 +80,11 @@ public class AlarmTemplateItemVO implements Serializable {
         vo.setRuleName(item.getRuleName());
         vo.setOperator(item.getOperator());
         vo.setThreshold(item.getThreshold());
+        vo.setBreachCount(item.getBreachCount());
+        vo.setRateLimit(item.getRateLimit());
+        vo.setRateWindowSec(item.getRateWindowSec());
+        vo.setReAlarmSec(item.getReAlarmSec());
+        vo.setHysteresis(item.getHysteresis());
         vo.setAlarmLevel(item.getAlarmLevel());
         vo.setEnabled(item.getEnabled());
         vo.setSortOrder(item.getSortOrder());

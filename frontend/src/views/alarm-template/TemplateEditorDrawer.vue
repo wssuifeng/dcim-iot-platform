@@ -42,6 +42,10 @@
           <div class="rule-row-main">
             <span class="rule-name">{{ item.ruleName }}</span>
             <span class="rule-expr num">{{ item.operator }} {{ item.threshold }}</span>
+            <span v-if="(item.breachCount ?? 0) > 1" class="mech-badge">连续×{{ item.breachCount }}</span>
+            <span v-if="item.rateLimit != null" class="mech-badge">变化量</span>
+            <span v-if="(item.reAlarmSec ?? 0) > 0" class="mech-badge">再提醒</span>
+            <span v-if="(item.hysteresis ?? 0) > 0" class="mech-badge">迟滞</span>
           </div>
           <level-tag :level="item.alarmLevel" />
           <div class="rule-row-actions">
@@ -87,6 +91,38 @@
         <el-form-item :label="itemForm.ruleType === 'OFFLINE' ? '离线分钟' : '阈值'" required>
           <el-input-number v-model="itemForm.threshold" :step="1" :min="null" style="width: 100%" />
         </el-form-item>
+        <template v-if="itemForm.ruleType === 'METRIC'">
+          <el-form-item label="机制增强">
+            <el-checkbox v-model="showMechanisms">配置高级机制</el-checkbox>
+          </el-form-item>
+          <template v-if="showMechanisms">
+            <el-form-item label="连续越限">
+              <el-input-number v-model="itemForm.breachCount" :min="0" :max="999" :step="1" style="width: 100%" />
+              <div class="mech-tip">连续 N 个采样点越限才告警；≤1 为首点越限即告警</div>
+            </el-form-item>
+            <el-form-item label="变化量限值">
+              <el-input-number v-model="itemForm.rateLimit" :min="0" :step="1" :precision="2"
+                               :controls="false" placeholder="留空不启用" style="width: 100%" />
+              <div class="mech-tip">窗口内变化量超过限值直接告警（疑似火灾/急变）；累计量指标（如累计电量）禁用</div>
+            </el-form-item>
+            <el-form-item v-if="itemForm.rateLimit != null" label="变化量窗口">
+              <el-input-number v-model="itemForm.rateWindowSec" :min="1" :max="86400" :step="10" style="width: 100%">
+                <template #append>秒</template>
+              </el-input-number>
+              <div class="mech-tip">以当前采样为终点回看该窗口，取窗口内最早采样作基准</div>
+            </el-form-item>
+            <el-form-item label="再告警间隔">
+              <el-input-number v-model="itemForm.reAlarmSec" :min="0" :max="604800" :step="60" style="width: 100%">
+                <template #append>秒</template>
+              </el-input-number>
+              <div class="mech-tip">持续越限时按该间隔重发通知；0 不启用</div>
+            </el-form-item>
+            <el-form-item label="恢复迟滞">
+              <el-input-number v-model="itemForm.hysteresis" :min="0" :step="0.5" :precision="2" style="width: 100%" />
+              <div class="mech-tip">恢复需回落进安全区（GT：低于阈值-迟滞；LT：高于阈值+迟滞）；0 不启用</div>
+            </el-form-item>
+          </template>
+        </template>
         <el-form-item label="告警级别" required>
           <el-select v-model="itemForm.alarmLevel" style="width: 100%">
             <el-option v-for="l in 5" :key="l" :value="l" :label="`${l} - ${LEVEL_NAMES[l]}`" />
@@ -132,9 +168,11 @@ const loadingItems = ref(false)
 const saving = ref(false)
 
 const itemFormVisible = ref(false)
+const showMechanisms = ref(false)
 const itemForm = reactive({
   id: null, pointId: null, ruleType: 'METRIC', ruleName: '',
   operator: 'GT', threshold: null, alarmLevel: 3, enabled: true,
+  breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
 })
 
 const genericItems = computed(() => items.value.filter(i => !i.pointId))
@@ -179,8 +217,20 @@ function handleAdd() {
   Object.assign(itemForm, {
     id: null, pointId: null, ruleType: 'METRIC', ruleName: '',
     operator: 'GT', threshold: null, alarmLevel: 3, enabled: true,
+    breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
   })
+  showMechanisms.value = false
   itemFormVisible.value = true
+}
+
+function applyMechanisms(item) {
+  itemForm.breachCount = item.breachCount ?? 0
+  itemForm.rateLimit = item.rateLimit !== null && item.rateLimit !== undefined ? Number(item.rateLimit) : null
+  itemForm.rateWindowSec = item.rateWindowSec ?? 60
+  itemForm.reAlarmSec = item.reAlarmSec ?? 0
+  itemForm.hysteresis = item.hysteresis !== null && item.hysteresis !== undefined ? Number(item.hysteresis) : 0
+  showMechanisms.value = (item.breachCount ?? 0) > 1 || itemForm.rateLimit !== null
+    || (item.reAlarmSec ?? 0) > 0 || itemForm.hysteresis > 0
 }
 
 function handleEdit(item) {
@@ -194,6 +244,7 @@ function handleEdit(item) {
     alarmLevel: item.alarmLevel,
     enabled: item.enabled === 1,
   })
+  applyMechanisms(item)
   itemFormVisible.value = true
 }
 
@@ -208,6 +259,7 @@ function handleCopy(item) {
     alarmLevel: item.alarmLevel,
     enabled: item.enabled === 1,
   })
+  applyMechanisms(item)
   itemFormVisible.value = true
 }
 
@@ -234,6 +286,16 @@ async function handleSaveItem() {
       threshold: itemForm.threshold,
       alarmLevel: itemForm.alarmLevel,
       enabled: itemForm.enabled,
+    }
+    // 机制字段整组提交（组内 rateLimit null=禁用 M2）；OFFLINE/COMM 无机制字段
+    if (itemForm.ruleType === 'METRIC') {
+      payload.mechanism = {
+        breachCount: itemForm.breachCount ?? 0,
+        rateLimit: showMechanisms.value ? itemForm.rateLimit : null,
+        rateWindowSec: itemForm.rateWindowSec ?? 60,
+        reAlarmSec: itemForm.reAlarmSec ?? 0,
+        hysteresis: itemForm.hysteresis ?? 0,
+      }
     }
     if (itemForm.id) {
       await updateTemplateItem(itemForm.id, payload)
@@ -348,6 +410,23 @@ function emitRefresh() {
   color: var(--color-text-2);
   font-size: 12px;
   flex-shrink: 0;
+}
+
+.mech-badge {
+  flex-shrink: 0;
+  color: var(--color-text-3);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.mech-tip {
+  width: 100%;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .rule-row-actions {

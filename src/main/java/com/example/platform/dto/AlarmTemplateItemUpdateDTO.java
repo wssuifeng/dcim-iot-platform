@@ -39,6 +39,9 @@ public class AlarmTemplateItemUpdateDTO implements Serializable {
     @DecimalMax(value = "99999999999999.9999", message = "阈值超出 DECIMAL(18,4) 范围")
     private BigDecimal threshold;
 
+    @Schema(description = "S8-1 机制字段组（M1 连续越限/M2 变化量/M3 再告警/恢复迟滞）：不传=保持现值；组内 null=该项禁用")
+    private AlarmTemplateItemMechanismDTO mechanism;
+
     @Schema(description = "告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示", example = "2",
             allowableValues = {"1", "2", "3", "4", "5"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "告警级别不能为空")

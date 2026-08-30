@@ -11,9 +11,16 @@ import com.example.platform.event.MetricSampleSavedEvent;
 public interface AlarmEvaluateService {
 
     /*
-     * 方法功能:评估单个采样（规则三级降级检索→阈值校验→trigger去重/升级/自动恢复）
+     * 方法功能:评估单个采样（三区判定+机制命中竞争+trigger去重/升级/静默窗口自动恢复/M3再告警）
      * 参数:event-采样保存事件（T1提交后发布）
      * 返回数据:无
      * */
     void evaluate(MetricSampleSavedEvent event);
+
+    /*
+     * 方法功能:停报兜底——扫描活动 METRIC 告警，最新采样已进安全区且距今超过静默窗口的做超窗确认恢复
+     * 参数:无
+     * 返回数据:本次确认恢复的告警事件数
+     * */
+    int recoverStaleConfirmedAlarms();
 }
