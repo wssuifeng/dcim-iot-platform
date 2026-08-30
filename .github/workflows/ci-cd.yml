@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, refactor/depivot]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, refactor/depivot]
 
 jobs:
   build-and-test:
@@ -61,6 +61,15 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-key-for-testing-only-32chars
         run: mvn clean verify -B
 
+      # JaCoCo 覆盖率报告（pom 内 verify 阶段产出），暂不设覆盖率门禁
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -77,6 +86,11 @@ jobs:
           # npm install 会自动补齐当前平台缺失的依赖，避免跨平台 lock 不完整问题
           npm install --no-frozen-lockfile
           npm run build
+
+      # 前端测试（S8-8 落地 vitest 后自动生效；脚本不存在时跳过）
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm run test --if-present
 
   docker-build:
     needs: build-and-test
