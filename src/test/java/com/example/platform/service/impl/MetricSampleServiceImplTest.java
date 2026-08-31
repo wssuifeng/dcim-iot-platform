@@ -75,6 +75,8 @@ class MetricSampleServiceImplTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private TransactionTemplate transactionTemplate;
+    @Mock
+    private com.example.platform.mapper.MetricSampleHourlyMapper metricSampleHourlyMapper;
 
     @InjectMocks
     private MetricSampleServiceImpl metricSampleService;
@@ -513,6 +515,42 @@ class MetricSampleServiceImplTest {
                     CURRENT_USER_ID, 1, 10L, LocalDateTime.now().minusHours(1), LocalDateTime.now());
 
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("trendSamples - S8-4 跨度路由")
+    class TrendRouting {
+
+        @Test
+        @DisplayName("≤48h 走原始采样表")
+        void should_routeToRaw_whenWithin48h() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+            when(metricSampleMapper.selectTrendBuckets(eq(1), eq(10L), any(LocalDateTime.class),
+                    any(LocalDateTime.class), anyLong())).thenReturn(List.of());
+
+            metricSampleService.trendSamples(CURRENT_USER_ID, 1, 10L,
+                    LocalDateTime.now().minusHours(47), LocalDateTime.now());
+
+            verify(metricSampleHourlyMapper, never()).selectTrendBucketsFromHourly(
+                    any(), any(), any(), any(), anyLong());
+        }
+
+        @Test
+        @DisplayName(">48h 走小时聚合表")
+        void should_routeToHourly_whenBeyond48h() {
+            when(deviceScopeHelper.ensureDeviceAccess(eq(1), eq(CURRENT_USER_ID))).thenReturn(null);
+            when(metricSampleHourlyMapper.selectTrendBucketsFromHourly(eq(1), eq(10L),
+                    any(LocalDateTime.class), any(LocalDateTime.class), anyLong()))
+                    .thenReturn(List.of());
+
+            metricSampleService.trendSamples(CURRENT_USER_ID, 1, 10L,
+                    LocalDateTime.now().minusHours(72), LocalDateTime.now());
+
+            verify(metricSampleHourlyMapper).selectTrendBucketsFromHourly(
+                    eq(1), eq(10L), any(LocalDateTime.class), any(LocalDateTime.class), anyLong());
+            verify(metricSampleMapper, never()).selectTrendBuckets(
+                    any(), any(), any(), any(), anyLong());
         }
     }
 

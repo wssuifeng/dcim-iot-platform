@@ -86,6 +86,10 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
     private static final int ZONE_DEAD = 1;
     private static final int ZONE_BREACH = 2;
 
+    // M1 尾部回看的下界：24h 内的采样才参与连续计数（覆盖 999 次×60s 心跳上限；
+    // 同时为 S8-4 月分区提供裁剪下界，避免跨全部分区扫描）
+    private static final java.time.Duration STREAK_LOOKBACK = java.time.Duration.ofHours(24);
+
     // 恢复侧静默窗口单次最多回看的采样条数上限（密集流下兜底，防止无界查询）
     private static final int QUIET_WINDOW_SAMPLE_LIMIT = 500;
 
@@ -210,6 +214,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
                     .eq(MetricSample::getDeviceId, event.deviceId())
                     .eq(MetricSample::getPointId, event.pointId())
                     .lt(MetricSample::getSampleTime, event.sampleTime())
+                    .ge(MetricSample::getSampleTime, event.sampleTime().minus(STREAK_LOOKBACK))
                     .orderByDesc(MetricSample::getSampleTime)
                     .orderByDesc(MetricSample::getId)
                     .last("LIMIT " + (required - 1)));

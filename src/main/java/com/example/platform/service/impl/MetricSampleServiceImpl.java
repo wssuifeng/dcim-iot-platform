@@ -72,6 +72,10 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
     private final DeviceService deviceService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
+    private final com.example.platform.mapper.MetricSampleHourlyMapper metricSampleHourlyMapper;
+
+    // 趋势路由阈值：跨度超过该值改走小时聚合表（S8-4）
+    private static final Duration TREND_HOURLY_ROUTING_THRESHOLD = Duration.ofHours(48);
 
     // 客户端时钟漂移容忍：sample_time 晚于服务端时间该秒数内可接受（D09）
     private static final long SAMPLE_TIME_FUTURE_TOLERANCE_SECONDS = 5 * 60;
@@ -194,6 +198,11 @@ public class MetricSampleServiceImpl extends ServiceImpl<MetricSampleMapper, Met
                     "查询时间跨度不能超过 " + DevicePointMetricContract.MAX_RETENTION_DAYS + " 天");
         }
         long bucketSeconds = resolveBucketSeconds(duration.getSeconds());
+        // S8-4 趋势路由：>48h 走小时聚合表（分钟级桶宽在聚合表上等效小时粒度，均值按 cnt 加权）
+        if (duration.compareTo(TREND_HOURLY_ROUTING_THRESHOLD) > 0) {
+            return metricSampleHourlyMapper.selectTrendBucketsFromHourly(
+                    deviceId, pointId, startTime, endTime, bucketSeconds);
+        }
         return baseMapper.selectTrendBuckets(deviceId, pointId, startTime, endTime, bucketSeconds);
     }
 
