@@ -47,6 +47,14 @@ public class IngestCredential implements Serializable {
     @TableField("telemetry_default_device")
     private String telemetryDefaultDevice;
 
+    @Schema(description = "MQTT 子凭证用户名（连接层鉴权；NULL=未启用；开放命名空间 dcim-open/{mqttUsername}/）")
+    @TableField("mqtt_username")
+    private String mqttUsername;
+
+    @Schema(description = "MQTT 子凭证密码（broker 侧校验，重置即换）")
+    @TableField("mqtt_password")
+    private String mqttPassword;
+
     @Schema(description = "绑定机房ID（该凭证只能上报此机房设备）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     @TableField("cloud_room_id")
     private Long cloudRoomId;

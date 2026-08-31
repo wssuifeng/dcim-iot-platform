@@ -110,6 +110,27 @@ class IngestCredentialServiceTest {
     }
 
     @Test
+    void issueAndAuthenticateMqttSubCredential() {
+        CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
+                room("合一机房MQTT", "IT-UNIFY-MQTT"), 1L);
+
+        IngestCredential issued = credentialService.issueMqttSubCredential(created.getId(), 1L);
+
+        assertThat(issued.getMqttUsername()).startsWith("mqtt-");
+        assertThat(issued.getMqttPassword()).hasSize(40);
+        // 鉴权命中并携带机房归属（S8-5 连接自动归属机房）
+        IngestCredential authed = credentialService.authenticateByMqttUsername(issued.getMqttUsername());
+        assertThat(authed.getCloudRoomId()).isEqualTo(created.getId());
+        // 未知用户名拒绝；重置后旧密码被覆盖、新用户名生效
+        assertThatCode(() -> credentialService.authenticateByMqttUsername("mqtt-unknown-user"))
+                .isInstanceOf(BusinessException.class);
+        IngestCredential reset = credentialService.issueMqttSubCredential(created.getId(), 1L);
+        assertThat(reset.getMqttUsername()).isNotEqualTo(issued.getMqttUsername());
+        assertThatCode(() -> credentialService.authenticateByMqttUsername(issued.getMqttUsername()))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     void getCredentialByRoomVOHidesSecret() {
         CloudRoomCreatedVO created = cloudRoomService.createCloudRoom(
                 room("合一机房己", "IT-UNIFY-F"), 1L);

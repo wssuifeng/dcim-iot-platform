@@ -53,6 +53,20 @@ public interface IngestCredentialService extends IService<IngestCredential> {
     IngestCredential authenticateByTelemetryToken(String telemetryToken);
 
     /*
+     * 方法功能:MQTT 子凭证鉴权（S8-5：开放命名空间 username→凭证→机房归属；启用状态同口径）
+     * 参数:mqttUsername-连接层用户名
+     * 返回数据:IngestCredential-启用中且已签发子凭证的凭证
+     * */
+    IngestCredential authenticateByMqttUsername(String mqttUsername);
+
+    /*
+     * 方法功能:签发/重置 MQTT 子凭证（每机房一组；重置旧密码立即失效）
+     * 参数:roomId-机房ID, currentUserId-操作用户
+     * 返回数据:IngestCredential-更新后的凭证（密码明文仅此一次随实体返回）
+     * */
+    IngestCredential issueMqttSubCredential(Long roomId, Long currentUserId);
+
+    /*
      * 方法功能:生成/重置 TB 兼容遥测 token 与默认设备绑定（重置旧 token 立即失效）
      * 参数:roomId-机房ID, defaultDevice-纯 TB 格式默认设备编码（可空=仅支持报文显式 device）, currentUserId-操作用户
      * 返回数据:IngestCredential-更新后的凭证（token 明文仅此一次随实体返回）

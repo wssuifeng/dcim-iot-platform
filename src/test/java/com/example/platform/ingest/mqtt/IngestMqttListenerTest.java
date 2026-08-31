@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -169,6 +170,73 @@ class IngestMqttListenerTest {
         credential.setSecret("gw-a-secret");
         credential.setCloudRoomId(5L);
         return credential;
+    }
+
+    private IngestCredential mqttCredential(String username) {
+        IngestCredential credential = credential();
+        credential.setMqttUsername(username);
+        credential.setMqttPassword("p".repeat(40));
+        return credential;
+    }
+
+    private byte[] openBatch(String deviceCode) {
+        String payload = "{\"items\":[{\"deviceCode\":\"" + deviceCode
+                + "\",\"pointCode\":\"temperature\",\"value\":22.5,"
+                + "\"sampleTime\":\"2026-08-31T10:00:00\"}]}";
+        return payload.getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void openSamplesDelegateToCoreService() {
+        IngestCredential credential = mqttCredential("mqtt-a");
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-a")).thenReturn(credential);
+        when(ingestCoreService.processSamples(eq(credential), any(IngestSampleBatchDTO.class)))
+                .thenReturn(new IngestResultVO());
+
+        listener.handleOpenSamples("dcim-open/mqtt-a/samples", openBatch("dev-1"));
+
+        verify(ingestCoreService).processSamples(eq(credential), any(IngestSampleBatchDTO.class));
+    }
+
+    @Test
+    void openSamplesRejectWhenUsernameTopicMismatch() {
+        // 双重校验：topic 用户名与凭证用户名不一致（模拟跨用户混投/脏数据）即拒收
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-b"))
+                .thenReturn(mqttCredential("mqtt-a"));
+
+        listener.handleOpenSamples("dcim-open/mqtt-b/samples", openBatch("dev-1"));
+
+        verify(ingestCoreService, never()).processSamples(any(), any());
+        verify(sysAuditLogService).logStructured(any(), eq("mqtt-b"), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), contains("不一致"));
+    }
+
+    @Test
+    void openSamplesRejectUnknownUsername() {
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-ghost"))
+                .thenThrow(new BusinessException(com.example.platform.common.ResultCode.INGEST_UNAUTHORIZED,
+                        "MQTT 子凭证无效"));
+
+        listener.handleOpenSamples("dcim-open/mqtt-ghost/samples", openBatch("dev-1"));
+
+        verify(ingestCoreService, never()).processSamples(any(), any());
+        verify(sysAuditLogService).logStructured(any(), eq("mqtt-ghost"), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), contains("鉴权失败"));
+    }
+
+    @Test
+    void openSamplesWithoutSeqStillAccepted() {
+        // 无 seq 报文：幂等降级 sampleTime（ADR-008 D4），契约校验不因 seq 缺失拒绝
+        IngestCredential credential = mqttCredential("mqtt-a");
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-a")).thenReturn(credential);
+        when(ingestCoreService.processSamples(eq(credential), any(IngestSampleBatchDTO.class)))
+                .thenReturn(new IngestResultVO());
+
+        listener.handleOpenSamples("dcim-open/mqtt-a/samples", openBatch("dev-1"));
+
+        ArgumentCaptor<IngestSampleBatchDTO> captor = ArgumentCaptor.forClass(IngestSampleBatchDTO.class);
+        verify(ingestCoreService).processSamples(eq(credential), captor.capture());
+        assertThat(captor.getValue().getItems().get(0).getSeq()).isNull();
     }
 
     private byte[] envelopeBytes(String secret, String itemsOverride) {

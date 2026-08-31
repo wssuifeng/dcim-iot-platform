@@ -124,6 +124,25 @@ public class CloudRoomController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "签发/重置 MQTT 子凭证",
+            description = "ADMIN 专用（S8-5）：MQTT 连接层用户名/密码（每机房一组，开放命名空间 "
+                    + "dcim-open/{mqttUsername}/），重置旧密码立即失效；密码仅本次响应返回")
+    @PutMapping("/{id}/mqtt-credential")
+    @PreAuthorize("hasRole('ADMIN')")
+    @AuditLog(operation = "RESET_ROOM_MQTT_CREDENTIAL", detail = "机房ID:#id")
+    public Result<com.example.platform.ingest.dto.IngestMqttSubCredentialVO> resetMqttCredential(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        var credential = ingestCredentialService.issueMqttSubCredential(id, user.userId());
+        com.example.platform.ingest.dto.IngestMqttSubCredentialVO vo =
+                new com.example.platform.ingest.dto.IngestMqttSubCredentialVO();
+        org.springframework.beans.BeanUtils.copyProperties(
+                com.example.platform.ingest.dto.IngestCredentialVO.fromEntity(credential), vo);
+        vo.setMqttUsername(credential.getMqttUsername());
+        vo.setMqttPassword(credential.getMqttPassword());
+        return Result.success(vo);
+    }
+
     @Operation(summary = "更新机房信息", description = "ADMIN 专用；不允许修改 roomCode")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")

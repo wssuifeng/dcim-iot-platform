@@ -41,6 +41,12 @@ import java.util.concurrent.TimeUnit;
  *   对象的紧凑 JSON 序列化（与网关侧签名时的序列化保持一致）。
  * 【失败语义】凭证无效/验签失败的消息直接丢弃并记结构化审计（QoS1 由 broker
  *   重投，重投同样被拒不影响平台）；MQTT 不经 Spring Security 链，自行验签。
+ * 【开放命名空间（S8-5）】dcim-open/{mqttUsername}/samples——MQTT 子凭证直连
+ *   通道，无 HMAC（既定取舍，ADR-008/评审定稿）；机房归属来自凭证映射，
+ *   username↔topic 前缀一致性双重校验；无 seq 幂等降级 sampleTime。
+ *   【安全审查点（后期专项）】本命名空间依赖 broker 连接层鉴权 + publish-only
+ *   ACL（dcim-open/${username}/#）；平台侧仅做归属与格式校验，无速率限制
+ *   （单租户口径，后续专项补 per-username 限流）。
  * 【连接韧性】broker 不可用时后台定时重连，不阻塞应用启动（HTTP 通道独立可用）。
  * */
 @Slf4j
@@ -51,6 +57,9 @@ public class IngestMqttListener {
     private static final String TOPIC_SAMPLES = "dcim/+/samples";
     private static final String TOPIC_HEARTBEAT = "dcim/+/heartbeat";
     private static final String TOPIC_LWT = "dcim/+/lwt";
+    // S8-5 开放命名空间：MQTT 子凭证直连（无 HMAC），报文即 batch JSON
+    private static final String TOPIC_OPEN_SAMPLES = "dcim-open/+/samples";
+    private static final String OPEN_PREFIX = "dcim-open/";
     private static final String ACK_TOPIC_SUFFIX = "/ack";
 
     private final IngestCoreService ingestCoreService;
@@ -186,6 +195,42 @@ public class IngestMqttListener {
     }
 
     /*
+     * 方法功能:处理开放命名空间 samples 消息（S8-5）——username→凭证→机房归属，
+     *   username↔topic 前缀双重校验，报文即 batch JSON（无签名/无 envelope）
+     * 参数:topic-消息 topic（dcim-open/{mqttUsername}/samples）, payload-batch JSON 字节
+     * 返回数据:无
+     * */
+    void handleOpenSamples(String topic, byte[] payload) {
+        String mqttUsername = topic.startsWith(OPEN_PREFIX) && topic.length() > OPEN_PREFIX.length()
+                ? topic.substring(OPEN_PREFIX.length()).split("/")[0] : "unknown";
+        try {
+            IngestCredential credential = ingestCredentialService.authenticateByMqttUsername(mqttUsername);
+            // 双重校验：topic 第二层必须与凭证用户名一致（防跨用户 topic 混投）
+            if (!mqttUsername.equals(credential.getMqttUsername())) {
+                auditRejected(mqttUsername, "开放通道 username 与 topic 前缀不一致");
+                return;
+            }
+            IngestSampleBatchDTO batch = objectMapper.treeToValue(
+                    objectMapper.readTree(payload), IngestSampleBatchDTO.class);
+            var violations = validator.validate(batch);
+            if (!violations.isEmpty()) {
+                auditRejected(mqttUsername, "开放通道报文校验失败: "
+                        + violations.iterator().next().getMessage());
+                return;
+            }
+            long start = System.nanoTime();
+            IngestResultVO result = ingestCoreService.processSamples(credential, batch);
+            metricsCollector.recordBatch("mqtt", batch.getItems().size(),
+                    (System.nanoTime() - start) / 1_000_000,
+                    result.getAccepted(), result.getDuplicated(), result.getFailed());
+        } catch (BusinessException ex) {
+            auditRejected(mqttUsername, "开放通道子凭证鉴权失败: " + ex.getMessage());
+        } catch (Exception ex) {
+            log.error("MQTT 开放通道消息处理异常 topic={}", topic, ex);
+        }
+    }
+
+    /*
      * 方法功能:处理 heartbeat topic 消息，刷新凭证存活时间
      * 参数:topic-消息 topic, payload-原始报文字节（内容不校验）
      * 返回数据:无
@@ -255,6 +300,8 @@ public class IngestMqttListener {
         client.subscribe(TOPIC_SAMPLES, 1, (t, m) -> handleSamples(t, m.getPayload()));
         client.subscribe(TOPIC_HEARTBEAT, 0, (t, m) -> handleHeartbeat(t, m.getPayload()));
         client.subscribe(TOPIC_LWT, 0, (t, m) -> handleLwt(t, m.getPayload()));
+        // S8-5 开放命名空间（MQTT 子凭证直连）：报文直入传输无关核心
+        client.subscribe(TOPIC_OPEN_SAMPLES, 1, (t, m) -> handleOpenSamples(t, m.getPayload()));
     }
 
     private void scheduleReconnect() {

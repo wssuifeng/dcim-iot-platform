@@ -41,7 +41,7 @@ public class IngestSampleItemDTO implements Serializable {
     @NotNull(message = "采样时间不能为空")
     private LocalDateTime sampleTime;
 
-    @Schema(description = "网关侧单调递增序号（幂等键成分，QoS1 重发保持不变）", example = "10023", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "序号不能为空")
+    @Schema(description = "网关侧单调递增序号（幂等键成分，QoS1 重发保持不变；HMAC 通道必填；"
+            + "TB 兼容/MQTT 开放通道无 seq，幂等键降级为 deviceCode+pointCode+sampleTime，见 ADR-008 D4）", example = "10023")
     private Long seq;
 }

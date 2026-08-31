@@ -35,6 +35,7 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
     // （AlarmEvent→Device→CloudRoom→IngestCredential）与本服务构成构造器环，
     // 用 ObjectProvider 延迟解析打破启动期循环依赖
     private final org.springframework.beans.factory.ObjectProvider<com.example.platform.service.AlarmEventService> alarmEventServiceProvider;
+    private final com.example.platform.ingest.mqtt.MqttAuthProvider mqttAuthProvider;
     private final SecureRandom secureRandom = new SecureRandom();
 
     // 网关离线判定阈值（与 IngestGatewayOfflineMonitorTask 同源配置）
@@ -167,6 +168,56 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
         if (credential.getExpireAt() != null && credential.getExpireAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证已过期");
         }
+        return credential;
+    }
+
+    @Override
+    public IngestCredential authenticateByMqttUsername(String mqttUsername) {
+        if (!StringUtils.hasText(mqttUsername)) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "MQTT 子凭证无效");
+        }
+        IngestCredential credential = getOne(new LambdaQueryWrapper<IngestCredential>()
+                .eq(IngestCredential::getMqttUsername, mqttUsername));
+        if (credential == null || !StringUtils.hasText(credential.getMqttPassword())) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "MQTT 子凭证无效");
+        }
+        if (credential.getStatus() != null && credential.getStatus() != 0) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证已停用");
+        }
+        if (credential.getExpireAt() != null && credential.getExpireAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证已过期");
+        }
+        return credential;
+    }
+
+    @Override
+    public IngestCredential issueMqttSubCredential(Long roomId, Long currentUserId) {
+        IngestCredential credential = findCredentialByRoom(roomId);
+        String username;
+        do {
+            username = "mqtt-" + randomHex(24);
+        } while (count(new LambdaQueryWrapper<IngestCredential>()
+                .eq(IngestCredential::getMqttUsername, username)) > 0);
+        String password = randomHex(40);
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<IngestCredential> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+        wrapper.eq(IngestCredential::getId, credential.getId())
+                .set(IngestCredential::getMqttUsername, username)
+                .set(IngestCredential::getMqttPassword, password);
+        update(wrapper);
+        credential.setMqttUsername(username);
+        credential.setMqttPassword(password);
+        // broker 侧连接层鉴权供给（mosquitto dynamic-security 等），失败不阻断签发——
+        // broker 侧不认识该用户时开放通道连接直接被 broker 拒绝（fail closed），可人工补
+        try {
+            mqttAuthProvider.upsertUser(username, password,
+                    "dcim-open/" + username + "/#");
+        } catch (Exception ex) {
+            log.warn("MQTT broker 侧用户供给失败（开放通道需人工配置 broker 鉴权） username={} error={}",
+                    username, ex.getMessage());
+        }
+        log.info("MQTT 子凭证签发 roomId={} credentialId={} username={} operator={}",
+                roomId, credential.getId(), username, currentUserId);
         return credential;
     }
 

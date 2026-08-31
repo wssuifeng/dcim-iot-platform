@@ -150,6 +150,12 @@ ingest:
     enabled: ${INGEST_MQTT_ENABLED:false}
     broker-url: ${INGEST_MQTT_BROKER_URL:tcp://localhost:1883}
     client-id: ${INGEST_MQTT_CLIENT_ID:platform-ingest}
+    # S8-5 MQTT 子凭证的 broker 侧供给后端：none（默认，人工配置 broker 用户）
+    # 或 mosquitto-dynsec（平台经 $CONTROL/dynamic-security/v1 动态建用户，
+    # 需配 broker-auth-admin-username/password，且 broker 预建 dcim-open 角色）
+    broker-auth: ${INGEST_MQTT_BROKER_AUTH:none}
+    broker-auth-admin-username: ${INGEST_MQTT_BROKER_AUTH_ADMIN_USERNAME:}
+    broker-auth-admin-password: ${INGEST_MQTT_BROKER_AUTH_ADMIN_PASSWORD:}
     username: ${INGEST_MQTT_USERNAME:}
     password: ${INGEST_MQTT_PASSWORD:}
     keep-alive-seconds: 30
