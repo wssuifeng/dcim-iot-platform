@@ -46,6 +46,20 @@ public interface IngestCredentialService extends IService<IngestCredential> {
     IngestCredentialCreatedVO resetSecretByRoom(Long roomId, Long currentUserId);
 
     /*
+     * 方法功能:TB 兼容遥测 token 鉴权（ADR-008 D2：token→凭证→机房归属；启用状态与有效期同口径）
+     * 参数:telemetryToken-URL 路径中的遥测 token
+     * 返回数据:IngestCredential-启用中的凭证
+     * */
+    IngestCredential authenticateByTelemetryToken(String telemetryToken);
+
+    /*
+     * 方法功能:生成/重置 TB 兼容遥测 token 与默认设备绑定（重置旧 token 立即失效）
+     * 参数:roomId-机房ID, defaultDevice-纯 TB 格式默认设备编码（可空=仅支持报文显式 device）, currentUserId-操作用户
+     * 返回数据:IngestCredential-更新后的凭证（token 明文仅此一次随实体返回）
+     * */
+    IngestCredential issueTelemetryToken(Long roomId, String defaultDevice, Long currentUserId);
+
+    /*
      * 方法功能:级联删除机房凭证（随机房删除）
      * 参数:roomId-机房ID, currentUserId-操作用户
      * 返回数据:无

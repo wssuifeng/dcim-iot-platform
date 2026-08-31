@@ -106,6 +106,24 @@ public class CloudRoomController {
         return Result.success(ingestCredentialService.resetSecretByRoom(id, user.userId()));
     }
 
+    @Operation(summary = "签发/重置 TB 兼容遥测 token",
+            description = "ADMIN 专用（ADR-008）：/api/v1/{token}/telemetry 的凭证级 token，"
+                    + "重置旧 token 立即失效；defaultDevice 为纯 TB 格式报文的默认设备编码（可空）")
+    @PutMapping("/{id}/telemetry-token")
+    @PreAuthorize("hasRole('ADMIN')")
+    @AuditLog(operation = "RESET_ROOM_TELEMETRY_TOKEN", detail = "机房ID:#id")
+    public Result<com.example.platform.ingest.dto.IngestCredentialVO> resetTelemetryToken(
+            @Parameter(description = "机房ID", required = true) @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        CurrentUser user = currentUserContext.requireCurrentUser();
+        String defaultDevice = body != null ? body.get("defaultDevice") : null;
+        var credential = ingestCredentialService.issueTelemetryToken(id, defaultDevice, user.userId());
+        com.example.platform.ingest.dto.IngestCredentialVO vo =
+                com.example.platform.ingest.dto.IngestCredentialVO.fromEntity(credential);
+        vo.setTelemetryToken(credential.getTelemetryToken());
+        return Result.success(vo);
+    }
+
     @Operation(summary = "更新机房信息", description = "ADMIN 专用；不允许修改 roomCode")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")

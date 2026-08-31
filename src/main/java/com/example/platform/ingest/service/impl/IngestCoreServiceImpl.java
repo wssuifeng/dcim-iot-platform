@@ -125,8 +125,14 @@ public class IngestCoreServiceImpl implements IngestCoreService {
                                         IngestSampleItemDTO item, MetricSampleDTO sample) {
         try {
             IngestDedup dedup = new IngestDedup();
-            dedup.setDedupKey(GatewaySignUtils.dedupKey(
-                    item.getDeviceCode(), item.getPointCode(), item.getSeq()));
+            // 幂等键：HMAC 通道 seq 必填；TB 兼容/开放通道无 seq，按 ADR-008 D4 降级 sampleTime
+            if (item.getSeq() != null) {
+                dedup.setDedupKey(GatewaySignUtils.dedupKey(
+                        item.getDeviceCode(), item.getPointCode(), item.getSeq()));
+            } else {
+                dedup.setDedupKey(GatewaySignUtils.dedupKeyWithoutSeq(
+                        item.getDeviceCode(), item.getPointCode(), item.getSampleTime()));
+            }
             ingestDedupMapper.insert(dedup);
         } catch (DuplicateKeyException ex) {
             return true;

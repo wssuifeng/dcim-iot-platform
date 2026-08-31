@@ -39,6 +39,14 @@ public class IngestCredential implements Serializable {
     @Size(max = 100, message = "签名密钥最长100个字符")
     private String secret;
 
+    @Schema(description = "TB 兼容遥测 token（/api/v1/{token}/telemetry；NULL=未启用）")
+    @TableField("telemetry_token")
+    private String telemetryToken;
+
+    @Schema(description = "TB 纯格式报文的默认设备编码（报文显式带 device 时优先）")
+    @TableField("telemetry_default_device")
+    private String telemetryDefaultDevice;
+
     @Schema(description = "绑定机房ID（该凭证只能上报此机房设备）", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     @TableField("cloud_room_id")
     private Long cloudRoomId;

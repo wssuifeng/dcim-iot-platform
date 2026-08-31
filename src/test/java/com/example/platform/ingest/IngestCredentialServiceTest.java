@@ -118,7 +118,7 @@ class IngestCredentialServiceTest {
 
         assertThat(vo.getAccessKey()).isEqualTo(created.getAccessKey());
         org.assertj.core.api.Assertions.assertThat(vo).hasNoNullFieldsOrPropertiesExcept(
-                "secret", "expireAt", "defaultTypeId", "lastSeenAt", "createTime");
+                "secret", "expireAt", "defaultTypeId", "lastSeenAt", "createTime", "telemetryToken", "telemetryDefaultDevice");
         // VO 无 secret 字段——类型系统保证不泄露
     }
 

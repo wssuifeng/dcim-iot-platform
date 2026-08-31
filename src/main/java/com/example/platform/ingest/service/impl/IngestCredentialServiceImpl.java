@@ -152,6 +152,48 @@ public class IngestCredentialServiceImpl extends ServiceImpl<IngestCredentialMap
     }
 
     @Override
+    public IngestCredential authenticateByTelemetryToken(String telemetryToken) {
+        if (!StringUtils.hasText(telemetryToken)) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "遥测 token 无效");
+        }
+        IngestCredential credential = getOne(new LambdaQueryWrapper<IngestCredential>()
+                .eq(IngestCredential::getTelemetryToken, telemetryToken));
+        if (credential == null) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "遥测 token 无效");
+        }
+        if (credential.getStatus() != null && credential.getStatus() != 0) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证已停用");
+        }
+        if (credential.getExpireAt() != null && credential.getExpireAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ResultCode.INGEST_UNAUTHORIZED, "网关凭证已过期");
+        }
+        return credential;
+    }
+
+    @Override
+    public IngestCredential issueTelemetryToken(Long roomId, String defaultDevice, Long currentUserId) {
+        IngestCredential credential = findCredentialByRoom(roomId);
+        String token;
+        do {
+            token = randomHex(40);
+        } while (count(new LambdaQueryWrapper<IngestCredential>()
+                .eq(IngestCredential::getTelemetryToken, token)) > 0);
+        credential.setTelemetryToken(token);
+        // 默认设备显式 set null 走 updateById 会被忽略——统一用 UpdateWrapper
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<IngestCredential> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+        wrapper.eq(IngestCredential::getId, credential.getId())
+                .set(IngestCredential::getTelemetryToken, token)
+                .set(IngestCredential::getTelemetryDefaultDevice,
+                        StringUtils.hasText(defaultDevice) ? defaultDevice.trim() : null);
+        update(wrapper);
+        credential.setTelemetryDefaultDevice(
+                StringUtils.hasText(defaultDevice) ? defaultDevice.trim() : null);
+        log.info("TB 遥测 token 签发 roomId={} credentialId={} defaultDevice={} operator={}",
+                roomId, credential.getId(), credential.getTelemetryDefaultDevice(), currentUserId);
+        return credential;
+    }
+
     public void refreshLastSeen(Long credentialId) {
         IngestCredential credential = getById(credentialId);
         if (credential == null) {

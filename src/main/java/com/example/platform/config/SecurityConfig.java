@@ -129,6 +129,8 @@ public class SecurityConfig {
                         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
                         // 数据接收门：网关机器鉴权（GatewayAuthenticationFilter 验签，无效 401）
                         auth.requestMatchers("/ingest/**").permitAll();
+                        // TB 兼容遥测入口：token 自鉴权（ADR-008）
+                        auth.requestMatchers("/v1/**").permitAll();
                         if (swaggerUiEnabled) {
                             auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll();
                         }

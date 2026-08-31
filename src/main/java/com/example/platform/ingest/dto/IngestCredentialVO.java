@@ -23,6 +23,12 @@ public class IngestCredentialVO implements Serializable {
     @Schema(description = "接入标识", example = "gw-3f9a2c7d1e5b8a04")
     private String accessKey;
 
+    @Schema(description = "TB 兼容遥测 token（签发/重置响应一次性返回明文；其余查询返回掩码）")
+    private String telemetryToken;
+
+    @Schema(description = "TB 纯格式报文的默认设备编码")
+    private String telemetryDefaultDevice;
+
     @Schema(description = "绑定机房ID", example = "1")
     private Long cloudRoomId;
 
@@ -51,6 +57,11 @@ public class IngestCredentialVO implements Serializable {
         IngestCredentialVO vo = new IngestCredentialVO();
         vo.setId(entity.getId());
         vo.setAccessKey(entity.getAccessKey());
+        // token 掩码返回：明文仅在签发/重置路径由服务层覆写
+        vo.setTelemetryToken(entity.getTelemetryToken() != null
+                ? entity.getTelemetryToken().substring(0, Math.min(8, entity.getTelemetryToken().length())) + "…"
+                : null);
+        vo.setTelemetryDefaultDevice(entity.getTelemetryDefaultDevice());
         vo.setCloudRoomId(entity.getCloudRoomId());
         vo.setAutoRegister(entity.getAutoRegister());
         vo.setDefaultTypeId(entity.getDefaultTypeId());

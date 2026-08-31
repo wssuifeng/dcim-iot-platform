@@ -1,6 +1,7 @@
 package com.example.platform.ingest.util;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -66,6 +67,19 @@ public final class GatewaySignUtils {
      * */
     public static String dedupKey(String deviceCode, String pointCode, long seq) {
         return sha256Hex((deviceCode + ":" + pointCode + ":" + seq)
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    /*
+     * 方法功能:幂等键降级口径（ADR-008 D4）——TB 兼容/MQTT 开放通道报文无 seq，
+     *   以 deviceCode+pointCode+sampleTime(epochMilli) 为键；HMAC 通道 seq 语义不变
+     * 参数:deviceCode-设备编码, pointCode-指标编码, sampleTime-采样时间
+     * 返回数据:String-sha256 幂等键
+     * */
+    public static String dedupKeyWithoutSeq(String deviceCode, String pointCode,
+                                            LocalDateTime sampleTime) {
+        long epochMilli = sampleTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return sha256Hex((deviceCode + ":" + pointCode + ":" + epochMilli)
                 .getBytes(StandardCharsets.UTF_8));
     }
 
