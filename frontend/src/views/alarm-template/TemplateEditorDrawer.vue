@@ -287,14 +287,16 @@ async function handleSaveItem() {
       alarmLevel: itemForm.alarmLevel,
       enabled: itemForm.enabled,
     }
-    // 机制字段整组提交（组内 rateLimit null=禁用 M2）；OFFLINE/COMM 无机制字段
+    // 机制字段整组提交；折叠"机制增强"视为整组禁用（避免隐藏值被静默带出）
     if (itemForm.ruleType === 'METRIC') {
-      payload.mechanism = {
+      payload.mechanism = showMechanisms.value ? {
         breachCount: itemForm.breachCount ?? 0,
-        rateLimit: showMechanisms.value ? itemForm.rateLimit : null,
+        rateLimit: itemForm.rateLimit ?? null,
         rateWindowSec: itemForm.rateWindowSec ?? 60,
         reAlarmSec: itemForm.reAlarmSec ?? 0,
         hysteresis: itemForm.hysteresis ?? 0,
+      } : {
+        breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
       }
     }
     if (itemForm.id) {
