@@ -25,4 +25,7 @@ public class AlarmTriggerContext implements Serializable {
     private String alarmMessage;
 
     private Long cloudRoomId;
+
+    /* 命中规则行 ID（评估链命中时透传；离线检测等无规则来源为 null）——S8-9 下行动作定位用 */
+    private Long templateItemId;
 }

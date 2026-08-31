@@ -62,6 +62,9 @@ public class AlarmTemplateItemVO implements Serializable {
     @Schema(description = "恢复迟滞：0 不启用")
     private BigDecimal hysteresis;
 
+    @Schema(description = "下行动作 webhook：非空即启用")
+    private String actionWebhookUrl;
+
     @Schema(description = "告警级别：1-5")
     private Integer alarmLevel;
 
@@ -85,6 +88,7 @@ public class AlarmTemplateItemVO implements Serializable {
         vo.setRateWindowSec(item.getRateWindowSec());
         vo.setReAlarmSec(item.getReAlarmSec());
         vo.setHysteresis(item.getHysteresis());
+        vo.setActionWebhookUrl(item.getActionWebhookUrl());
         vo.setAlarmLevel(item.getAlarmLevel());
         vo.setEnabled(item.getEnabled());
         vo.setSortOrder(item.getSortOrder());

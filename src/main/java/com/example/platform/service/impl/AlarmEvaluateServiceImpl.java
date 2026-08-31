@@ -284,6 +284,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
                 .alarmLevel(rule.getAlarmLevel())
                 .alarmMessage(buildHitMessage(event, hit, pointName, unit))
                 .cloudRoomId(device.getCloudRoomId())
+                .templateItemId(rule.getId())
                 .build();
         AlarmTriggerResult result = alarmEventService.trigger(context);
         if (result.isNotifiable()) {
@@ -369,7 +370,7 @@ public class AlarmEvaluateServiceImpl implements AlarmEvaluateService {
             return;
         }
         eventPublisher.publishEvent(new AlarmEventTriggeredEvent(
-                event.getId(), AlarmEventTriggeredEvent.KIND_RESEND));
+                event.getId(), AlarmEventTriggeredEvent.KIND_RESEND, rule.getId()));
         log.info("告警再提醒已发布 alarmEventId={} rule={} 持续越限={}s 间隔={}s",
                 event.getId(), rule.getRuleName(), elapsedSec, rule.getReAlarmSec());
     }

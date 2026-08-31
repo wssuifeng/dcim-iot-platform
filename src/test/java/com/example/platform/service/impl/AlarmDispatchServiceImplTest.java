@@ -65,6 +65,10 @@ class AlarmDispatchServiceImplTest {
     private AlarmNotificationLogMapper notificationLogMapper;
     @Mock
     private SysUserMapper sysUserMapper;
+    @Mock
+    private com.example.platform.service.AlarmWebhookDispatcher webhookDispatcher;
+    @Mock
+    private com.example.platform.service.AlarmActionWebhookService actionWebhookService;
 
     @InjectMocks
     private AlarmDispatchServiceImpl dispatchService;
@@ -113,7 +117,7 @@ class AlarmDispatchServiceImplTest {
             when(sysUserMapper.selectBatchIds(anyCollection()))
                     .thenReturn(List.of(user(30L, "offline@demo.local")));
 
-            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
+            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED", null));
 
             verify(webSocketPublisher).sendSummary(eq(20L), any());
             verify(webSocketPublisher, never()).sendSummary(eq(30L), any());
@@ -129,7 +133,7 @@ class AlarmDispatchServiceImplTest {
             when(sysUserMapper.selectBatchIds(anyCollection()))
                     .thenReturn(List.of(user(30L, "offline@demo.local")));
 
-            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
+            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED", null));
 
             verify(alarmEmailSender, never()).send(any(), any());
             ArgumentCaptor<AlarmNotificationLog> captor = ArgumentCaptor.forClass(AlarmNotificationLog.class);
@@ -146,7 +150,7 @@ class AlarmDispatchServiceImplTest {
             when(simpUserRegistry.getUser("20")).thenReturn(null);
             when(sysUserMapper.selectBatchIds(anyCollection())).thenReturn(List.of());
 
-            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
+            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED", null));
 
             // 20L 离线且无邮箱 → 邮件空收件失败日志，但站内通知仍写
             verify(inAppNotificationService).notifyAlarmEvent(eq(1L), eq(Set.of(20L)), anyString(), anyString());
@@ -157,7 +161,7 @@ class AlarmDispatchServiceImplTest {
         void should_handleEmptyRecipients() {
             when(alarmRecipientResolver.resolveRecipientUserIds()).thenReturn(Set.of());
 
-            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
+            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED", null));
 
             verify(webSocketPublisher, never()).sendSummary(any(), any());
             verify(alarmEmailSender, never()).send(any(), any());
@@ -170,7 +174,7 @@ class AlarmDispatchServiceImplTest {
             when(alarmRecipientResolver.resolveRecipientUserIds())
                     .thenThrow(new IllegalStateException("resolver down"));
 
-            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED"));
+            dispatchService.dispatch(new AlarmEventTriggeredEvent(1L, "CREATED", null));
             // 不抛异常即通过
         }
     }

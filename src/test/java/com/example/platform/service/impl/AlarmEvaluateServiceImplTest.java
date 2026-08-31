@@ -352,9 +352,10 @@ class AlarmEvaluateServiceImplTest {
     class ReAlarm {
 
         @Test
-        @DisplayName("持续越限超过再告警间隔：发布 RESEND 重发通知")
+        @DisplayName("持续越限超过再告警间隔：发布 RESEND 重发通知（携带命中规则行 ID）")
         void should_publishResend_whenElapsedBeyondInterval() {
             PointAlarmRuleVO m3 = rule("GT", "35", 2);
+            m3.setId(11L);
             m3.setReAlarmSec(1800);
             when(alarmTemplateService.findEffectiveRules(DEVICE_ID, POINT_ID))
                     .thenReturn(List.of(m3));
@@ -374,6 +375,7 @@ class AlarmEvaluateServiceImplTest {
             verify(eventPublisher).publishEvent(captor.capture());
             assertThat(captor.getValue().kind()).isEqualTo(AlarmEventTriggeredEvent.KIND_RESEND);
             assertThat(captor.getValue().alarmEventId()).isEqualTo(9L);
+            assertThat(captor.getValue().templateItemId()).isEqualTo(11L);
         }
 
         @Test

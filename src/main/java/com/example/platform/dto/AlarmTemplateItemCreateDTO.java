@@ -48,6 +48,10 @@ public class AlarmTemplateItemCreateDTO implements Serializable {
     @DecimalMax(value = "99999999999999.9999", message = "阈值超出 DECIMAL(18,4) 范围")
     private BigDecimal threshold;
 
+    @Schema(description = "下行动作 webhook：非空即启用，规则命中触发/升级时回调外部系统（通知钩子非控制闭环）", example = "https://ops.example.com/alarm-hook")
+    @Size(max = 500, message = "下行动作 webhook 地址最长500个字符")
+    private String actionWebhookUrl;
+
     @Schema(description = "S8-1 机制字段组（M1 连续越限/M2 变化量/M3 再告警/恢复迟滞）：不传=全部不启用")
     private AlarmTemplateItemMechanismDTO mechanism;
 

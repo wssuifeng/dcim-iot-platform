@@ -67,6 +67,9 @@ public class PointAlarmRuleVO implements Serializable {
     @Schema(description = "恢复迟滞：0 不启用")
     private java.math.BigDecimal hysteresis;
 
+    @Schema(description = "下行动作 webhook：非空即启用")
+    private String actionWebhookUrl;
+
     @Schema(description = "告警级别：1-5")
     private Integer alarmLevel;
 

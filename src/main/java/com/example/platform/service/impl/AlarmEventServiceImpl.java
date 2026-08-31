@@ -124,7 +124,7 @@ public class AlarmEventServiceImpl
             }
             insertTransition(event.getId(), null, STATE_TRIGGERED, null, "系统触发");
             eventPublisher.publishEvent(new AlarmEventTriggeredEvent(
-                    event.getId(), AlarmEventTriggeredEvent.KIND_CREATED));
+                    event.getId(), AlarmEventTriggeredEvent.KIND_CREATED, context.getTemplateItemId()));
             log.info("告警产生 alarmEventId={} device={} type={} level={}",
                     event.getId(), event.getDeviceId(), event.getAlarmType(), event.getAlarmLevel());
             return AlarmTriggerResult.of(event, AlarmTriggerResult.KIND_CREATED);
@@ -142,7 +142,7 @@ public class AlarmEventServiceImpl
             insertTransition(existing.getId(), STATE_TRIGGERED, STATE_TRIGGERED, null,
                     String.format("级别升级 %d → %d", fromLevel, context.getAlarmLevel()));
             eventPublisher.publishEvent(new AlarmEventTriggeredEvent(
-                    existing.getId(), AlarmEventTriggeredEvent.KIND_UPGRADED));
+                    existing.getId(), AlarmEventTriggeredEvent.KIND_UPGRADED, context.getTemplateItemId()));
             log.info("告警升级 alarmEventId={} level {} → {}",
                     existing.getId(), fromLevel, context.getAlarmLevel());
             return AlarmTriggerResult.of(existing, AlarmTriggerResult.KIND_UPGRADED);

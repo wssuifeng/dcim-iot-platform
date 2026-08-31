@@ -79,6 +79,11 @@ public class AlarmTemplateItem implements Serializable {
     @TableField("hysteresis")
     private BigDecimal hysteresis;
 
+    @Schema(description = "下行动作 webhook：非空即启用，规则命中触发/升级时回调（通知钩子非控制闭环）", example = "https://ops.example.com/alarm-hook")
+    @Size(max = 500, message = "下行动作 webhook 地址最长500个字符")
+    @TableField("action_webhook_url")
+    private String actionWebhookUrl;
+
     @Schema(description = "告警级别：1-紧急 2-严重 3-一般 4-警告 5-提示（数字小=严重）", example = "2",
             allowableValues = {"1", "2", "3", "4", "5"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "告警级别不能为空")

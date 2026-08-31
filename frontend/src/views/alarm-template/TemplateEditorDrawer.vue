@@ -121,6 +121,10 @@
               <el-input-number v-model="itemForm.hysteresis" :min="0" :step="0.5" :precision="2" style="width: 100%" />
               <div class="mech-tip">恢复需回落进安全区（GT：低于阈值-迟滞；LT：高于阈值+迟滞）；0 不启用</div>
             </el-form-item>
+            <el-form-item label="下行动作">
+              <el-input v-model="itemForm.actionWebhookUrl" maxlength="500" placeholder="https://ops.example.com/alarm-hook（留空不启用）" />
+              <div class="mech-tip">规则命中触发/升级时 POST 平台标准告警 JSON 到该地址；通知钩子不做控制闭环，失败仅记录不重试</div>
+            </el-form-item>
           </template>
         </template>
         <el-form-item label="告警级别" required>
@@ -173,6 +177,7 @@ const itemForm = reactive({
   id: null, pointId: null, ruleType: 'METRIC', ruleName: '',
   operator: 'GT', threshold: null, alarmLevel: 3, enabled: true,
   breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
+  actionWebhookUrl: '',
 })
 
 const genericItems = computed(() => items.value.filter(i => !i.pointId))
@@ -218,6 +223,7 @@ function handleAdd() {
     id: null, pointId: null, ruleType: 'METRIC', ruleName: '',
     operator: 'GT', threshold: null, alarmLevel: 3, enabled: true,
     breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
+    actionWebhookUrl: '',
   })
   showMechanisms.value = false
   itemFormVisible.value = true
@@ -229,8 +235,9 @@ function applyMechanisms(item) {
   itemForm.rateWindowSec = item.rateWindowSec ?? 60
   itemForm.reAlarmSec = item.reAlarmSec ?? 0
   itemForm.hysteresis = item.hysteresis !== null && item.hysteresis !== undefined ? Number(item.hysteresis) : 0
+  itemForm.actionWebhookUrl = item.actionWebhookUrl || ''
   showMechanisms.value = (item.breachCount ?? 0) > 1 || itemForm.rateLimit !== null
-    || (item.reAlarmSec ?? 0) > 0 || itemForm.hysteresis > 0
+    || (item.reAlarmSec ?? 0) > 0 || itemForm.hysteresis > 0 || !!item.actionWebhookUrl
 }
 
 function handleEdit(item) {
@@ -287,7 +294,7 @@ async function handleSaveItem() {
       alarmLevel: itemForm.alarmLevel,
       enabled: itemForm.enabled,
     }
-    // 机制字段整组提交；折叠"机制增强"视为整组禁用（避免隐藏值被静默带出）
+    // 机制字段整组提交；折叠"机制增强"视为整组禁用（含下行动作，避免隐藏值被静默带出）
     if (itemForm.ruleType === 'METRIC') {
       payload.mechanism = showMechanisms.value ? {
         breachCount: itemForm.breachCount ?? 0,
@@ -298,6 +305,7 @@ async function handleSaveItem() {
       } : {
         breachCount: 0, rateLimit: null, rateWindowSec: 60, reAlarmSec: 0, hysteresis: 0,
       }
+      payload.actionWebhookUrl = showMechanisms.value ? (itemForm.actionWebhookUrl || null) : null
     }
     if (itemForm.id) {
       await updateTemplateItem(itemForm.id, payload)

@@ -65,6 +65,7 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
     private final AlarmNotificationLogMapper notificationLogMapper;
     private final SysUserMapper sysUserMapper;
     private final AlarmWebhookDispatcher webhookDispatcher;
+    private final com.example.platform.service.AlarmActionWebhookService actionWebhookService;
 
     @Value("${notify.mail.enabled:false}")
     private boolean mailEnabled;
@@ -106,6 +107,10 @@ public class AlarmDispatchServiceImpl implements AlarmDispatchService {
             notifyInApp(alarmEvent, recipients, event.kind());
             // S8-2：IM webhook 渠道并行分发（逐渠道容错+退避重试在分发器内完成）
             webhookDispatcher.dispatch(alarmEvent, summary.eventType());
+            // S8-9：下行动作回调（规则级开关；触发/升级即动作，RESEND 通知不重复触发动作）
+            if (!AlarmEventTriggeredEvent.KIND_RESEND.equals(event.kind())) {
+                actionWebhookService.invokeAction(alarmEvent, event.templateItemId());
+            }
             log.info("告警分发完成 alarmEventId={} kind={} recipients={} online={} offline={}",
                     alarmEvent.getId(), event.kind(), recipients.size(),
                     onlineUsers.size(), offlineUsers.size());

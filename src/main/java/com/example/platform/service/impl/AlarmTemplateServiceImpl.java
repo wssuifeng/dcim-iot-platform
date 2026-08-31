@@ -198,6 +198,7 @@ public class AlarmTemplateServiceImpl
             copyItem.setRateWindowSec(item.getRateWindowSec());
             copyItem.setReAlarmSec(item.getReAlarmSec());
             copyItem.setHysteresis(item.getHysteresis());
+            copyItem.setActionWebhookUrl(item.getActionWebhookUrl());
             copyItem.setAlarmLevel(item.getAlarmLevel());
             copyItem.setEnabled(item.getEnabled());
             copyItem.setSortOrder(item.getSortOrder());
@@ -224,6 +225,8 @@ public class AlarmTemplateServiceImpl
         item.setPointId("METRIC".equals(item.getRuleType()) ? dto.getPointId() : null);
         applyMechanismGroup(item, dto.getMechanism());
         normalizeMechanismFields(item);
+        item.setActionWebhookUrl("METRIC".equals(item.getRuleType())
+                ? trimToNull(dto.getActionWebhookUrl()) : null);
         validateItemShape(item);
         checkItemDuplicate(item, null);
         if (itemMapper.insert(item) <= 0) {
@@ -253,17 +256,28 @@ public class AlarmTemplateServiceImpl
             applyMechanismGroup(item, dto.getMechanism());
         }
         normalizeMechanismFields(item);
+        item.setActionWebhookUrl("METRIC".equals(item.getRuleType())
+                ? trimToNull(dto.getActionWebhookUrl()) : null);
         validateItemShape(item);
         checkItemDuplicate(item, itemId);
         if (itemMapper.updateById(item) <= 0) {
             throw new BusinessException(ResultCode.ALARM_TEMPLATE_ITEM_INVALID, "更新规则行失败");
         }
+        LambdaUpdateWrapper<AlarmTemplateItem> clearNulls = new LambdaUpdateWrapper<>();
+        boolean needClear = false;
         if (item.getRateLimit() == null) {
             // updateById 忽略 null 字段（MyBatis-Plus 行为）：关闭 M2 需显式 set null 清库
-            LambdaUpdateWrapper<AlarmTemplateItem> clearRate = new LambdaUpdateWrapper<>();
-            clearRate.eq(AlarmTemplateItem::getId, itemId)
-                    .set(AlarmTemplateItem::getRateLimit, null);
-            itemMapper.update(null, clearRate);
+            clearNulls.set(AlarmTemplateItem::getRateLimit, null);
+            needClear = true;
+        }
+        if (item.getActionWebhookUrl() == null) {
+            // 关闭下行动作同样需显式置空
+            clearNulls.set(AlarmTemplateItem::getActionWebhookUrl, null);
+            needClear = true;
+        }
+        if (needClear) {
+            clearNulls.eq(AlarmTemplateItem::getId, itemId);
+            itemMapper.update(null, clearNulls);
         }        AlarmTemplateItemVO vo = AlarmTemplateItemVO.fromEntity(item);
         fillPointFields(List.of(vo));
         return vo;
@@ -473,6 +487,7 @@ public class AlarmTemplateServiceImpl
         vo.setRateWindowSec(item.getRateWindowSec());
         vo.setReAlarmSec(item.getReAlarmSec());
         vo.setHysteresis(item.getHysteresis());
+        vo.setActionWebhookUrl(item.getActionWebhookUrl());
         vo.setAlarmLevel(item.getAlarmLevel());
         vo.setEnabled(item.getEnabled());
         vo.setSource(source);
@@ -494,6 +509,14 @@ public class AlarmTemplateServiceImpl
         item.setRateWindowSec(mechanism.getRateWindowSec() != null ? mechanism.getRateWindowSec() : 60);
         item.setReAlarmSec(mechanism.getReAlarmSec() != null ? mechanism.getReAlarmSec() : 0);
         item.setHysteresis(mechanism.getHysteresis() != null ? mechanism.getHysteresis() : BigDecimal.ZERO);
+    }
+
+    // 空白字符串归一为 null（"非空即启用"口径下避免空白误启用）
+    private String trimToNull(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 
     // 机制字段仅对 METRIC 规则有意义：OFFLINE/COMM 强制回默认值，避免脏配置
