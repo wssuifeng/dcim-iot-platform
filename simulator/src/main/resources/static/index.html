@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>dcim-simulator · 机房仿真服务</title>
+  <link rel="stylesheet" href="vendor/element-plus.css" />
+  <script src="vendor/vue.global.prod.js"></script>
+  <script src="vendor/element-plus.full.min.js"></script>
+  <script src="vendor/element-plus-locale-zh-cn.min.js"></script>
+  <script src="vendor/axios.min.js"></script>
+  <style>
+    /* ===== 令牌内联（与平台 theme.css 对齐：slate 中性 + #2563eb 主色） ===== */
+    :root {
+      --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9; --surface-3: #e2e8f0;
+      --border: #e2e8f0; --border-light: #eef2f7;
+      --text: #1e293b; --text-2: #64748b; --text-3: #94a3b8;
+      --primary: #2563eb; --primary-light: #eff6ff;
+      --success: #10b981; --success-light: #ecfdf5;
+      --warning: #f59e0b; --warning-light: #fffbeb;
+      --danger: #ef4444; --danger-light: #fef2f2;
+      --radius: 8px; --radius-sm: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,.05);
+      --data-font: "JetBrains Mono", Consolas, monospace;
+      /* 告警五级色带（与平台一致） */
+      --alarm-l1: #dc2626; --alarm-l1-bg: #fef2f2;
+      --alarm-l2: #ea580c; --alarm-l2-bg: #fff7ed;
+      --alarm-l3: #d97706; --alarm-l3-bg: #fffbeb;
+      --alarm-l4: #2563eb; --alarm-l4-bg: #eff6ff;
+      --alarm-l5: #64748b; --alarm-l5-bg: #f1f5f9;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1120; --surface: #151d2e; --surface-2: #1e293b; --surface-3: #334155;
+        --border: #334155; --border-light: #263349;
+        --text: #f1f5f9; --text-2: #94a3b8; --text-3: #64748b;
+        --primary: #00d4ff; --primary-light: rgba(0,212,255,.12);
+        --success: #00d9a5; --success-light: rgba(0,217,165,.12);
+        --warning: #ff9f43; --warning-light: rgba(255,159,67,.12);
+        --danger: #ff2e63; --danger-light: rgba(255,46,99,.12);
+        --shadow: 0 0 0 1px rgba(0,212,255,.06), 0 4px 12px rgba(0,0,0,.25);
+        --alarm-l1: #f87171; --alarm-l1-bg: rgba(248,113,113,.14);
+        --alarm-l2: #fb923c; --alarm-l2-bg: rgba(251,146,60,.14);
+        --alarm-l3: #fbbf24; --alarm-l3-bg: rgba(251,191,36,.14);
+        --alarm-l4: #60a5fa; --alarm-l4-bg: rgba(96,165,250,.14);
+        --alarm-l5: #94a3b8; --alarm-l5-bg: rgba(148,163,184,.14);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+    .num { font-family: var(--data-font); font-variant-numeric: tabular-nums; }
+    .header { padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .header h1 { margin: 0; font-size: 18px; color: var(--text); }
+    .header p { margin: 4px 0 0; font-size: 12px; color: var(--text-3); }
+    .content { padding: 20px; max-width: 1280px; margin: 0 auto; }
+
+    /* Element Plus 标签页配色桥接 */
+    .el-tabs__item { color: var(--text-2); }
+    .el-tabs__item.is-active { color: var(--primary); }
+    .el-tabs__active-bar { background-color: var(--primary); }
+    .el-tabs__nav-wrap::after { background-color: var(--border); }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .card h3 { margin: 0 0 12px; font-size: 14px; color: var(--text); }
+    .card-sub { color: var(--text-3); font-size: 12px; margin: 0 0 10px; }
+    .row { margin: 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    label { font-size: 13px; color: var(--text-2); }
+    input, select {
+      padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      width: 200px; background: var(--surface); color: var(--text); font-size: 13px;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+    input.small, select.small { width: 92px; }
+    input.num { font-family: var(--data-font); }
+    button {
+      padding: 5px 14px; border: 1px solid transparent; border-radius: var(--radius-sm);
+      background: var(--primary); color: #fff; cursor: pointer; margin-right: 6px; margin-top: 4px; font-size: 13px;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.ghost { background: var(--surface); color: var(--primary); border: 1px solid var(--primary); }
+    button.danger { background: var(--danger); }
+
+    /* ===== Tab1 设备卡片 ===== */
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+    .device-card { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
+    .device-card--running { border-left-color: var(--success); }
+    .device-card--paused { border-left-color: var(--text-3); }
+    .device-card--fault { border-left-color: var(--warning); }
+    .device-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .device-card-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .device-card-code { font-size: 11px; color: var(--text-3); }
+    .device-card-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
+    .device-card-meta b { color: var(--text); font-weight: 600; }
+    .pill { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+    .pill-ok { background: var(--success-light); color: var(--success); }
+    .pill-warn { background: var(--warning-light); color: var(--warning); }
+    .pill-gray { background: var(--surface-2); color: var(--text-3); }
+    .pill-danger { background: var(--danger-light); color: var(--danger); }
+    /* 故障注入：状态分段控件 */
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+    .seg button { margin: 0; border: none; border-radius: 0; background: var(--surface); color: var(--text-2); padding: 4px 12px; font-size: 12px; }
+    .seg button + button { border-left: 1px solid var(--border); }
+    .seg button.on-healthy { background: var(--success); color: #fff; }
+    .seg button.on-stuck { background: var(--warning); color: #fff; }
+    .seg button.on-dead { background: var(--danger); color: #fff; }
+    .device-card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+    /* ===== Tab2 通道列表（按指标分组 + 曲线缩略） ===== */
+    .channel-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--border);
+                   border-radius: var(--radius-sm); margin-bottom: 6px; }
+    .channel-thumb { flex-shrink: 0; width: 64px; height: 28px; }
+    .channel-point { width: 110px; color: var(--text); font-size: 13px; }
+    .channel-params { flex: 1; color: var(--text-2); font-size: 12px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+    .reg-row { display: flex; gap: 6px; margin: 4px 0; align-items: center; }
+    .reg-row input { width: 150px; }
+    .reg-row input.small { width: 70px; }
+    .drill-card { border: 1px dashed var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+    .drill-card h4 { margin: 0 0 8px; font-size: 13px; color: var(--text-2); }
+
+    /* ===== Tab3 北向链路卡 + 观测 ===== */
+    .link-card { display: grid; grid-template-columns: minmax(280px, 1.4fr) minmax(200px, 0.8fr); gap: 16px; }
+    .link-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; }
+    .link-badge-text { font-size: 12px; color: var(--text-2); }
+    .gw-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--surface-2); }
+    .gw-ping { font-size: 12px; color: var(--text-2); margin-left: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-online { background: var(--success); box-shadow: 0 0 0 3px var(--success-light); }
+    .dot-offline { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-light); }
+    .dot-idle { background: var(--text-3); box-shadow: 0 0 0 3px var(--surface-2); }
+    .obs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+    .obs-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
+    .obs-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .obs-device { font-size: 13px; font-weight: 600; color: var(--text); }
+    .obs-point { font-size: 11px; color: var(--text-3); }
+    .obs-value { font-family: var(--data-font); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: var(--text); }
+    .obs-spark { width: 100%; height: 30px; margin-top: 6px; display: block; }
+    .offline-list { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-2); }
+    .offline-list li { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+    .table-note { color: var(--text-3); font-size: 12px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>dcim-simulator · 机房仿真服务</h1>
+    <p>虚拟设备(Modbus TCP slave) ⇄ 智能网关(轮询/策略/北向上报) —— 与真实机房两级链路同构</p>
+  </div>
+  <div class="content">
+    <el-tabs v-model="tab">
+      <!-- Tab 1: 虚拟设备 -->
+      <el-tab-pane label="虚拟设备" name="devices">
+        <div class="card">
+          <h3>新增虚拟设备</h3>
+          <div class="row">
+            <label style="font-weight:600">设备预设</label>
+            <select v-model="selectedPresetId" @change="applyPreset" style="width:190px">
+              <option value="">自定义（手工填指标映射）</option>
+              <option v-for="p in devicePresets" :key="p.presetId" :value="p.presetId">{{ p.typeName }}</option>
+            </select>
+            <span v-if="activePreset" class="card-sub" style="margin:0">{{ activePreset.description }}</span>
+          </div>
+          <div class="row">
+            <label>编码<b style="color:var(--danger)">*</b></label><input v-model="newDevice.deviceCode" placeholder="TH-SIM-01" style="width:130px" />
+            <label>名称</label><input v-model="newDevice.deviceName" placeholder="机房A-温湿度-01" style="width:140px" />
+            <label>机房</label><select v-model.number="newDevice.cloudRoomId" class="small">
+              <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
+            </select>
+            <label>类型</label><select v-model.number="newDevice.typeId" class="small">
+              <option :value="1">UPS</option><option :value="2">电表</option>
+              <option :value="3">精密空调</option><option :value="4">温湿度</option>
+              <option :value="5">漏水检测</option>
+            </select>
+            <label>位置</label><input v-model="newDevice.location" style="width:120px" />
+            <label>噪声</label><input v-model.number="newDevice.noiseAmplitude" class="small num" />
+          </div>
+          <div class="row">
+            <label style="font-weight:600">指标映射（寄存器地址从 0 起）</label>
+            <div v-for="(reg, idx) in newDevice.registers" :key="idx" class="reg-row">
+              <span style="width:76px;font-size:12px;color:var(--text-2)">{{ pointLabel(reg.pointCode) }}</span>
+              <input v-model="reg.pointCode" placeholder="temperature" />
+              <label>寄存器</label><input v-model.number="reg.registerAddr" class="small num" />
+              <label>缩放</label><input v-model.number="reg.scaleFactor" class="small num" />
+              <button class="ghost" @click="newDevice.registers.splice(idx, 1)">删除</button>
+            </div>
+            <button class="ghost" @click="newDevice.registers.push({ pointCode: '', registerAddr: newDevice.registers.length, scaleFactor: 10 })">+ 添加指标</button>
+          </div>
+          <div class="row">
+            <button @click="createDevice">新增设备（自动分配 Modbus 端口）</button>
+            <button class="ghost" @click="syncInventory">同步设备清单到平台</button>
+            <button class="ghost" @click="syncThresholds">拉取告警阈值</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>机房设备套件（批量创建）</h3>
+          <p class="card-sub" style="margin:0 0 8px">一键铺满一个机房的五类设备（编码 = 前缀-类型缩写+序号，如 DC1-TH03），自动初始化环境档案；编码冲突的台次跳过不中断。</p>
+          <div class="row">
+            <label>机房<b style="color:var(--danger)">*</b></label>
+            <select v-model.number="suiteRoom" class="small">
+              <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
+            </select>
+            <label>编码前缀</label><input v-model="suitePrefix" style="width:90px" placeholder="DC1" />
+            <label>种子</label><input v-model.number="suiteSeed" class="small num" style="width:70px" />
+          </div>
+          <div class="row">
+            <label>温湿度</label><input v-model.number="suiteCounts.tempHumidity" class="small num" style="width:56px" />
+            <label>UPS</label><input v-model.number="suiteCounts.ups" class="small num" style="width:56px" />
+            <label>电表</label><input v-model.number="suiteCounts.pduMeter" class="small num" style="width:56px" />
+            <label>精密空调</label><input v-model.number="suiteCounts.precisionAc" class="small num" style="width:56px" />
+            <label>漏水</label><input v-model.number="suiteCounts.leakDetector" class="small num" style="width:56px" />
+            <button @click="createSuite">创建套件</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>设备列表（{{ devices.length }} 台）</h3>
+          <p v-if="!devices.length" class="card-sub">暂无虚拟设备，使用上方表单创建</p>
+          <div class="device-grid">
+            <div v-for="d in devices" :key="d.id" :class="['device-card', deviceCardClass(d)]">
+              <div class="device-card-head">
+                <span class="device-card-name">{{ d.deviceName }}</span>
+                <span class="device-card-code num">{{ d.deviceCode }}</span>
+              </div>
+              <div class="device-card-meta">
+                <span>类型 <b>{{ typeLabel(d.typeId) }}</b></span>
+                <span>机房 <b class="num">{{ d.cloudRoomId }}</b></span>
+                <span>Modbus <b class="num">:{{ d.modbusPort }}</b></span>
+                <span>
+                  <span :class="['pill', d.status === 0 ? 'pill-ok' : 'pill-gray']">{{ d.status === 0 ? '运行' : '暂停' }}</span>
+                </span>
+              </div>
+              <div class="device-card-actions">
+                <div class="seg" :title="'当前: ' + faultLabel(d.faultMode)">
+                  <button :class="{ 'on-healthy': d.faultMode === 'NONE' }" @click="injectFault(d, 'NONE')">正常</button>
+                  <button :class="{ 'on-stuck': d.faultMode === 'SENSOR_STUCK' }" @click="injectFault(d, 'SENSOR_STUCK')">卡死</button>
+                  <button :class="{ 'on-dead': d.faultMode === 'SENSOR_DEAD' }" @click="injectFault(d, 'SENSOR_DEAD')">失联</button>
+                </div>
+                <button class="danger" @click="deleteDevice(d)">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <!-- Tab 2: 环境配置 -->
+      <el-tab-pane label="环境配置" name="env">
+        <div class="card">
+          <h3>环境总览（物理引擎）</h3>
+          <div class="row">
+            <label>机房</label><select v-model.number="envRoomId" class="small" @change="loadPhysics">
+              <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
+            </select>
+            <label>种子</label><input v-model.number="envSeed" class="small num" />
+            <button class="ghost" @click="createProfile">初始化档案</button>
+            <button @click="loadChannels">加载通道</button>
+          </div>
+          <div class="row" style="gap:16px">
+            <div>
+              <div class="card-sub">室外·{{ regimeLabel(physics.regime) }}<span v-if="physics.naturalEventLabel || physics.manualEventLabel"> · {{ physics.manualEventLabel || physics.naturalEventLabel }}</span></div>
+              <div class="num" style="font-size:20px;font-weight:700">{{ physics.tempOutC ?? '-' }} ℃ / {{ physics.rhOut ?? '-' }} %</div>
+            </div>
+            <div>
+              <div class="card-sub">室内（真实值）</div>
+              <div class="num" style="font-size:20px;font-weight:700;color:var(--primary)">{{ physics.tempInC ?? '-' }} ℃ / {{ physics.rhIn ?? '-' }} %</div>
+            </div>
+            <div>
+              <div class="card-sub">空调</div>
+              <span :class="['pill', physics.acEnabled === false ? 'pill-gray' : (physics.acRunning ? 'pill-ok' : 'pill-warn')]">
+                {{ physics.acEnabled === false ? '已停机' : (physics.acRunning ? '制冷中' : '待机') }}
+              </span>
+            </div>
+            <div>
+              <div class="card-sub">总功率</div>
+              <div class="num" style="font-size:20px;font-weight:700">{{ physics.powerKw ?? '-' }} kW</div>
+            </div>
+            <div>
+              <div class="card-sub">变化值·事件注入</div>
+              <div class="num" style="font-size:15px;font-weight:600">{{ ((physics.spikeKw || 0) + (physics.fireKw || 0)).toFixed(1) }} kW</div>
+            </div>
+            <div>
+              <div class="card-sub">无空调平衡温度</div>
+              <div class="num" style="font-size:15px;font-weight:600">{{ physics.equilibriumTempC != null ? physics.equilibriumTempC.toFixed(1) : '-' }} ℃</div>
+            </div>
+          </div>
+          <div class="row">
+            <label>IT 负载kW（基准）</label><input v-model.number="envParams.itLoadKw" class="small num" style="width:80px" />
+            <label>制冷kW</label><input v-model.number="envParams.acRatedKw" class="small num" style="width:80px" />
+            <label>温设℃</label><input v-model.number="envParams.acSetpointC" class="small num" style="width:64px" />
+            <label>湿设%</label><input v-model.number="envParams.acSetpointRh" class="small num" style="width:64px" />
+            <button class="ghost" @click="saveParams">保存参数（负载变化按 5kW/分钟斜率生效）</button>
+          </div>
+        </div>
+
+        <div class="drill-card">
+          <h4>演练（环境物理联动）</h4>
+          <div class="row">
+            <label style="font-weight:600">设备类：</label>
+            <button class="ghost" @click="physicsAction('AC_OFF')">空调停机</button>
+            <button class="ghost" @click="physicsAction('AC_ON')">空调恢复</button>
+            <button class="ghost" @click="physicsAction('IT_SPIKE', 3600)">负载激增 +30kW/1h</button>
+            <button class="danger" @click="physicsAction('FIRE')">火灾演练 120s</button>
+          </div>
+          <div class="row">
+            <label style="font-weight:600">自然类：</label>
+            <button class="ghost" @click="physicsAction('NATURAL_COLD_SNAP', 1800)">寒潮注入 30min</button>
+            <button class="ghost" @click="physicsAction('NATURAL_HEAT_WAVE', 1800)">热浪注入 30min</button>
+            <button class="ghost" @click="physicsAction('NATURAL_PROLONGED_RAIN', 1800)">连阴雨注入 30min</button>
+          </div>
+          <div class="row">
+            <label style="font-weight:600">漏水：</label>
+            <button class="ghost" @click="quickAction('leak_status', 1, 5)">漏水触发</button>
+            <button class="ghost" @click="quickAction('leak_status', 0, 5)">漏水恢复</button>
+            <span class="card-sub" style="margin:0">停机后 IT 发热自然升温（约 0.8℃/分钟）；火灾演练可越常规上限触发高温告警</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>通道配置</h3>
+          <div class="row">
+            <label>指标</label><input v-model="newChannel.pointCode" placeholder="temperature" style="width:130px" />
+            <span class="card-sub" style="margin:0">{{ pointLabel(newChannel.pointCode) }}</span>
+            <label>函数</label><select v-model="newChannel.funcType" class="small">
+              <option>CONSTANT</option><option>SINUSOID</option><option>RAMP</option>
+              <option>STEP</option><option>TRANSITION</option>
+            </select>
+            <label>基值</label><input v-model.number="newChannel.baseValue" class="small num" />
+            <label>振幅</label><input v-model.number="newChannel.amplitude" class="small num" />
+            <label>周期s</label><input v-model.number="newChannel.periodSec" class="small num" placeholder="86400" />
+            <label>斜率/s</label><input v-model.number="newChannel.slopePerSec" class="small num" />
+            <label>目标值</label><input v-model.number="newChannel.stepTo" class="small num" />
+            <label>过渡s</label><input v-model.number="newChannel.durationSec" class="small num" />
+            <button @click="upsertChannel">保存通道(替换同指标)</button>
+          </div>
+          <p v-if="!channels.length" class="card-sub">暂无通道（温湿度/送回风/功率由物理引擎驱动，不出现在此列表）</p>
+          <div v-for="c in channels" :key="c.id" class="channel-row">
+            <svg :class="'channel-thumb'" viewBox="0 0 64 28" aria-hidden="true">
+              <path :d="curvePath(c.funcType)" fill="none" stroke="var(--primary)" stroke-width="2" />
+            </svg>
+            <span class="channel-point">{{ pointLabel(c.pointCode) }}<span style="display:block;font-size:10px;color:var(--text-3);font-family:var(--data-font)">{{ c.pointCode }}</span></span>
+            <div class="channel-params">
+              <span class="pill pill-gray">{{ c.funcType }}</span>
+              <span class="num">基值 {{ c.baseValue }}</span>
+              <span v-if="c.amplitude" class="num">振幅 {{ c.amplitude }}</span>
+              <span v-if="c.periodSec" class="num">周期 {{ c.periodSec }}s</span>
+              <span v-if="c.slopePerSec" class="num">斜率 {{ c.slopePerSec }}/s</span>
+              <span v-if="c.stepTo != null" class="num">目标 {{ c.stepTo }}</span>
+              <span v-if="c.durationSec" class="num">过渡 {{ c.durationSec }}s</span>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <!-- Tab 3: 网关与观测 -->
+      <el-tab-pane label="网关与观测" name="gateway">
+        <div class="card">
+          <h3>网关列表（一机房一网关一凭证）
+            <button class="ghost" style="float:right" @click="showNewGateway = !showNewGateway">{{ showNewGateway ? '收起新增表单' : '+ 新增网关' }}</button>
+          </h3>
+          <p class="table-sub" style="color:var(--text-2);font-size:13px;margin:0 0 8px">
+            每个机房一台采集网关、一套接入凭证；实例独立轮询/上报/心跳，启停互不影响。
+          </p>
+          <div v-if="showNewGateway" class="gw-card" style="border-color:var(--primary)">
+            <div class="row">
+              <label>名称</label><input v-model="newGateway.name" style="width:120px" placeholder="网关-机房3" />
+              <label>机房<b style="color:var(--danger)">*</b></label>
+              <select v-model.number="newGateway.cloudRoomId" class="small">
+                <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
+              </select>
+              <label>平台地址</label><input v-model="newGateway.platformBaseUrl" style="width:190px" placeholder="自填完整地址，如 http://localhost:8081" />
+              <label>传输</label><select v-model="newGateway.northboundTransport" class="small"><option>MQTT</option><option>HTTP</option></select>
+            </div>
+            <div class="row">
+              <label>AccessKey<b style="color:var(--danger)">*</b></label><input v-model="newGateway.ingestAccessKey" style="width:170px" placeholder="机房接入标识" />
+              <label>SecretKey<b style="color:var(--danger)">*</b></label><input v-model="newGateway.ingestSecret" style="width:170px" placeholder="签名密钥" />
+              <label>轮询s</label><input v-model.number="newGateway.pollIntervalSec" class="small num" />
+              <label>上报s</label><input v-model.number="newGateway.reportIntervalSec" class="small num" />
+              <button @click="createGateway">创建并启动</button>
+            </div>
+          </div>
+          <p v-if="!gateways.length" class="card-sub">暂无网关，点击右上角"+ 新增网关"创建（凭证来自平台机房管理页的一次性密钥）</p>
+          <div v-for="g in gateways" :key="g.id" class="gw-card">
+            <div class="row">
+              <span :class="['dot', g.running ? 'dot-online' : 'dot-offline']"></span>
+              <b>{{ g.name }}</b>
+              <span class="card-sub" style="margin:0">
+                机房 #{{ g.cloudRoomId }} · 设备 {{ g.deviceCount }} 台 · {{ g.northboundTransport }}
+                · 轮询 {{ g.pollIntervalSec }}s / 上报 {{ g.reportIntervalSec }}s / 死区 {{ g.changeDeadband }}
+              </span>
+              <span class="gw-ping" v-if="g.pingText">{{ g.pingText }}</span>
+            </div>
+            <div class="row">
+              <button v-if="!g.running" @click="gwAction(g, 'start')">启动</button>
+              <button v-else class="ghost" @click="gwAction(g, 'stop')">停止</button>
+              <button class="ghost" @click="gwPing(g)">平台连通自检</button>
+              <button class="ghost" @click="gwSyncThresholds(g)">拉取告警阈值</button>
+              <button class="ghost" @click="gwSyncInventory(g)">清单同步</button>
+              <button class="ghost" @click="startEdit(g)">{{ editForm.id === g.id ? '取消编辑' : '编辑' }}</button>
+              <button class="danger" @click="deleteGateway(g)">删除</button>
+            </div>
+            <div class="row" v-if="statsOf(g) && g.running">
+              <span class="card-sub" style="margin:0">
+                负载：<b class="num">{{ statsOf(g).qps }}</b> 批/s · P95 <b class="num">{{ statsOf(g).p95Ms ?? '—' }}</b>ms
+                · 累计 <b class="num">{{ statsOf(g).httpSuccess }}</b> 批（失败 <b class="num">{{ statsOf(g).httpFailed }}</b>）
+              </span>
+              <label style="font-weight:600">压测档位</label>
+              <button class="ghost" @click="applyLoadPreset(g, 60, 5, '常态')">常态</button>
+              <button class="ghost" @click="applyLoadPreset(g, 10, 2, '高频')">高频</button>
+              <button class="danger" @click="applyLoadPreset(g, 2, 1, '风暴')">风暴</button>
+            </div>
+            <div class="row" v-if="editForm.id === g.id">
+              <label>机房</label>
+              <select v-model.number="editForm.cloudRoomId" class="small">
+                <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
+              </select>
+              <label>平台地址</label><input v-model="editForm.platformBaseUrl" style="width:190px" placeholder="完整地址，如 http://localhost:8081" />
+              <label>传输</label><select v-model="editForm.northboundTransport" class="small"><option>MQTT</option><option>HTTP</option></select>
+            </div>
+            <div class="row" v-if="editForm.id === g.id">
+              <label>AccessKey</label><input v-model="editForm.ingestAccessKey" style="width:150px" />
+              <label>SecretKey</label><input v-model="editForm.ingestSecret" style="width:150px" />
+              <label>轮询s</label><input v-model.number="editForm.pollIntervalSec" class="small num" />
+              <label>上报s</label><input v-model.number="editForm.reportIntervalSec" class="small num" />
+              <label>死区</label><input v-model.number="editForm.changeDeadband" class="small num" />
+              <button @click="saveEdit">保存并热重载</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>实时观测
+            <button class="ghost" style="float:right" @click="loadStatus">刷新</button>
+          </h3>
+          <p class="table-sub" style="color:var(--text-2);font-size:13px;margin:0 0 6px">
+            运行中 slave 数：<b class="num">{{ status.runningSlaves }}</b> · 每 5 秒刷新
+          </p>
+          <ul v-if="(status.offlineDevices || []).length" class="offline-list">
+            <li v-for="d in status.offlineDevices" :key="d">
+              <span class="dot dot-offline"></span><span class="num">{{ d }}</span>
+            </li>
+          </ul>
+          <p v-else class="table-note" style="margin:6px 0">无离线设备</p>
+          <div class="obs-grid" style="margin-top:10px">
+            <div v-for="card in obsCards" :key="card.key" class="obs-card">
+              <div class="obs-card-head">
+                <span class="obs-device">{{ card.device }}</span>
+                <span class="obs-point" :title="card.point">{{ pointLabel(card.point) }}</span>
+              </div>
+              <span class="obs-value">{{ card.value }}</span>
+              <canvas class="obs-spark" :ref="el => setSparkRef(card.key, el)"></canvas>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
+  </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue
+const app = createApp({
+  setup() {
+    const tab = ref('devices')
+    const devices = ref([])
+    const channels = ref([])
+    const status = ref({})
+    const envRoomId = ref(1)
+    const envSeed = ref(42)
+    const newDevice = reactive({ deviceCode: '', deviceName: '', cloudRoomId: 1, typeId: 4, location: '', noiseAmplitude: 0.2,
+      registers: [{ pointCode: 'temperature', registerAddr: 0, scaleFactor: 10 }, { pointCode: 'humidity', registerAddr: 1, scaleFactor: 10 }] })
+    const newChannel = reactive({ pointCode: 'temperature', funcType: 'SINUSOID', baseValue: 24, amplitude: 2, periodSec: 86400, slopePerSec: 0, stepTo: null, durationSec: null })
+    // 多网关（一机房一网关）：列表 + 新增表单 + 行内编辑
+    const gateways = ref([])
+    const showNewGateway = ref(false)
+    // 平台地址不内置预填：留空时服务端回退默认（8081 口径），用户自填完整地址
+    const newGateway = reactive({ name: '', northboundTransport: 'HTTP', platformBaseUrl: '',
+      cloudRoomId: null, ingestAccessKey: '', ingestSecret: '', pollIntervalSec: 5, reportIntervalSec: 60,
+      changeDeadband: 0.5, alarmReportIntervalSec: 5, status: 0 })
+    const editForm = reactive({ id: null, cloudRoomId: null, platformBaseUrl: '', northboundTransport: 'HTTP',
+      ingestAccessKey: '', ingestSecret: '', pollIntervalSec: 5, reportIntervalSec: 60, changeDeadband: 0.5 })
+    // 机房设备套件（批量创建）
+    const suiteRoom = ref(1)
+    const suitePrefix = ref('')
+    const suiteSeed = ref(42)
+    const suiteCounts = reactive({ tempHumidity: 8, ups: 2, pduMeter: 4, precisionAc: 3, leakDetector: 2 })
+    const platformRooms = ref([])
+    const physics = ref({})
+    const envParams = reactive({ itLoadKw: 40, acRatedKw: 60, acSetpointC: 24, acSetpointRh: 55 })
+    const devicePresets = ref([])
+    const selectedPresetId = ref('')
+    const activePreset = computed(() =>
+      devicePresets.value.find(p => p.presetId === selectedPresetId.value) || null)
+
+    // 选择预设 → 填充类型与指标映射；切回自定义时保留当前映射继续手编
+    const applyPreset = () => {
+      const preset = activePreset.value
+      if (!preset) return
+      newDevice.typeId = preset.typeId
+      newDevice.registers = preset.registers.map(r => ({
+        pointCode: r.pointCode, registerAddr: r.registerAddr, scaleFactor: r.scaleFactor }))
+    }
+
+    const TYPE_LABELS = { 1: 'UPS', 2: '电表', 3: '精密空调', 4: '温湿度', 5: '漏水检测' }
+    const typeLabel = (id) => TYPE_LABELS[id] || `类型${id}`
+    // 指标中文名（与平台指标字典一致，便于识别参数）
+    const POINT_LABELS = {
+      temperature: '温度', humidity: '湿度',
+      voltage_a: 'A相电压', current_a: 'A相电流',
+      power_kw: '有功功率', power_kwh: '累计电量',
+      battery_level: '电池电量', output_load: '输出负载率',
+      supply_air_temp: '送风温度', return_air_temp: '回风温度',
+      leak_status: '漏水状态',
+    }
+    const pointLabel = (code) => POINT_LABELS[code] || code
+    const REGIME_LABELS = { SUNNY: '晴', CLOUDY: '阴', RAIN: '雨', STORM: '暴雨·季风', MUGGY: '闷热' }
+    const regimeLabel = (r) => REGIME_LABELS[r] || r || '—'
+    const faultLabel = (m) => ({ NONE: '正常', SENSOR_STUCK: '卡死', SENSOR_DEAD: '失联' })[m] || m
+    const deviceCardClass = (d) =>
+      d.faultMode === 'SENSOR_STUCK' || d.faultMode === 'SENSOR_DEAD' ? 'device-card--fault'
+        : d.status === 0 ? 'device-card--running' : 'device-card--paused'
+
+    // 通道函数曲线缩略（64x28 viewBox 内的示意路径）
+    const curvePath = (fn) => ({
+      CONSTANT:  'M4 14 H60',
+      SINUSOID:  'M4 14 Q12 2, 20 14 T36 14 T52 14 T60 14',
+      RAMP:      'M4 24 L60 4',
+      STEP:      'M4 22 H32 V6 H60',
+      TRANSITION:'M4 24 C24 24, 28 6, 60 6',
+    })[fn] || 'M4 14 H60'
+
+    // ===== sparkline 观测：保留每设备指标最近 20 个值，原生 canvas 绘制 =====
+    const sparkRefs = {}
+    const sparkHistory = {}
+    const SPARK_MAX = 20
+    const setSparkRef = (key, el) => { if (el) sparkRefs[key] = el }
+    const obsCards = ref([])
+
+    function pushHistoryAndBuildCards(latest) {
+      const cards = []
+      for (const [device, points] of Object.entries(latest || {})) {
+        for (const [point, value] of Object.entries(points)) {
+          const key = `${device}::${point}`
+          if (!sparkHistory[key]) sparkHistory[key] = []
+          sparkHistory[key].push(Number(value))
+          if (sparkHistory[key].length > SPARK_MAX) sparkHistory[key].shift()
+          cards.push({ key, device, point, value })
+        }
+      }
+      obsCards.value = cards
+      nextTick(() => { for (const card of cards) drawSpark(card.key) })
+    }
+
+    function drawSpark(key) {
+      const canvas = sparkRefs[key]
+      if (!canvas) return
+      const data = sparkHistory[key] || []
+      const dpr = window.devicePixelRatio || 1
+      const w = canvas.clientWidth || 180
+      const h = canvas.clientHeight || 30
+      canvas.width = w * dpr
+      canvas.height = h * dpr
+      const ctx = canvas.getContext('2d')
+      ctx.scale(dpr, dpr)
+      ctx.clearRect(0, 0, w, h)
+      if (data.length < 2) return
+      const min = Math.min(...data), max = Math.max(...data)
+      const range = (max - min) || 1
+      const stroke = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#2563eb'
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      data.forEach((v, i) => {
+        const x = (i / (data.length - 1)) * (w - 4) + 2
+        const y = h - 4 - ((v - min) / range) * (h - 8)
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      })
+      ctx.stroke()
+    }
+
+    const loadDevices = () => axios.get('/api/sim/devices').then(r => devices.value = r.data)
+    const loadChannels = () => axios.get(`/api/sim/profiles/${envRoomId.value}/channels`).then(r => channels.value = r.data)
+    // 环境物理快照：室外天气 + 室内热湿 + 空调状态；顺带回填可调参数
+    const loadPhysics = () => axios.get(`/api/sim/profiles/${envRoomId.value}/physics`)
+      .then(r => {
+        physics.value = r.data
+        envParams.itLoadKw = r.data.itLoadKw
+        envParams.acRatedKw = r.data.acRatedKw
+        envParams.acSetpointC = r.data.acSetpointC
+        envParams.acSetpointRh = r.data.acSetpointRh
+      })
+      .catch(() => { physics.value = {} })
+    const saveParams = () => axios.put(`/api/sim/profiles/${envRoomId.value}/params`, envParams)
+      .then(r => { loadPhysics(); ElementPlus.ElMessage.success(r.data.message || '已保存') })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '保存失败'))
+    const physicsAction = (mode) => axios
+      .post(`/api/sim/profiles/${envRoomId.value}/physics-actions?mode=${mode}`)
+      .then(r => { loadPhysics(); ElementPlus.ElMessage.success(r.data.message) })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '操作失败'))
+    const loadStatus = () => axios.get('/api/sim/status').then(r => {
+      status.value = r.data
+      pushHistoryAndBuildCards(r.data.latestValues)
+    })
+    const loadGateways = () => axios.get('/api/sim/gateways').then(r => { gateways.value = (r.data || []).map(g => ({ ...g, pingText: '' })) })
+
+    const createGateway = () => {
+      if (!newGateway.cloudRoomId) { ElementPlus.ElMessage.warning('请选择网关绑定的机房'); return }
+      if (!newGateway.ingestAccessKey || !newGateway.ingestSecret) {
+        ElementPlus.ElMessage.warning('请填写机房接入凭证（AccessKey/SecretKey，来自平台机房管理页）'); return
+      }
+      axios.post('/api/sim/gateways', newGateway)
+        .then(() => { showNewGateway.value = false; loadGateways(); ElementPlus.ElMessage.success('网关已创建并启动') })
+        .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '创建失败'))
+    }
+    const gwAction = (g, action) => axios.post(`/api/sim/gateways/${g.id}/${action}`)
+      .then(() => { loadGateways(); ElementPlus.ElMessage.success(action === 'start' ? '网关已启动' : '网关已停止') })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '操作失败'))
+    const deleteGateway = (g) => {
+      ElementPlus.ElMessageBox.confirm(`删除网关 ${g.name}？（机房 #${g.cloudRoomId}）`, '删除确认', { type: 'warning' })
+        .then(() => axios.delete(`/api/sim/gateways/${g.id}`).then(loadGateways))
+        .catch(e => { if (e?.response) ElementPlus.ElMessage.error(e.response.data?.error || '删除失败') })
+    }
+    const gwPing = (g) => axios.post('/api/sim/platform/ping', {
+      platformBaseUrl: g.platformBaseUrl, ingestAccessKey: g.ingestAccessKey, ingestSecret: g.ingestSecret })
+      .then(r => { g.pingText = r.data.ok ? '✓ 平台连通正常' : '✗ ' + r.data.error })
+      .catch(() => { g.pingText = '✗ 自检请求失败' })
+    const gwSyncThresholds = (g) => axios.post(`/api/sim/platform/sync-thresholds?gatewayId=${g.id}`)
+      .then(r => { ElementPlus.ElMessage.success(r.data.message || r.data.error); void loadPlatformRooms() })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '同步失败'))
+    const gwSyncInventory = (g) => axios.post(`/api/sim/platform/sync-inventory?gatewayId=${g.id}`)
+      .then(r => ElementPlus.ElMessage.success(r.data.message || r.data.error))
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '同步失败'))
+    const startEdit = (g) => {
+      if (editForm.id === g.id) { editForm.id = null; return }
+      Object.assign(editForm, { id: g.id, cloudRoomId: g.cloudRoomId, platformBaseUrl: g.platformBaseUrl,
+        northboundTransport: g.northboundTransport, ingestAccessKey: g.ingestAccessKey,
+        ingestSecret: g.ingestSecret, pollIntervalSec: g.pollIntervalSec,
+        reportIntervalSec: g.reportIntervalSec, changeDeadband: g.changeDeadband })
+    }
+    const saveEdit = () => axios.put(`/api/sim/gateways/${editForm.id}`, {
+      ...gateways.value.find(g => g.id === editForm.id), ...editForm, status: 0 })
+      .then(() => { editForm.id = null; loadGateways(); ElementPlus.ElMessage.success('已保存并热重载') })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '保存失败'))
+    // 压测观测：各网关客户端统计（5s 刷新，与观测卡同拍）
+    const loadStats = ref([])
+    const loadLoadStats = () => axios.get('/api/sim/load-stats').then(r => { loadStats.value = r.data || [] })
+    const statsOf = (g) => loadStats.value.find(s => s.gatewayId === g.id)
+    const applyLoadPreset = (g, reportSec, pollSec, label) => {
+      const apply = () => axios.put(`/api/sim/gateways/${g.id}`,
+            { ...g, reportIntervalSec: reportSec, pollIntervalSec: pollSec, status: g.running ? 0 : 1 })
+          .then(() => { loadGateways(); loadLoadStats(); ElementPlus.ElMessage.success(`已切换${label}档（上报 ${reportSec}s / 轮询 ${pollSec}s）`) })
+          .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '切换失败'))
+      if (label === '风暴') {
+        ElementPlus.ElMessageBox.confirm(
+          `风暴档将把「${g.name}」上报间隔压到 2 秒、轮询 1 秒，对平台产生高频写入压力，确认切换？`,
+          '风暴档确认', { type: 'warning' }).then(apply).catch(() => {})
+      } else {
+        apply()
+      }
+    }
+    const createSuite = () => {
+      if (!suiteRoom.value) { ElementPlus.ElMessage.warning('请先选择机房'); return }
+      axios.post(`/api/sim/rooms/${suiteRoom.value}/device-suite`, {
+        ...suiteCounts, codePrefix: suitePrefix.value || undefined, seed: suiteSeed.value })
+        .then(r => {
+          loadDevices()
+          ElementPlus.ElMessage.success(`套件创建完成：新建 ${r.data.created} 台` +
+            (r.data.skipped?.length ? `，跳过 ${r.data.skipped.length} 台（编码冲突）` : ''))
+        })
+        .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '创建失败'))
+    }
+
+    const createDevice = () => {
+      // 客户端先校验必填项：服务端 400 只回 Bad Request，这里给可行动的提示
+      if (!newDevice.deviceCode || !newDevice.deviceCode.trim()) {
+        ElementPlus.ElMessage.warning('请先填写设备编码')
+        return
+      }
+      if (!platformRooms.value.some(r => r.roomId === newDevice.cloudRoomId)) {
+        ElementPlus.ElMessage.warning('请先选择机房（顶部机房下拉）')
+        return
+      }
+      // presetId 随请求上送：服务端据此补齐机房环境通道（仅补缺失，不覆盖）
+      return axios.post('/api/sim/devices', { ...newDevice, presetId: selectedPresetId.value || undefined })
+        .then((r) => {
+          loadDevices()
+          const note = r.data?.platformNote
+          ElementPlus.ElMessage.success(note ? ('设备已创建（' + note + '）') : '设备已创建')
+        })
+        .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '创建失败'))
+    }
+    const injectFault = (d, mode) => axios.put(`/api/sim/devices/${d.id}/fault?mode=${mode}`)
+      .then(() => { loadDevices(); ElementPlus.ElMessage.success(`${d.deviceCode} → ${faultLabel(mode)}`) })
+    const deleteDevice = (d) => {
+      ElementPlus.ElMessageBox.confirm(`删除设备 ${d.deviceCode}？（仅删除本地虚拟设备，平台设备需在平台侧删除）`, '删除确认', { type: 'warning' })
+        .then(() => axios.delete(`/api/sim/devices/${d.id}`).then(loadDevices))
+        .catch(() => {})
+    }
+    const createProfile = () => axios.post(`/api/sim/profiles?cloudRoomId=${envRoomId.value}&seed=${envSeed.value}`)
+      .then(() => { loadChannels(); ElementPlus.ElMessage.success('环境档案就绪（室内状态由物理引擎积分演化）') })
+    const upsertChannel = () => axios.post(`/api/sim/profiles/${envRoomId.value}/channels`, newChannel)
+      .then(() => { loadChannels(); ElementPlus.ElMessage.success('通道已保存') })
+    const quickAction = (pointCode, target, durationSec) => axios
+      .post(`/api/sim/profiles/${envRoomId.value}/quick-actions?pointCode=${pointCode}&targetValue=${target}&durationSec=${durationSec}`)
+      .then(r => { loadChannels(); ElementPlus.ElMessage.success(r.data.message) })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '操作失败'))
+    const syncInventory = () => axios.post('/api/sim/platform/sync-inventory')
+      .then(r => ElementPlus.ElMessage.success(r.data.message || r.data.error))
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '同步失败'))
+    const syncThresholds = () => axios.post('/api/sim/platform/sync-thresholds')
+      .then(r => {
+        ElementPlus.ElMessage.success(r.data.message || r.data.error)
+        void loadPlatformRooms()
+      })
+      .catch(e => ElementPlus.ElMessage.error(e.response?.data?.error || '同步失败'))
+    const loadPlatformRooms = () => axios.get('/api/sim/platform/rooms')
+      .then(r => {
+        platformRooms.value = r.data || []
+        // 初始机房 ID 在平台目录里不存在时校正为第一个可用机房（否则设备会建到无效机房）
+        if (platformRooms.value.length
+            && !platformRooms.value.some(r => r.roomId === newDevice.cloudRoomId)) {
+          newDevice.cloudRoomId = platformRooms.value[0].roomId
+        }
+        if (envRoomId.value == null || !platformRooms.value.some(r => r.roomId === envRoomId.value)) {
+          envRoomId.value = platformRooms.value[0]?.roomId
+        }
+        if (suiteRoom.value == null || !platformRooms.value.some(r => r.roomId === suiteRoom.value)) {
+          suiteRoom.value = platformRooms.value[0]?.roomId
+        }
+        if (newGateway.cloudRoomId == null) {
+          newGateway.cloudRoomId = platformRooms.value[0]?.roomId
+        }
+      })
+      .catch(() => {})
+    const loadDevicePresets = () => axios.get('/api/sim/device-presets')
+      .then(r => { devicePresets.value = r.data || [] })
+      .catch(() => {})
+
+    onMounted(() => { loadDevices(); loadGateways(); loadLoadStats(); loadStatus(); loadPlatformRooms(); loadDevicePresets(); loadPhysics(); setInterval(loadStatus, 5000); setInterval(loadPhysics, 5000); setInterval(loadLoadStats, 5000) })
+    return { tab, devices, channels, status, envRoomId, envSeed, newDevice, newChannel, typeLabel, platformRooms,
+      faultLabel, deviceCardClass, curvePath, obsCards, setSparkRef, pointLabel, regimeLabel,
+      devicePresets, selectedPresetId, activePreset, applyPreset,
+      physics, envParams, loadPhysics, saveParams, physicsAction,
+      loadDevices, loadChannels, loadStatus, createDevice, injectFault, deleteDevice,
+      createProfile, upsertChannel, quickAction, syncInventory, syncThresholds,
+      gateways, showNewGateway, newGateway, editForm, loadGateways, loadStats, statsOf, applyLoadPreset,
+      createGateway, gwAction, deleteGateway, gwPing, gwSyncThresholds, gwSyncInventory, startEdit, saveEdit,
+      suiteRoom, suitePrefix, suiteSeed, suiteCounts, createSuite }
+  }
+})
+app.use(ElementPlus, { locale: ElementPlusLocaleZhCn })
+app.mount('#app')
+</script>
+</body>
+</html>

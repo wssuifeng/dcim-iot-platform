@@ -1,0 +1,63 @@
+# ==================== 服务器配置 ====================
+server:
+  port: 8090
+
+spring:
+  application:
+    name: dcim-simulator
+
+  # MySQL 数据库（阶段七起与平台统一 DB 实例；独立库 dcim_simulator_db，重启保留仿真配置与运行态）
+  datasource:
+    url: jdbc:mysql://localhost:3306/dcim_simulator_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${SIM_DB_USERNAME:root}
+    password: ${SIM_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: none
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+  # 静态资源（管理页单文件）禁强缓存：协商缓存，页面更新后浏览器不会用旧版
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+
+# ==================== 仿真引擎配置 ====================
+simulator:
+  # 设备模块：环境值 → 寄存器刷新周期（秒）
+  sample-interval-sec: 1
+  # Modbus slave 端口基数：第 i 台设备监听 base+i
+  modbus-port-base: 15020
+  # 环境/上报随机种子（确定性：同种子两次运行数据一致）
+  seed: 42
+  # 随机事件（温度骤升/骤降 STEP 注入）默认关闭：
+  # 事件会永久覆盖环境通道（STEP），破坏自然温度潮汐；故障演练用管理页快捷操作
+  random-event:
+    enabled: false
+
+# ==================== 网关模块配置 ====================
+gateway:
+  # 网关模块默认配置（可在管理页按 gateway_config 表调整）
+  poll-interval-sec: 5
+  report-interval-sec: 60
+  change-deadband: 0.5
+  alarm-report-interval-sec: 5
+  # 无已保存配置时 GET /api/sim/gateway 返回的默认平台地址（与平台默认端口一致）
+  platform-base-url: http://localhost:8081
+
+logging:
+  level:
+    root: info
+    com.dcim.simulator: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

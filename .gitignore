@@ -43,3 +43,7 @@ docs/PDF出版源/edge-headless-profile/
 
 # AI 工具会话目录
 .zcode/
+
+### 仿真器（simulator/ 子项目） ###
+simulator/data/
+simulator/*.log

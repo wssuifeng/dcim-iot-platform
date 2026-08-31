@@ -92,6 +92,71 @@ jobs:
         working-directory: frontend
         run: npm run test --if-present
 
+  # 仿真器子项目（simulator/，独立 Maven 构建）：帧级 Modbus 用例走真实 socket
+  simulator-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('simulator/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build and Test (Simulator)
+        working-directory: simulator
+        run: mvn clean verify -B
+
+      - name: Upload JaCoCo coverage report (simulator)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-simulator
+          path: simulator/target/site/jacoco/
+          retention-days: 14
+
+  # 仿真器（simulator/ 子项目）：纯单元测试（Modbus 帧级 socket 往返等），无 DB 依赖
+  simulator-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-sim-${{ hashFiles('simulator/**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-sim-
+
+      - name: Build and Test (Simulator)
+        run: mvn clean verify -B -f simulator/pom.xml
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-simulator
+          path: simulator/target/site/jacoco/
+          retention-days: 14
+
   docker-build:
     needs: build-and-test
     runs-on: ubuntu-latest
