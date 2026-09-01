@@ -68,6 +68,15 @@ public class AlarmWebhookChannelController {
         return Result.success(null);
     }
 
+    @Operation(summary = "企微智能机器人建立长连接",
+            description = "填入 Bot ID/Secret 后先建连（不要求 chatid）——连接建立后群里 @机器人的消息回调才会进来，会话才能被捕获")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/wecom-aibot/connect")
+    public Result<String> connectAibot(@RequestBody java.util.Map<String, String> body) {
+        return Result.success(webhookChannelService.connectAibotForCapture(
+                body.get("botId"), body.get("secret")));
+    }
+
     @Operation(summary = "企微智能机器人已捕获会话",
             description = "群聊 chatid 只能从回调获取：在群里 @机器人发一句话后，会话即出现在此列表（S8-2 长连接模式）")
     @PreAuthorize("hasRole('ADMIN')")

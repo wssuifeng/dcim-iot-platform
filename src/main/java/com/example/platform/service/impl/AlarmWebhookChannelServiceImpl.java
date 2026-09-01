@@ -125,6 +125,15 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
         return null;
     }
 
+    @Override
+    public String connectAibotForCapture(String botId, String secret) {
+        if (botId == null || botId.isBlank() || secret == null || secret.isBlank()) {
+            throw new BusinessException(ResultCode.INVALID_PARAMETER, "botId 与 secret 不能为空");
+        }
+        wecomAibotClient.connect(botId.trim(), secret.trim());
+        return "长连接已建立——现在在群里 @机器人说一句话，然后点\"捕获会话\"";
+    }
+
     /*
      * 方法功能:列出企微智能机器人已捕获的会话（用户在群里 @机器人后出现，绑定 chatid 用）
      * 参数:botId-机器人ID

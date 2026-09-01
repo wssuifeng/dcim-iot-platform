@@ -51,4 +51,11 @@ public interface AlarmWebhookChannelService {
      * 返回数据:会话列表
      * */
     java.util.List<com.example.platform.ingest.wecom.WecomAibotChatRegistry.ChatEntry> listAibotChats(String botId);
+
+    /*
+     * 方法功能:仅凭 botId+secret 建立长连接（捕获会话前置——回调只在连接后进来，不要求 chatid）
+     * 参数:botId-机器人ID, secret-长连接密钥
+     * 返回数据:连接结果描述
+     * */
+    String connectAibotForCapture(String botId, String secret);
 }

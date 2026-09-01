@@ -29,3 +29,8 @@ export function testWebhookChannel(id) {
 export function listAibotChats(botId) {
   return request.get('/webhook-channels/wecom-aibot/chats', { params: { botId } })
 }
+
+// 企微智能机器人建立长连接（捕获会话前置：回调只在连接建立后进来）
+export function connectAibot(botId, secret) {
+  return request.post('/webhook-channels/wecom-aibot/connect', { botId, secret })
+}

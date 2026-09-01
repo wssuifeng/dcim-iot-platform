@@ -70,13 +70,22 @@
           <el-form-item label="Secret" required>
             <el-input v-model="cred.secret" show-password placeholder="机器人配置页的 Secret（长连接专用密钥）" />
           </el-form-item>
+          <el-form-item label="建立连接" required>
+            <div class="chat-capture">
+              <el-button size="small" type="primary" :loading="connecting" @click="connectAibotNow">
+                {{ aibotConnected ? '已连接（点击重连）' : '建立长连接' }}
+              </el-button>
+              <span v-if="aibotConnected" class="conn-ok">✓ 已连接——现在去企微群里 @机器人说一句话</span>
+              <div class="form-tip">必须先建立长连接，机器人的消息回调才会推送到平台——这是捕获 chatid 的前提</div>
+            </div>
+          </el-form-item>
           <el-form-item label="目标会话" required>
             <div class="chat-capture">
               <el-input v-model="cred.chatid" placeholder="点下方捕获会话自动填入，或手动粘贴 chatid" />
               <el-button size="small" class="capture-btn" :loading="capturing" @click="fetchAibotChats">
                 捕获会话
               </el-button>
-              <div class="form-tip">先在企微群里 @机器人说一句话，再点"捕获会话"——群聊 chatid 官方无查询接口，只能从回调获取</div>
+              <div class="form-tip">连接建立后，在企微群里 @机器人说一句话，再点"捕获会话"——群聊 chatid 官方无查询接口，只能从回调获取</div>
               <div v-if="aibotChats.length" class="chat-list">
                 <div v-for="chat in aibotChats" :key="chat.chatid"
                      :class="['chat-item', { active: cred.chatid === chat.chatid }]"
@@ -153,6 +162,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  connectAibot,
   createWebhookChannel,
   deleteWebhookChannel,
   listWebhookChannels,
@@ -200,6 +210,26 @@ const saving = ref(false)
 const aibotChats = ref([])
 const capturing = ref(false)
 const capturedOnce = ref(false)
+const connecting = ref(false)
+const aibotConnected = ref(false)
+
+async function connectAibotNow() {
+  if (!cred.botId.trim() || !cred.secret.trim()) {
+    ElMessage.warning('请先填写 Bot ID 与 Secret')
+    return
+  }
+  connecting.value = true
+  try {
+    const res = await connectAibot(cred.botId.trim(), cred.secret.trim())
+    aibotConnected.value = true
+    ElMessage.success(res.data || '长连接已建立')
+  } catch (e) {
+    aibotConnected.value = false
+    ElMessage.error(e.message || '连接失败')
+  } finally {
+    connecting.value = false
+  }
+}
 const formVisible = ref(false)
 const form = reactive({
   id: null, name: '', channelType: 'WECOM', webhookUrl: '',
@@ -227,6 +257,7 @@ const CRED_KEYS = {
 function onTypeChange() {
   aibotChats.value = []
   capturedOnce.value = false
+  aibotConnected.value = false
 }
 
 // credentialJson（字符串）→ 结构化 cred
@@ -432,6 +463,11 @@ onMounted(fetchChannels)
 
 .conn-mode {
   color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.conn-ok {
+  color: var(--el-color-success);
   font-size: 12px;
 }
 
