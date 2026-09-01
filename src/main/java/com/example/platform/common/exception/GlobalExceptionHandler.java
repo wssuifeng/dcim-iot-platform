@@ -165,6 +165,19 @@ public class GlobalExceptionHandler {
     }
 
     /*
+     * 方法功能:处理 TB 兼容遥测通道鉴权失败异常（ADR-008 D2：无效 token 统一 HTTP 401 防枚举，
+     *   TB 生态客户端按 HTTP 状态码判连接成败）
+     * 参数:e-遥测鉴权失败异常
+     * 返回数据:Result<Void>-401 状态码的错误响应
+     * */
+    @ExceptionHandler(TelemetryAuthException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public Result<Void> handleTelemetryAuth(TelemetryAuthException e) {
+        log.warn("遥测 token 鉴权失败: {}", e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
+    /*
      * 方法功能:处理缓存操作异常（Redis不可用导致计数器等无DB兜底的操作失败）
      * 场景:increment/decrement等计数器操作在Redis宕机时抛出
      * 注:与get/set不同，计数器没有数据库兜底，0是合法业务值，不可静默降级

@@ -32,7 +32,8 @@ import static org.mockito.Mockito.when;
 /*
  * 类功能:TelemetryCompatController 单元测试（S8-10，ADR-008 D1/D2/D4）
  * 覆盖：TB 报文三形态 + device 扩展解析、默认设备绑定、无设备 422、
- *   token 无效拒绝、机房归属透传核心、ts 缺省取服务器时间
+ *   token 无效拒绝（TelemetryAuthException→HTTP 401）、空探测报文放行、
+ *   机房归属透传核心、ts 缺省取服务器时间
  * */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TelemetryCompatController TB 兼容遥测测试")
@@ -142,16 +143,32 @@ class TelemetryCompatControllerTest {
     }
 
     @Test
-    @DisplayName("token 无效：拒绝且不进核心（authenticate 抛业务异常）")
+    @DisplayName("token 无效：抛 TelemetryAuthException（映射 HTTP 401）且不进核心")
     void should_reject_whenTokenInvalid() {
         when(ingestCredentialService.authenticateByTelemetryToken(anyString()))
                 .thenThrow(new BusinessException(
                         com.example.platform.common.ResultCode.INGEST_UNAUTHORIZED, "遥测 token 无效"));
 
         assertThatThrownBy(() -> controller.telemetry("bad-token", "{\"a\":1}"))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(com.example.platform.common.exception.TelemetryAuthException.class)
+                .hasMessageContaining("遥测 token 无效");
 
         verify(ingestCoreService, never()).processSamples(any(), any());
+    }
+
+    @Test
+    @DisplayName("空对象/空数组（TB SDK test_connection 探测）：200 放行不进核心")
+    void should_returnEmptySuccess_onProbePayload() {
+        when(ingestCredentialService.authenticateByTelemetryToken("tok-123"))
+                .thenReturn(credential("tb-sensor-01"));
+
+        var result = controller.telemetry("tok-123", "{}");
+        assertThat(result.getCode()).isEqualTo(200);
+        result = controller.telemetry("tok-123", "[]");
+        assertThat(result.getCode()).isEqualTo(200);
+
+        verify(ingestCoreService, never()).processSamples(any(), any());
+        verify(ingestCredentialService, times(2)).refreshLastSeen(1L);
     }
 
     @Test

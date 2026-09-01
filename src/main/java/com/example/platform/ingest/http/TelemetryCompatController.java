@@ -3,6 +3,7 @@ package com.example.platform.ingest.http;
 import com.example.platform.common.Result;
 import com.example.platform.common.ResultCode;
 import com.example.platform.common.exception.BusinessException;
+import com.example.platform.common.exception.TelemetryAuthException;
 import com.example.platform.dto.MetricSampleDTO;
 import com.example.platform.ingest.dto.IngestResultVO;
 import com.example.platform.ingest.dto.IngestSampleBatchDTO;
@@ -66,12 +67,17 @@ public class TelemetryCompatController {
         try {
             credential = ingestCredentialService.authenticateByTelemetryToken(token);
         } catch (BusinessException ex) {
-            // 防 token 枚举：统一 401
-            throw new BusinessException(ResultCode.UNAUTHORIZED, "遥测 token 无效");
+            // 防 token 枚举：统一 401（ADR-008 D2；TelemetryAuthException 映射 HTTP 401）
+            throw new TelemetryAuthException();
         }
         ingestCredentialService.refreshLastSeen(credential.getId());
 
         IngestSampleBatchDTO batch = parseBatch(body, credential);
+        // 空对象/空数组（TB SDK test_connection 连通性探测形态）：不视为错误，
+        // 返回 200 空结果——TB 生态客户端以 HTTP 状态码判连接成败
+        if (batch.getItems().isEmpty()) {
+            return Result.success(new IngestResultVO());
+        }
         IngestResultVO result = ingestCoreService.processSamples(credential, batch);
         return Result.success(result);
     }
@@ -97,7 +103,10 @@ public class TelemetryCompatController {
             throw new BusinessException(ResultCode.INVALID_PARAMETER, "报文须为 JSON 对象或数组");
         }
         if (items.isEmpty()) {
-            throw new BusinessException(ResultCode.INVALID_PARAMETER, "报文无有效遥测数据");
+            // 空对象/空数组：TB SDK test_connection 连通性探测形态，交由调用方决定是否放行
+            IngestSampleBatchDTO empty = new IngestSampleBatchDTO();
+            empty.setItems(new ArrayList<>());
+            return empty;
         }
         IngestSampleBatchDTO batch = new IngestSampleBatchDTO();
         batch.setItems(items);
