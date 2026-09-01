@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,6 +77,18 @@ class AlarmWebhookDispatcherImplTest {
         event.setAlarmMessage("高温警告：温度=45.2℃");
         event.setTriggeredTime(LocalDateTime.now());
         return event;
+    }
+
+    private AlarmWebhookChannel aibotChannel(int maxLevel) {
+        AlarmWebhookChannel channel = channel(AlarmWebhookChannel.TYPE_WECOM_AIBOT, maxLevel);
+        channel.setCredentialJson("{\"botId\":\"bot-1\",\"secret\":\"sec-1\",\"chatid\":\"chat-1\"}");
+        return channel;
+    }
+
+    private String capturedAibotMarkdown() {
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(wecomAibotClient, atLeastOnce()).sendMarkdown(eq("bot-1"), eq("sec-1"), eq("chat-1"), captor.capture());
+        return captor.getAllValues().get(captor.getAllValues().size() - 1);
     }
 
     @Test
@@ -167,5 +180,69 @@ class AlarmWebhookDispatcherImplTest {
         verify(webhookSender).send(anyString(), any(), bodyCaptor.capture());
         assertThat(bodyCaptor.getValue()).contains("ALARM_RECOVERED").contains("已恢复");
         assertThat(bodyCaptor.getValue()).contains("高温警告");
+    }
+
+    @Test
+    @DisplayName("企微 aibot L1/L2：一级标题 + 紧急/严重 emoji，正文引用块含消息与时间")
+    void should_renderAibotMarkdown_severeLevels() {
+        when(channelMapper.selectList(any())).thenReturn(List.of(aibotChannel(5)));
+
+        dispatcher.dispatch(event(1), "ALARM_CREATED");
+        String l1 = capturedAibotMarkdown();
+        assertThat(l1).startsWith("# ").contains("🔴").contains("【L1 紧急】").contains("🚨");
+        assertThat(l1).contains("高温警告").contains("事件 #9");
+
+        dispatcher.dispatch(event(2), "ALARM_UPGRADED");
+        String l2 = capturedAibotMarkdown();
+        assertThat(l2).startsWith("# ").contains("🟠").contains("【L2 严重】").contains("🔺");
+    }
+
+    @Test
+    @DisplayName("企微 aibot L3：二级标题 + 🟡；L4/L5：引用块轻提示 + 🔵/⚪")
+    void should_renderAibotMarkdown_minorLevels() {
+        when(channelMapper.selectList(any())).thenReturn(List.of(aibotChannel(5)));
+
+        dispatcher.dispatch(event(3), "ALARM_CREATED");
+        String l3 = capturedAibotMarkdown();
+        assertThat(l3).startsWith("## ").contains("🟡").contains("【L3 一般】");
+
+        dispatcher.dispatch(event(4), "ALARM_CREATED");
+        String l4 = capturedAibotMarkdown();
+        assertThat(l4).startsWith("> ").contains("🔵").contains("【L4 警告】");
+        assertThat(l4).doesNotContain("\n#");
+
+        dispatcher.dispatch(event(5), "ALARM_RESEND");
+        String l5 = capturedAibotMarkdown();
+        assertThat(l5).startsWith("> ").contains("⚪").contains("【L5 提示】").contains("🔁");
+    }
+
+    @Test
+    @DisplayName("企微 aibot 恢复事件：引用块轻提示 + ✅，高级别也不放大标题")
+    void should_renderAibotMarkdown_recoveredAlwaysLightweight() {
+        when(channelMapper.selectList(any())).thenReturn(List.of(aibotChannel(5)));
+
+        dispatcher.dispatch(event(1), "ALARM_RECOVERED");
+        String markdown = capturedAibotMarkdown();
+        assertThat(markdown).startsWith("> ").contains("✅").contains("已恢复");
+        assertThat(markdown).doesNotContain("\n#");
+    }
+
+    @Test
+    @DisplayName("企微 aibot 推送成功/失败：写一行对应状态的通知日志")
+    void should_logAibotAttemptOutcome() {
+        when(channelMapper.selectList(any())).thenReturn(List.of(aibotChannel(5)));
+
+        dispatcher.dispatch(event(2), "ALARM_CREATED");
+        verify(notificationLogMapper).insert(any(AlarmNotificationLog.class));
+
+        org.mockito.Mockito.doThrow(new RuntimeException("连接已断开"))
+                .when(wecomAibotClient).sendMarkdown(anyString(), anyString(), anyString(), anyString());
+        dispatcher.dispatch(event(2), "ALARM_CREATED");
+
+        ArgumentCaptor<AlarmNotificationLog> captor = ArgumentCaptor.forClass(AlarmNotificationLog.class);
+        verify(notificationLogMapper, times(2)).insert(captor.capture());
+        assertThat(captor.getAllValues().get(0).getStatus()).isEqualTo(1);
+        assertThat(captor.getAllValues().get(1).getStatus()).isEqualTo(2);
+        assertThat(captor.getAllValues().get(1).getErrorMessage()).contains("长连接推送失败");
     }
 }

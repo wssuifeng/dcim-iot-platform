@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /*
@@ -36,6 +37,11 @@ import java.util.List;
 public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
 
     private static final int MAX_ATTEMPTS = 4;
+
+    // 企微 markdown 无文字颜色，等级视觉差异靠 emoji + 标题层级：L1/L2 一级标题、L3 二级、L4/L5 引用块轻提示
+    private static final String[] LEVEL_EMOJI = {"🔴", "🟠", "🟡", "🔵", "⚪"};
+    private static final String[] LEVEL_LABEL = {"紧急", "严重", "一般", "警告", "提示"};
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // 包内可变：单元测试注入 0ms 退避，避免真实等待
     long[] retryBackoffMs = {1000L, 5000L, 30000L};
@@ -77,7 +83,7 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
                              String eventName, String text) {
         // 企微智能机器人（长连接模式）：不走 HTTP，直接经 wss 推送 markdown；失败仅记日志不重试（连接层自带重连）
         if (com.example.platform.entity.AlarmWebhookChannel.TYPE_WECOM_AIBOT.equals(channel.getChannelType())) {
-            dispatchWecomAibot(channel, event, eventName, text);
+            dispatchWecomAibot(channel, event, eventName);
             return;
         }
         WebhookMessageRenderer.WebhookRequest request =
@@ -101,15 +107,14 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
         }
     }
 
-    // 企微智能机器人长连接分发：markdown 渲染 + aibot_send_msg，一次尝试（无 HTTP 重试语义）
-    private void dispatchWecomAibot(AlarmWebhookChannel channel, AlarmEvent event,
-                                    String eventName, String text) {
+    // 企微智能机器人长连接分发：等级差异化 markdown + aibot_send_msg，一次尝试（无 HTTP 重试语义）
+    private void dispatchWecomAibot(AlarmWebhookChannel channel, AlarmEvent event, String eventName) {
         try {
             com.example.platform.ingest.wecom.WecomAibotCredential cred =
                     com.example.platform.ingest.wecom.WecomAibotCredential.parse(
                             channel.getCredentialJson());
             wecomAibotClient.sendMarkdown(cred.botId(), cred.secret(), cred.chatid(),
-                    renderAibotMarkdown(event, eventName, text));
+                    renderAibotMarkdown(event, eventName));
             saveAttemptLog(channel, event, eventName, 1, LOG_STATUS_DELIVERED, null);
             log.info("企微智能机器人分发成功 channelId={} name={} eventName={}",
                     channel.getId(), channel.getName(), eventName);
@@ -120,10 +125,35 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
         }
     }
 
-    // aibot 消息体：markdown（官方告警推送推荐 msgtype）
-    private String renderAibotMarkdown(AlarmEvent event, String eventName, String text) {
-        String level = event.getAlarmLevel() != null ? "**L" + event.getAlarmLevel() + "**" : "-";
-        return "> **dcim 告警 " + level + " · " + eventName + "**" + "\n\n" + text;
+    /*
+     * 方法功能:按告警等级渲染企微智能机器人 markdown——L1/L2 一级标题强提醒、L3 二级标题、
+     *   L4/L5 与恢复事件引用块轻提示；状态 emoji（触发🚨/升级🔺/再提醒🔁/恢复✅）+ 等级 emoji 区分主次
+     * 参数:event-告警事件, eventName-事件名（ALARM_CREATED/UPGRADED/RESEND/RECOVERED）
+     * 返回数据:String-markdown 报文
+     * */
+    private String renderAibotMarkdown(AlarmEvent event, String eventName) {
+        int level = event.getAlarmLevel() != null && event.getAlarmLevel() >= 1 && event.getAlarmLevel() <= 5
+                ? event.getAlarmLevel() : 5;
+        boolean recovered = "ALARM_RECOVERED".equals(eventName);
+        String kind = switch (eventName == null ? "" : eventName) {
+            case "ALARM_CREATED" -> "告警触发 🚨";
+            case "ALARM_UPGRADED" -> "告警升级 🔺";
+            case "ALARM_RESEND" -> "再提醒 🔁";
+            case "ALARM_RECOVERED" -> "已恢复 ✅";
+            default -> eventName;
+        };
+        String message = event.getAlarmMessage() != null ? event.getAlarmMessage() : event.getAlarmType();
+        String time = event.getTriggeredTime() != null
+                ? event.getTriggeredTime().format(TIME_FORMATTER) : "-";
+        String header = kind + " " + LEVEL_EMOJI[level - 1] + "【L" + level + " " + LEVEL_LABEL[level - 1] + "】";
+        // 多行消息逐行挂引用前缀，保证正文整体落在引用块内
+        String quotedBody = "> " + message.replace("\n", "\n> ")
+                + "\n> \n> " + time + " ｜ 事件 #" + event.getId();
+        // 恢复事件一律轻量提示（绿勾语义），不用大标题惊扰
+        if (recovered || level >= 4) {
+            return "> " + header + "\n" + quotedBody;
+        }
+        return (level <= 2 ? "# " : "## ") + header + "\n\n" + quotedBody;
     }
 
     // 通知文本：级别标签 + 事件类型 + 告警消息（评估链消息已含设备/点位/规则明细）
