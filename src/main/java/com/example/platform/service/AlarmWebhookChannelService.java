@@ -44,4 +44,11 @@ public interface AlarmWebhookChannelService {
      * 返回数据:发送结果描述（成功含响应摘要；失败抛业务异常含错误原因）
      * */
     String testSend(Long id);
+
+    /*
+     * 方法功能:列出企微智能机器人已捕获的会话（群聊 chatid 只能从回调获取——用户 @机器人即登记）
+     * 参数:botId-机器人ID
+     * 返回数据:会话列表
+     * */
+    java.util.List<com.example.platform.ingest.wecom.WecomAibotChatRegistry.ChatEntry> listAibotChats(String botId);
 }

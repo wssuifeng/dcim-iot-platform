@@ -24,3 +24,8 @@ export function deleteWebhookChannel(id) {
 export function testWebhookChannel(id) {
   return request.post(`/webhook-channels/${id}/test-send`)
 }
+
+// 企微智能机器人已捕获会话（群聊 chatid 从回调获取：@机器人一句即登记）
+export function listAibotChats(botId) {
+  return request.get('/webhook-channels/wecom-aibot/chats', { params: { botId } })
+}

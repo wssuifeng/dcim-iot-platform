@@ -24,6 +24,7 @@ public class AlarmWebhookChannel implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public static final String TYPE_WECOM = "WECOM";
+    public static final String TYPE_WECOM_AIBOT = "WECOM_AIBOT";
     public static final String TYPE_DINGTALK = "DINGTALK";
     public static final String TYPE_FEISHU = "FEISHU";
     public static final String TYPE_NTFY = "NTFY";
@@ -41,7 +42,7 @@ public class AlarmWebhookChannel implements Serializable {
     private String name;
 
     @Schema(description = "渠道类型", example = "WECOM",
-            allowableValues = {"WECOM", "DINGTALK", "FEISHU", "NTFY", "TELEGRAM", "GENERIC"},
+            allowableValues = {"WECOM", "WECOM_AIBOT", "DINGTALK", "FEISHU", "NTFY", "TELEGRAM", "GENERIC"},
             requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "渠道类型不能为空")
     @TableField("channel_type")

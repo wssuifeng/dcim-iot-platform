@@ -47,6 +47,7 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
     private final WebhookMessageRenderer renderer;
     private final WebhookSender webhookSender;
     private final AlarmNotificationLogMapper notificationLogMapper;
+    private final com.example.platform.ingest.wecom.WecomAibotClient wecomAibotClient;
 
     @Override
     public void dispatch(AlarmEvent event, String eventName) {
@@ -74,6 +75,11 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
 
     private void dispatchOne(AlarmWebhookChannel channel, AlarmEvent event,
                              String eventName, String text) {
+        // 企微智能机器人（长连接模式）：不走 HTTP，直接经 wss 推送 markdown；失败仅记日志不重试（连接层自带重连）
+        if (com.example.platform.entity.AlarmWebhookChannel.TYPE_WECOM_AIBOT.equals(channel.getChannelType())) {
+            dispatchWecomAibot(channel, event, eventName, text);
+            return;
+        }
         WebhookMessageRenderer.WebhookRequest request =
                 renderer.render(channel, event, eventName, text);
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -93,6 +99,31 @@ public class AlarmWebhookDispatcherImpl implements AlarmWebhookDispatcher {
                 }
             }
         }
+    }
+
+    // 企微智能机器人长连接分发：markdown 渲染 + aibot_send_msg，一次尝试（无 HTTP 重试语义）
+    private void dispatchWecomAibot(AlarmWebhookChannel channel, AlarmEvent event,
+                                    String eventName, String text) {
+        try {
+            com.example.platform.ingest.wecom.WecomAibotCredential cred =
+                    com.example.platform.ingest.wecom.WecomAibotCredential.parse(
+                            channel.getCredentialJson());
+            wecomAibotClient.sendMarkdown(cred.botId(), cred.secret(), cred.chatid(),
+                    renderAibotMarkdown(event, eventName, text));
+            saveAttemptLog(channel, event, eventName, 1, LOG_STATUS_DELIVERED, null);
+            log.info("企微智能机器人分发成功 channelId={} name={} eventName={}",
+                    channel.getId(), channel.getName(), eventName);
+        } catch (Exception ex) {
+            saveAttemptLog(channel, event, eventName, 1, LOG_STATUS_FAILED,
+                    "长连接推送失败: " + ex.getMessage());
+            log.warn("企微智能机器人分发失败 channelId={} error={}", channel.getId(), ex.getMessage());
+        }
+    }
+
+    // aibot 消息体：markdown（官方告警推送推荐 msgtype）
+    private String renderAibotMarkdown(AlarmEvent event, String eventName, String text) {
+        String level = event.getAlarmLevel() != null ? "**L" + event.getAlarmLevel() + "**" : "-";
+        return "> **dcim 告警 " + level + " · " + eventName + "**" + "\n\n" + text;
     }
 
     // 通知文本：级别标签 + 事件类型 + 告警消息（评估链消息已含设备/点位/规则明细）

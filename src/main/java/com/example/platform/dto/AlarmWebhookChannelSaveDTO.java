@@ -26,10 +26,10 @@ public class AlarmWebhookChannelSaveDTO implements Serializable {
     private String name;
 
     @Schema(description = "渠道类型", example = "WECOM",
-            allowableValues = {"WECOM", "DINGTALK", "FEISHU", "NTFY", "TELEGRAM", "GENERIC"},
+            allowableValues = {"WECOM", "WECOM_AIBOT", "DINGTALK", "FEISHU", "NTFY", "TELEGRAM", "GENERIC"},
             requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "渠道类型不能为空")
-    @Pattern(regexp = "^(WECOM|DINGTALK|FEISHU|NTFY|TELEGRAM|GENERIC)$", message = "渠道类型不合法")
+    @Pattern(regexp = "^(WECOM|WECOM_AIBOT|DINGTALK|FEISHU|NTFY|TELEGRAM|GENERIC)$", message = "渠道类型不合法")
     private String channelType;
 
     @Schema(description = "webhook 地址（各平台机器人创建后获取）", requiredMode = Schema.RequiredMode.REQUIRED)

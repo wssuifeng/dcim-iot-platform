@@ -32,6 +32,8 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
     private final AlarmWebhookChannelMapper channelMapper;
     private final WebhookMessageRenderer renderer;
     private final WebhookSender webhookSender;
+    private final com.example.platform.ingest.wecom.WecomAibotClient wecomAibotClient;
+    private final com.example.platform.ingest.wecom.WecomAibotChatRegistry aibotChatRegistry;
 
     @Override
     public List<AlarmWebhookChannelVO> listChannels() {
@@ -49,6 +51,7 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
         if (channelMapper.insert(channel) <= 0) {
             throw new BusinessException(ResultCode.INTERNAL_SERVER_ERROR, "创建渠道失败");
         }
+        connectAibotIfEnabled(channel);
         log.info("webhook 渠道创建 channelId={} name={} type={}",
                 channel.getId(), channel.getName(), channel.getChannelType());
         return AlarmWebhookChannelVO.fromEntity(channel);
@@ -57,10 +60,23 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
     @Override
     public AlarmWebhookChannelVO updateChannel(Long id, AlarmWebhookChannelSaveDTO dto) {
         AlarmWebhookChannel channel = getChannelOrThrow(id);
+        String oldBotId = null;
+        if (isAibot(channel)) {
+            try {
+                oldBotId = com.example.platform.ingest.wecom.WecomAibotCredential
+                        .parse(channel.getCredentialJson()).botId();
+            } catch (Exception ignored) {
+            }
+        }
         checkNameUnique(dto.getName(), id);
         apply(channel, dto);
         if (channelMapper.updateById(channel) <= 0) {
             throw new BusinessException(ResultCode.INTERNAL_SERVER_ERROR, "更新渠道失败");
+        }
+        // aibot 渠道：凭证/启停可能变化，重连收敛到最新配置
+        if (isAibot(channel)) {
+            wecomAibotClient.disconnect(oldBotId);
+            connectAibotIfEnabled(channel);
         }
         log.info("webhook 渠道更新 channelId={} name={} type={}",
                 channel.getId(), channel.getName(), channel.getChannelType());
@@ -69,9 +85,55 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
 
     @Override
     public void deleteChannel(Long id) {
-        getChannelOrThrow(id);
+        AlarmWebhookChannel channel = getChannelOrThrow(id);
+        if (isAibot(channel)) {
+            wecomAibotClient.disconnect(oldAibotBotId(id));
+        }
         channelMapper.deleteById(id);
         log.info("webhook 渠道删除 channelId={}", id);
+    }
+
+    private boolean isAibot(AlarmWebhookChannel channel) {
+        return AlarmWebhookChannel.TYPE_WECOM_AIBOT.equals(channel.getChannelType());
+    }
+
+    // 启用的 aibot 渠道建立长连接；凭证不全时跳过（保存允许先占位，发送时报错可见）
+    private void connectAibotIfEnabled(AlarmWebhookChannel channel) {
+        if (!isAibot(channel) || channel.getEnabled() == null || channel.getEnabled() != 1) {
+            return;
+        }
+        try {
+            com.example.platform.ingest.wecom.WecomAibotCredential cred =
+                    com.example.platform.ingest.wecom.WecomAibotCredential.parse(channel.getCredentialJson());
+            wecomAibotClient.connect(cred.botId(), cred.secret());
+        } catch (Exception ex) {
+            log.warn("企微智能机器人长连接未建立（发送时将重试） channelId={} error={}",
+                    channel.getId(), ex.getMessage());
+        }
+    }
+
+    // 更新场景：用库里旧凭证的 botId 断开（凭证可能已改）
+    private String oldAibotBotId(Long channelId) {
+        try {
+            AlarmWebhookChannel before = channelMapper.selectById(channelId);
+            if (before != null) {
+                return com.example.platform.ingest.wecom.WecomAibotCredential
+                        .parse(before.getCredentialJson()).botId();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /*
+     * 方法功能:列出企微智能机器人已捕获的会话（用户在群里 @机器人后出现，绑定 chatid 用）
+     * 参数:botId-机器人ID
+     * 返回数据:会话列表（chatid/类型/最近触发者/时间）
+     * */
+    @Override
+    public java.util.List<com.example.platform.ingest.wecom.WecomAibotChatRegistry.ChatEntry>
+    listAibotChats(String botId) {
+        return aibotChatRegistry.listByBot(botId);
     }
 
     @Override
@@ -87,6 +149,18 @@ public class AlarmWebhookChannelServiceImpl implements AlarmWebhookChannelServic
         sampleEvent.setTriggeredTime(java.time.LocalDateTime.now());
 
         String text = "[测试] dcim 告警通道连通性测试（" + channel.getName() + "）";
+        if (isAibot(channel)) {
+            try {
+                com.example.platform.ingest.wecom.WecomAibotCredential cred =
+                        com.example.platform.ingest.wecom.WecomAibotCredential.parse(channel.getCredentialJson());
+                wecomAibotClient.sendMarkdown(cred.botId(), cred.secret(), cred.chatid(),
+                        "> **[测试] dcim 告警通道连通性测试**" + "\n\n" + text);
+                return "已通过长连接推送（errcode=0）";
+            } catch (Exception ex) {
+                throw new BusinessException(ResultCode.INTERNAL_SERVER_ERROR,
+                        "测试发送失败: " + ex.getMessage());
+            }
+        }
         try {
             WebhookMessageRenderer.WebhookRequest request =
                     renderer.render(channel, sampleEvent, "TEST", text);

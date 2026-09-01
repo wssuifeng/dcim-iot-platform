@@ -42,6 +42,8 @@ class AlarmWebhookDispatcherImplTest {
     private WebhookSender webhookSender;
     @Mock
     private AlarmNotificationLogMapper notificationLogMapper;
+    @Mock
+    private com.example.platform.ingest.wecom.WecomAibotClient wecomAibotClient;
 
     private AlarmWebhookDispatcherImpl dispatcher;
 
@@ -49,7 +51,7 @@ class AlarmWebhookDispatcherImplTest {
     void setUp() {
         WebhookMessageRenderer renderer = new WebhookMessageRenderer(new tools.jackson.databind.ObjectMapper());
         dispatcher = new AlarmWebhookDispatcherImpl(channelMapper, renderer, webhookSender,
-                notificationLogMapper);
+                notificationLogMapper, wecomAibotClient);
         dispatcher.retryBackoffMs = new long[]{0L, 0L, 0L};
     }
 

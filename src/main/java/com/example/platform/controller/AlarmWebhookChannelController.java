@@ -68,6 +68,15 @@ public class AlarmWebhookChannelController {
         return Result.success(null);
     }
 
+    @Operation(summary = "企微智能机器人已捕获会话",
+            description = "群聊 chatid 只能从回调获取：在群里 @机器人发一句话后，会话即出现在此列表（S8-2 长连接模式）")
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/wecom-aibot/chats")
+    public Result<java.util.List<com.example.platform.ingest.wecom.WecomAibotChatRegistry.ChatEntry>> listAibotChats(
+            @Parameter(description = "机器人 BotID", required = true) @RequestParam String botId) {
+        return Result.success(webhookChannelService.listAibotChats(botId));
+    }
+
     @Operation(summary = "测试发送",
             description = "发送标注[测试]的样例报文验证连通性；不产生告警事件、不写通知日志")
     @PreAuthorize("hasRole('ADMIN')")
