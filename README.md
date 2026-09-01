@@ -30,11 +30,11 @@ docker compose up -d --build
 本地开发：
 
 ```bash
-./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V15 + 种子）
+./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V24 + 种子）
 cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 ```
 
-> 多项目并行开发端口冲突时：后端 `SERVER_PORT=8081 ./mvnw spring-boot:run`，前端 `DEV_PORT=5174 API_TARGET=http://localhost:8081 npm run dev`。
+> 多项目并行开发端口冲突时：后端 `SERVER_PORT=8081 ./mvnw spring-boot:run`，前端 `DEV_PORT=5175 API_TARGET=http://localhost:8081 npm run dev`（示例取 5175，本机 5174 已被其他项目占用）。
 
 ---
 
@@ -52,7 +52,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 | 告警模版 | 可命名的告警规则融合模版（V15）：一套安装场景的规则聚合，类型绑定基础版作默认，具体设备可改绑自定义模版（规则整体切换），自动注册设备零配置跟随类型；复制模版即自定义起点 |
 | 跨机房检索 | 2-4 机房并排对比：设备命中/在线率/活动告警/级别分布对比卡（在线率异常高亮）+ 设备/告警明细双 tab，支持类型与名称过滤 |
 | 告警状态机 | 模版规则引擎、五级告警色带、最严重命中、级别升级、全程留痕；阈值可经网关签名导出（供网关本地告警判定，松耦合） |
-| 通知 | 头部铃铛通知模态框（未读管理/单条与全部已读）、WebSocket（STOMP）用户隔离推送、右上角卡片式告警弹窗（级别色带顶边、手动关闭队列+堆叠上限、Web Audio 提醒音效可静音）、邮件告警、通知日志与去重 |
+| 通知 | 头部铃铛通知模态框（未读管理/单条与全部已读）、WebSocket（STOMP）用户隔离推送、右上角卡片式告警弹窗（级别色带顶边、手动关闭队列+堆叠上限、Web Audio 提醒音效可静音）、邮件告警、IM webhook 渠道（企微智能机器人长连接/钉钉/飞书/ntfy/Telegram，级别过滤+逐次重试+通知日志；企微按告警等级差异化 markdown 样式）、下行动作 webhook（ALARM_UPGRADED 触发用户配置 URL）、通知日志与去重 |
 | 认证与审计 | JWT 无状态认证、三角色 RBAC、账号锁定防爆破、IP 限流、邮箱验证码注册、结构化审计日志 |
 | 可观测 | TraceId 全链路、Druid 慢 SQL 监控、Actuator 健康检查、生产安全门控 |
 
@@ -86,7 +86,12 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 - **HTTP**：`POST /api/ingest/samples`，请求头 `Authorization: Gateway {AccessKey}:{sha256(SecretKey + rawBody)}`
 - **MQTT**：发布到 `dcim/{accessKey}/samples`（QoS 1），报文 `{"signature","batch"}`；断连由 broker 遗嘱 `dcim/{accessKey}/lwt` 上报（broker 由 `docker compose up -d mosquitto` 提供，平台侧 `INGEST_MQTT_ENABLED=true` 启用；仿真器网关 MQTT 不可达时自动回退 HTTP，数据不断流）
 
-两种通道汇入同一条传输无关处理链：机房归属校验 → 未知设备自动注册（可选，凭证维度开关）→ `deviceCode+pointCode+seq` 幂等去重 → 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；越权条目失败不落库。
+另有两条**开放通道**（阶段八，面向生态组件——它们不支持逐请求 HMAC 签名，鉴权降级为凭证级 token / MQTT 账号密码，边界决策见 [ADR-008](docs/adr/ADR-008-设备接入形态与TB兼容API边界.md)）：
+
+- **TB 兼容遥测 API**：`POST /api/v1/{token}/telemetry`（context-path `/api` 之外），token 为机房凭证级、ADMIN 可重置；报文兼容 ThingsBoard 三形态（简单对象 / `{ts,values}` / 数组）+ `device` 字段多子设备扩展，已用 TB 官方 Python SDK（`TBHTTPDevice`）实测 9/9 场景通过
+- **MQTT 子凭证开放通道**：发布到 `dcim-open/{mqttUsername}/samples`（每机房一组 MQTT 用户名/密码，连接层鉴权由 broker 承担——mosquitto 需启用 dynamic-security，或 `INGEST_MQTT_BROKER_AUTH=mosquitto-dynsec` 由平台自动供给用户），报文为无签名 batch JSON
+
+四种入口汇入同一条传输无关处理链：机房归属校验 → 未知设备自动注册（可选，凭证维度开关）→ `deviceCode+pointCode+seq` 幂等去重（开放通道无 seq，降级键 `deviceCode+pointCode+sampleTime`）→ 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；越权条目失败不落库。
 
 辅助契约（同样 Gateway 签名）：`POST /api/ingest/heartbeat` 心跳保活；`POST /api/ingest/inventory` 设备清单上报（显式导入或 unknown 比对）；`GET /api/ingest/export/thresholds` 阈值与机房目录导出（网关本地告警判定的配置源）。
 
@@ -107,9 +112,11 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 │   ├── config/                # Security/Redis/MyBatis-Plus/Async/生产安全门控
 │   └── task/                  # 设备离线检测、网关离线检测、数据 TTL、幂等键清理
 ├── src/main/resources/db/
-│   ├── migration/             # Flyway V1–V18（V10 用户域收束，V11 接收门，V12 仿真退役，
+│   ├── migration/             # Flyway V1–V24（V10 用户域收束，V11 接收门，V12 仿真退役，
 │   │                          #   V13 设备接入打通，V14 机房凭证合一，V15 告警模版，
-│   │                          #   V16/V18 指标字典与类型清单扩容，V17 五类设备基础告警模版）
+│   │                          #   V16/V18 指标字典与类型清单扩容，V17 五类设备基础告警模版，
+│   │                          #   V19 告警规则三机制，V20 告警 webhook 渠道，V21 采样月分区，
+│   │                          #   V22 动作 webhook，V23 TB 遥测 token，V24 MQTT 子凭证）
 │   └── seed/                  # V9 开发种子（仅 dev profile；设备零预置，留给接入全流程）
 ├── frontend/                  # Vue3 管理后台（机房工作台 + 全局告警流 + 跨机房检索 + 驾驶舱仪表盘 + 日/夜双主题）
 ├── docker/mosquitto/          # MQTT broker 配置（数据接收门北向通道）
@@ -125,7 +132,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 | 命令 | 用途 |
 |------|------|
-| `./mvnw test` | 全量测试（280+ 用例） |
+| `./mvnw test` | 全量测试（370 用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
@@ -143,9 +150,9 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 | 三 | 独立机房仿真服务（dcim-simulator）：虚拟设备（Modbus TCP slave）+ 智能网关（轮询/策略/北向上报），还原设备→网关→云平台两级链路 | ✅ 完成（E2E：45℃ 平滑过渡 4 秒触发告警，kill 重启自动恢复） |
 | 四 | 设备接入打通：机房凭证合一、首包自动注册 + 类型智能匹配、清单上报、网关离线告警、通知模态框与告警弹窗 | ✅ 完成 |
 | 五 | 告警指标模版重构（可命名/可复用/可改绑的规则融合模版，V15）+ 两服务前端 UI 重设计（驾驶舱仪表盘、五级告警色带、仿真器统一视觉语言与暗色） | ✅ 完成 |
-| 六 | 机房工作台架构：主从式下钻（三全局页收进 `/rooms/:id` 工作台）、通知队列化+告警音效、机房管理卡片化、跨机房检索对比 | ✅ 完成（本版本） |
+| 六 | 机房工作台架构：主从式下钻（三全局页收进 `/rooms/:id` 工作台）、通知队列化+告警音效、机房管理卡片化、跨机房检索对比 | ✅ 完成 |
 | 七 | 多机房接入与平台负载测试：仿真器网关多实例化（一机房一网关）、批量设备工厂、负载档位压测 L1→L4（6 机房 105 台 @120 样本/s 零失败）、ingest 观测增强 | ✅ 完成（[压测报告](docs/多机房与压测迭代计划/05-压测报告.md)） |
-| 八 | 真实用户打磨：告警规则三机制（V19）、IM webhook 渠道（V20）、CI + 前端测试、采样月分区与小时聚合（V21）、下行动作 webhook（V22）、TB 兼容遥测 API（V23，[ADR-008](docs/adr/ADR-008-设备接入形态与TB兼容API边界.md)）、MQTT 子凭证开放通道（V24）；watchdog 延后（依赖实体通知通道） | ✅ 开发完成（[阶段八计划](docs/阶段八-真实用户打磨计划/01-开发计划.md)；IM 真实机器人联调与 MQTT 独立客户端验证待用户环境） |
+| 八 | 真实用户打磨：告警规则三机制（V19）、IM webhook 渠道（V20）、CI + 前端测试、采样月分区与小时聚合（V21）、下行动作 webhook（V22）、TB 兼容遥测 API（V23，[ADR-008](docs/adr/ADR-008-设备接入形态与TB兼容API边界.md)）、MQTT 子凭证开放通道（V24）；watchdog 延后（依赖实体通知通道） | ✅ 开发完成（[阶段八计划](docs/阶段八-真实用户打磨计划/01-开发计划.md)；企微智能机器人渠道已实测接入真实群；TB 兼容层已用 TB 官方 Python SDK 验收 9/9；[剩余任务清单](docs/阶段八-真实用户打磨计划/04-剩余任务清单.md)） |
 
 **采样存储与容量规格（S8-4）**：`metric_sample` 按 `sample_time` 月分区（主键调整为 `(id, sample_time)`），每日分区供给任务预建未来 2 个月、整月过期分区按保留策略回收，供给失败产出 `PARTITION_SUPPLY_FAILED` 告警；`metric_sample_hourly` 小时聚合表承接 >48h 跨度趋势查询（小时粒度、cnt 加权均值，当前小时 ≤1h 滞后），TTL 为"drop 分区 + 行级删除"混合口径。已知取舍与长期演进（样本量进入千万级/日或趋势查询仍不达标时评估 TDengine / IoTDB / TimescaleDB / VictoriaMetrics，迁移前提是 ingest 写路径存储层抽象）记录于[阶段八计划 S8-4](docs/阶段八-真实用户打磨计划/01-开发计划.md)。
 
@@ -163,4 +170,4 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 ---
 
-*基于 refactor/depivot 分支编写，最后更新于 2026-08-29（机房工作台架构基线；补充本地开发端口覆盖说明）。*
+*基于 refactor/depivot 分支编写，最后更新于 2026-09-01（阶段八真实用户打磨 + TB 官方 SDK 验收基线）。*
