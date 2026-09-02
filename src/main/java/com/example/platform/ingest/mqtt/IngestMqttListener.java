@@ -68,6 +68,7 @@ public class IngestMqttListener {
     private final SysAuditLogService sysAuditLogService;
     private final com.example.platform.service.AlarmEventService alarmEventService;
     private final com.example.platform.service.CloudRoomService cloudRoomService;
+    private final com.example.platform.ingest.service.IngestPayloadMappingService payloadMappingService;
     private final Validator validator;
     private final ObjectMapper objectMapper;
 
@@ -87,6 +88,7 @@ public class IngestMqttListener {
                               SysAuditLogService sysAuditLogService,
                               com.example.platform.service.AlarmEventService alarmEventService,
                               com.example.platform.service.CloudRoomService cloudRoomService,
+                              com.example.platform.ingest.service.IngestPayloadMappingService payloadMappingService,
                               Validator validator,
                               ObjectMapper objectMapper,
                               @Value("${ingest.mqtt.broker-url:tcp://localhost:1883}") String brokerUrl,
@@ -101,6 +103,7 @@ public class IngestMqttListener {
         this.sysAuditLogService = sysAuditLogService;
         this.alarmEventService = alarmEventService;
         this.cloudRoomService = cloudRoomService;
+        this.payloadMappingService = payloadMappingService;
         this.validator = validator;
         this.objectMapper = objectMapper;
         this.brokerUrl = brokerUrl;
@@ -196,7 +199,8 @@ public class IngestMqttListener {
 
     /*
      * 方法功能:处理开放命名空间 samples 消息（S8-5）——username→凭证→机房归属，
-     *   username↔topic 前缀双重校验，报文即 batch JSON（无签名/无 envelope）
+     *   username↔topic 前缀双重校验；报文先按标准 batch JSON 解析（无签名/无 envelope），
+     *   解析失败或校验不过时回退自定义报文映射（ADR-009：特征匹配转译，未命中留存原始报文）
      * 参数:topic-消息 topic（dcim-open/{mqttUsername}/samples）, payload-batch JSON 字节
      * 返回数据:无
      * */
@@ -210,17 +214,38 @@ public class IngestMqttListener {
                 auditRejected(mqttUsername, "开放通道 username 与 topic 前缀不一致");
                 return;
             }
-            IngestSampleBatchDTO batch = objectMapper.treeToValue(
-                    objectMapper.readTree(payload), IngestSampleBatchDTO.class);
-            var violations = validator.validate(batch);
-            if (!violations.isEmpty()) {
-                auditRejected(mqttUsername, "开放通道报文校验失败: "
-                        + violations.iterator().next().getMessage());
-                return;
+            JsonNode root = null;
+            IngestSampleBatchDTO batch = null;
+            try {
+                root = objectMapper.readTree(payload);
+                batch = objectMapper.treeToValue(root, IngestSampleBatchDTO.class);
+                var violations = validator.validate(batch);
+                if (!violations.isEmpty()) {
+                    batch = null;
+                }
+            } catch (Exception ex) {
+                batch = null;
             }
+
             long start = System.nanoTime();
-            IngestResultVO result = ingestCoreService.processSamples(credential, batch);
-            metricsCollector.recordBatch("mqtt", batch.getItems().size(),
+            IngestResultVO result;
+            int itemCount;
+            if (batch != null) {
+                result = ingestCoreService.processSamples(credential, batch);
+                itemCount = batch.getItems().size();
+            } else {
+                // 标准报文解析失败：回退自定义报文映射（未命中时留存原始报文）
+                String body = new String(payload, StandardCharsets.UTF_8);
+                var translated = payloadMappingService.tryTranslate(credential, root, body);
+                if (translated.isEmpty()) {
+                    auditRejected(mqttUsername, "开放通道报文既非标准 batch 也未匹配映射模板，"
+                            + "原始报文已留存（可在零散设备接入页配置映射）");
+                    return;
+                }
+                result = ingestCoreService.processSamples(credential, translated.get());
+                itemCount = translated.get().getItems().size();
+            }
+            metricsCollector.recordBatch("mqtt", itemCount,
                     (System.nanoTime() - start) / 1_000_000,
                     result.getAccepted(), result.getDuplicated(), result.getFailed());
         } catch (BusinessException ex) {

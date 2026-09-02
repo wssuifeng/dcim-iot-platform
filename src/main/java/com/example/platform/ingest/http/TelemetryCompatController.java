@@ -54,6 +54,7 @@ public class TelemetryCompatController {
 
     private final IngestCredentialService ingestCredentialService;
     private final IngestCoreService ingestCoreService;
+    private final com.example.platform.ingest.service.IngestPayloadMappingService payloadMappingService;
     private final ObjectMapper objectMapper;
 
     @Operation(summary = "TB 兼容遥测上报",
@@ -72,7 +73,23 @@ public class TelemetryCompatController {
         }
         ingestCredentialService.refreshLastSeen(credential.getId());
 
-        IngestSampleBatchDTO batch = parseBatch(body, credential);
+        IngestSampleBatchDTO batch;
+        try {
+            batch = parseBatch(body, credential);
+        } catch (BusinessException ex) {
+            // TB 三形态解析失败：回退自定义报文映射（ADR-009；未命中留存原始报文并 422）
+            JsonNode root;
+            try {
+                root = objectMapper.readTree(body);
+            } catch (Exception parseEx) {
+                root = null;
+            }
+            var translated = payloadMappingService.tryTranslate(credential, root, body);
+            if (translated.isEmpty()) {
+                throw ex;
+            }
+            batch = translated.get();
+        }
         // 空对象/空数组（TB SDK test_connection 连通性探测形态）：不视为错误，
         // 返回 200 空结果——TB 生态客户端以 HTTP 状态码判连接成败
         if (batch.getItems().isEmpty()) {

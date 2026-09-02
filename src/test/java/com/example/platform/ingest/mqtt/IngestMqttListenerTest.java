@@ -46,6 +46,8 @@ class IngestMqttListenerTest {
     private com.example.platform.service.AlarmEventService alarmEventService;
     @Mock
     private com.example.platform.service.CloudRoomService cloudRoomService;
+    @Mock
+    private com.example.platform.ingest.service.IngestPayloadMappingService payloadMappingService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -55,7 +57,7 @@ class IngestMqttListenerTest {
     void setUp() {
         listener = new IngestMqttListener(ingestCoreService,
                 new com.example.platform.ingest.metrics.IngestMetricsCollector(), ingestCredentialService,
-                sysAuditLogService, alarmEventService, cloudRoomService,
+                sysAuditLogService, alarmEventService, cloudRoomService, payloadMappingService,
                 Validation.buildDefaultValidatorFactory().getValidator(),
                 objectMapper, "tcp://localhost:1883", "test-ingest", "", "", 30, false);
     }
@@ -237,6 +239,53 @@ class IngestMqttListenerTest {
         ArgumentCaptor<IngestSampleBatchDTO> captor = ArgumentCaptor.forClass(IngestSampleBatchDTO.class);
         verify(ingestCoreService).processSamples(eq(credential), captor.capture());
         assertThat(captor.getValue().getItems().get(0).getSeq()).isNull();
+    }
+
+    @Test
+    void openSamplesFallbackToPayloadMappingOnNonBatch() {
+        // 自定义报文（非标准 batch）：回退映射模板，命中即转译进核心（ADR-009）
+        IngestCredential credential = mqttCredential("mqtt-a");
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-a")).thenReturn(credential);
+        IngestSampleBatchDTO translated = new IngestSampleBatchDTO();
+        translated.setItems(List.of(item("dev-9", "temperature", "45.2")));
+        when(payloadMappingService.tryTranslate(eq(credential), any(), anyString()))
+                .thenReturn(java.util.Optional.of(translated));
+        when(ingestCoreService.processSamples(eq(credential), any(IngestSampleBatchDTO.class)))
+                .thenReturn(new IngestResultVO());
+
+        listener.handleOpenSamples("dcim-open/mqtt-a/samples",
+                "{\"model\":\"TC-1\",\"sn\":\"dev-9\",\"data\":{\"temp\":\"452\"}}".getBytes(StandardCharsets.UTF_8));
+
+        verify(ingestCoreService).processSamples(eq(credential), any(IngestSampleBatchDTO.class));
+        verify(sysAuditLogService, never()).logStructured(any(), eq("mqtt-a"), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString());
+    }
+
+    @Test
+    void openSamplesSavesRawWhenNoTemplateMatches() {
+        // 自定义报文且无模板命中：留存原始报文（服务内 UPSERT）并审计拒收
+        IngestCredential credential = mqttCredential("mqtt-a");
+        when(ingestCredentialService.authenticateByMqttUsername("mqtt-a")).thenReturn(credential);
+        when(payloadMappingService.tryTranslate(eq(credential), any(), anyString()))
+                .thenReturn(java.util.Optional.empty());
+
+        listener.handleOpenSamples("dcim-open/mqtt-a/samples",
+                "{\"model\":\"OTHER\"}".getBytes(StandardCharsets.UTF_8));
+
+        verify(ingestCoreService, never()).processSamples(any(), any());
+        verify(sysAuditLogService).logStructured(any(), eq("mqtt-a"), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), contains("未匹配映射模板"));
+    }
+
+    private com.example.platform.ingest.dto.IngestSampleItemDTO item(String deviceCode,
+                                                                     String pointCode, String value) {
+        com.example.platform.ingest.dto.IngestSampleItemDTO dto =
+                new com.example.platform.ingest.dto.IngestSampleItemDTO();
+        dto.setDeviceCode(deviceCode);
+        dto.setPointCode(pointCode);
+        dto.setValue(new BigDecimal(value));
+        dto.setSampleTime(LocalDateTime.now());
+        return dto;
     }
 
     private byte[] envelopeBytes(String secret, String itemsOverride) {

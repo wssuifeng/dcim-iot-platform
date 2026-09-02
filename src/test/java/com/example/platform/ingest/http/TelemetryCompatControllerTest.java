@@ -43,13 +43,15 @@ class TelemetryCompatControllerTest {
     private IngestCredentialService ingestCredentialService;
     @Mock
     private IngestCoreService ingestCoreService;
+    @Mock
+    private com.example.platform.ingest.service.IngestPayloadMappingService payloadMappingService;
 
     private TelemetryCompatController controller;
 
     @BeforeEach
     void setUp() {
         controller = new TelemetryCompatController(ingestCredentialService, ingestCoreService,
-                new ObjectMapper());
+                payloadMappingService, new ObjectMapper());
     }
 
     private IngestCredential credential(String defaultDevice) {
@@ -195,5 +197,42 @@ class TelemetryCompatControllerTest {
         assertThatThrownBy(() -> controller.telemetry("tok-123", "not-json"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("JSON");
+    }
+
+    @Test
+    @DisplayName("TB 解析失败回退自定义映射：命中即按转译批次入库（ADR-009）")
+    void should_fallbackToPayloadMapping_whenTbParseFails() {
+        IngestCredential credential = credential("tb-sensor-01");
+        when(ingestCredentialService.authenticateByTelemetryToken("tok-123")).thenReturn(credential);
+        IngestSampleBatchDTO translated = new IngestSampleBatchDTO();
+        IngestSampleItemDTO item = new IngestSampleItemDTO();
+        item.setDeviceCode("dev-9");
+        item.setPointCode("temperature");
+        item.setValue(new java.math.BigDecimal("45.2"));
+        item.setSampleTime(LocalDateTime.now());
+        translated.setItems(List.of(item));
+        when(payloadMappingService.tryTranslate(any(), any(), anyString()))
+                .thenReturn(java.util.Optional.of(translated));
+
+        var result = controller.telemetry("tok-123", "5");
+
+        assertThat(result.getCode()).isEqualTo(200);
+        verify(ingestCoreService).processSamples(eq(credential), eq(translated));
+    }
+
+    @Test
+    @DisplayName("TB 解析失败且映射未命中：原始报文留存（服务负责）并 422")
+    void should_rejectAndSaveRaw_whenFallbackMisses() {
+        IngestCredential credential = credential("tb-sensor-01");
+        when(ingestCredentialService.authenticateByTelemetryToken("tok-123")).thenReturn(credential);
+        when(payloadMappingService.tryTranslate(any(), any(), anyString()))
+                .thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> controller.telemetry("tok-123", "5"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("JSON 对象或数组");
+
+        verify(payloadMappingService).tryTranslate(eq(credential), any(), eq("5"));
+        verify(ingestCoreService, never()).processSamples(any(), any());
     }
 }
