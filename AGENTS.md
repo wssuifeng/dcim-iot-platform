@@ -132,7 +132,7 @@
 
 ## 7. 当前状态
 
-- **当前基线**：`refactor/depivot` 分支（阶段八真实用户打磨完成，最新提交见 `git log`）
+- **当前基线**：`refactor/depivot` 分支（阶段八完成 + 阶段九首卡 ADR-009 自定义报文映射落地，最新提交见 `git log`）
 - **协作主仓库**：`git@github.com:wssuifeng/dcim-iot-platform.git`
 - **上游基础仓库**：`git@github.com:wssuifeng/iot-platform.git`，仅作 v1.0 参考
 - **集成目标**：`stage4/integration`（第四阶段工作流的历史目标；阶段五/六工作直接在 `refactor/depivot` 进行）
@@ -154,6 +154,7 @@
 | MetricSampleHourly | metric_sample_hourly | V21 小时聚合表：>48h 趋势查询走此表（cnt 加权均值） |
 | AlarmTemplate / AlarmTemplateItem | alarm_template / alarm_template_item | V15 一级告警模版实体：规则融合模版，类型绑基础版、设备可改绑自定义版、复制即自定义起点；V19 起规则项含三机制字段（连续越限 streak / 窗口变化量 windowDelta / 再告警 resend） |
 | AlarmWebhookChannel | alarm_webhook_channel | V20 IM webhook 渠道：WECOM_AIBOT（长连接）/DINGTALK/FEISHU/NTFY/TELEGRAM/GENERIC，`credentialJson` 结构随类型 |
+| IngestPayloadMapping / IngestRawMessage | ingest_payload_mapping / ingest_raw_message | V25 自定义报文映射模板（特征匹配路由 + 字段路径转译，挂机房）与未匹配原始报文留存（每凭证一条），ADR-009 |
 | AlarmEvent / AlarmStateTransition / AlarmHandlingRecord | alarm_event / alarm_state_transition / alarm_handling_record | 告警状态机 TRIGGERED→ACKED→HANDLING→RECOVERED→CLOSED；`alarmLevel` 1-5（数字越小越紧急），逻辑删除；V22 起机房可配 ALARM_UPGRADED 下行动作 webhook |
 | InAppNotification / AlarmNotificationLog | in_app_notification / alarm_notification_log | 站内通知（头部铃铛模态框）与通知发送日志/去重 |
 | SysUser | sys_user | 单租户三角色：ADMIN/OPERATOR/VIEWER（role 写入 JWT） |
@@ -168,6 +169,8 @@
 2. HMAC 通道 MQTT `dcim/{accessKey}/samples`（报文 `{signature,batch}`，含遗嘱/LWT 网关离线即时告警）；
 3. TB 兼容开放通道 `POST /api/v1/{token}/telemetry`（token 鉴权无签名，TB 三形态报文 + device 字段，`TelemetryCompatController`，ADR-008）；
 4. MQTT 子凭证开放通道 `dcim-open/{mqttUsername}/samples`（账号密码连接层鉴权无签名，broker 侧 dynamic-security）。
+
+前两条通道报文为标准 batch（签名/无签名），后两条开放通道带**自定义报文映射回退**（ADR-009，阶段九）：标准解析失败 → 机房映射模板特征匹配（eq/contains/exists）+ 字段路径转译 → 同一条核心；未命中留存原始报文（每凭证一条，`ingest_raw_message`）。模板管理在"零散设备接入"页（`/payload-mappings` API，ADMIN）。
 
 处理链：机房归属校验 → `deviceCode+pointCode+seq` 幂等去重（开放通道无 seq 降级 `+sampleTime`）→ 采样落库 → 告警评估与通知。旧 v1.0 链（DeviceData/Alert/DictMetric/NotificationLog）已删除，勿再引用。
 

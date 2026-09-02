@@ -91,6 +91,8 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 - **TB 兼容遥测 API**：`POST /api/v1/{token}/telemetry`（context-path `/api` 之外），token 为机房凭证级、ADMIN 可重置；报文兼容 ThingsBoard 三形态（简单对象 / `{ts,values}` / 数组）+ `device` 字段多子设备扩展，已用 TB 官方 Python SDK（`TBHTTPDevice`）实测 9/9 场景通过
 - **MQTT 子凭证开放通道**：发布到 `dcim-open/{mqttUsername}/samples`（每机房一组 MQTT 用户名/密码，连接层鉴权由 broker 承担——mosquitto 需启用 dynamic-security，或 `INGEST_MQTT_BROKER_AUTH=mosquitto-dynsec` 由平台自动供给用户），报文为无签名 batch JSON
 
+**自定义报文映射**（阶段九，[ADR-009](docs/adr/ADR-009-自定义报文映射与零散设备接入.md)）：两条开放通道均带方言回退——标准报文解析失败时，报文按机房映射模板做特征匹配（eq/contains/exists）+ 字段路径转译（点路径+数组下标、缩放系数、数值自动转换）后进同一条核心链路；"零散设备接入"页（ADMIN）可视化配置模板、拉取平台留存的最新原始报文（每凭证一条）、dry-run 预览转译结果。
+
 四种入口汇入同一条传输无关处理链：机房归属校验 → 未知设备自动注册（可选，凭证维度开关）→ `deviceCode+pointCode+seq` 幂等去重（开放通道无 seq，降级键 `deviceCode+pointCode+sampleTime`）→ 采样落库 → 告警评估与通知。批量 ≤200 条逐条独立事务，部分成功合法；`sampleTime` 早于平台时间为断网补传（合法），晚于 +5 分钟拒绝；越权条目失败不落库。
 
 辅助契约（同样 Gateway 签名）：`POST /api/ingest/heartbeat` 心跳保活；`POST /api/ingest/inventory` 设备清单上报（显式导入或 unknown 比对）；`GET /api/ingest/export/thresholds` 阈值与机房目录导出（网关本地告警判定的配置源）。
@@ -116,7 +118,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 │   │                          #   V13 设备接入打通，V14 机房凭证合一，V15 告警模版，
 │   │                          #   V16/V18 指标字典与类型清单扩容，V17 五类设备基础告警模版，
 │   │                          #   V19 告警规则三机制，V20 告警 webhook 渠道，V21 采样月分区，
-│   │                          #   V22 动作 webhook，V23 TB 遥测 token，V24 MQTT 子凭证）
+│   │                          #   V22 动作 webhook，V23 TB 遥测 token，V24 MQTT 子凭证，V25 自定义报文映射）
 │   └── seed/                  # V9 开发种子（仅 dev profile；设备零预置，留给接入全流程）
 ├── frontend/                  # Vue3 管理后台（机房工作台 + 全局告警流 + 跨机房检索 + 驾驶舱仪表盘 + 日/夜双主题）
 ├── docker/mosquitto/          # MQTT broker 配置（数据接收门北向通道）
@@ -132,7 +134,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 | 命令 | 用途 |
 |------|------|
-| `./mvnw test` | 全量测试（370 用例） |
+| `./mvnw test` | 全量测试（387 用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
@@ -167,6 +169,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 - [ADR-005 机房与接入凭证合一，网关零管理依赖](docs/adr/ADR-005-机房与接入凭证合一网关零管理依赖.md)
 - [ADR-006 首包自动注册与设备类型智能匹配](docs/adr/ADR-006-首包自动注册与设备类型智能匹配.md)
 - [ADR-008 设备接入形态事实与 ThingsBoard 兼容 API 边界](docs/adr/ADR-008-设备接入形态与TB兼容API边界.md)
+- [ADR-009 自定义报文映射与零散设备接入](docs/adr/ADR-009-自定义报文映射与零散设备接入.md)
 
 ---
 
