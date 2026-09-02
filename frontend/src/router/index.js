@@ -87,6 +87,12 @@ const routes = [
         meta: { title: '指标字典', icon: 'DataLine', navigation: true, navigationOrder: 50, roles: ALL_ROLES },
       },
       {
+        path: 'ingest-mapping',
+        name: 'ingest-mapping',
+        component: () => import('@/views/ingest-mapping/index.vue'),
+        meta: { title: '零散设备接入', icon: 'Connection', navigation: true, navigationOrder: 55, roles: [ADMIN] },
+      },
+      {
         path: 'device-types',
         name: 'device-types',
         component: () => import('@/views/device-types/index.vue'),
