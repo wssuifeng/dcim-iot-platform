@@ -14,7 +14,7 @@
 
 - **项目**：dcim-iot-platform — 数据中心动环监控平台产品化仓库，基于 IoT-Platform v1.0 演进
 - **技术栈**：Spring Boot 4.0.6 + MyBatis-Plus 3.5.16 + **MySQL 9.6.0** + Redis 7 + JDK 17
-- **当前版本**：`refactor/depivot` 分支（README 路线图阶段一~八全部完成，当前为阶段八真实用户打磨基线）；历史 v4.x 文档状态仅作参考
+- **当前版本**：`refactor/depivot` 分支（README 路线图阶段一~八全部完成，阶段九进行中：首卡 ADR-009 自定义报文映射已落地）；历史 v4.x 文档状态仅作参考
 - **分层架构**：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 
 ---
@@ -105,7 +105,7 @@
 
 | 命令 | 用途 |
 |------|------|
-| `mvn test` | 平台全量单元测试（370 用例） |
+| `mvn test` | 平台全量单元测试（387 用例） |
 | `mvn test -Dtest=DeviceServiceImplTest` | 单个测试类 |
 | `mvn spring-boot:run` | 启动应用（需先起 MySQL + Redis） |
 | `mvn clean compile` | 仅编译（快速验证语法） |
@@ -142,7 +142,7 @@
 
 ## 8. 关键业务模型速查
 
-> 以实体类与 Flyway 迁移（V1–V24）为准。机房即接入主体，设备零预置，首包自动注册建档。
+> 以实体类与 Flyway 迁移（V1–V25）为准。机房即接入主体，设备零预置，首包自动注册建档。
 
 | 实体 | 表 | 要点 |
 |------|----|------|

@@ -30,7 +30,7 @@ docker compose up -d --build
 本地开发：
 
 ```bash
-./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V24 + 种子）
+./mvnw spring-boot:run        # 后端 :8080（dev profile 自动执行 Flyway V1–V25 + 种子）
 cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 ```
 
@@ -46,7 +46,8 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 |------|------|
 | 机房工作台 | 机房为一等导航上下文（主从式下钻）：仪表盘/机房管理卡片点击进入 `/rooms/:id` 工作台，概览（机房级 KPI/趋势/级别分布/设备 TOP）+ 设备与数据（卡片表+数据抽屉）+ 告警（表格全操作）三 tab；机房卡片默认按未处理告警降序排序 |
 | 设备接入 | 首包自动注册（未知 deviceCode 自动建档 + 模板指标绑定，类型按指标编码智能推断）、网关清单上报、编码防重查询 |
-| 数据接收门 | HTTP + MQTT 双协议适配器汇入传输无关核心：机房归属校验、`deviceCode+pointCode+seq` 幂等去重（QoS1 重发友好）、断网补传（迟到但有序）、批量逐条独立事务 |
+| 数据接收门 | 四入口汇入传输无关核心：HTTP/MQTT 双 HMAC 通道 + TB token / MQTT 子凭证开放通道（带自定义报文映射回退）；机房归属校验、`deviceCode+pointCode+seq` 幂等去重（QoS1 重发友好，开放通道无 seq 降级 sampleTime）、断网补传（迟到但有序）、批量逐条独立事务 |
+| 零散设备接入 | 自定义报文映射模板（挂机房，特征匹配路由）：报文字段路径手动映射平台指标字典，平台自动转译入库；原始报文每凭证留存最新一条 + dry-run 预览（"零散设备接入"页，ADMIN，[ADR-009](docs/adr/ADR-009-自定义报文映射与零散设备接入.md)） |
 | 网关观测 | 心跳保活（恒走 HTTP，与数据传输解耦）、last_seen 持续刷新、网关离线告警（每 5 分钟扫描 + MQTT 遗嘱即时触发，恢复自动闭环，从未上线也可发现） |
 | 指标字典 | 指标定义、类型级指标模板、设备指标绑定；指标采样（时序）+ 最新值 + 保留策略与 TTL 清理 |
 | 告警模版 | 可命名的告警规则融合模版（V15）：一套安装场景的规则聚合，类型绑定基础版作默认，具体设备可改绑自定义模版（规则整体切换），自动注册设备零配置跟随类型；复制模版即自定义起点 |
@@ -114,7 +115,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 │   ├── config/                # Security/Redis/MyBatis-Plus/Async/生产安全门控
 │   └── task/                  # 设备离线检测、网关离线检测、数据 TTL、幂等键清理
 ├── src/main/resources/db/
-│   ├── migration/             # Flyway V1–V24（V10 用户域收束，V11 接收门，V12 仿真退役，
+│   ├── migration/             # Flyway V1–V25（V10 用户域收束，V11 接收门，V12 仿真退役，
 │   │                          #   V13 设备接入打通，V14 机房凭证合一，V15 告警模版，
 │   │                          #   V16/V18 指标字典与类型清单扩容，V17 五类设备基础告警模版，
 │   │                          #   V19 告警规则三机制，V20 告警 webhook 渠道，V21 采样月分区，
@@ -136,6 +137,8 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 |------|------|
 | `./mvnw test` | 全量测试（387 用例） |
 | `./mvnw spring-boot:run` | 启动后端（需 MySQL + Redis） |
+| `cd simulator && mvn test` | 仿真服务测试（独立子项目，独立 H2） |
+| `cd frontend && npm run test` | 前端 Vitest 单元测试 |
 | `cd frontend && npm run build` | 前端生产构建 |
 | `docker compose up -d --build` | 一键容器化部署 |
 
@@ -155,6 +158,7 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 | 六 | 机房工作台架构：主从式下钻（三全局页收进 `/rooms/:id` 工作台）、通知队列化+告警音效、机房管理卡片化、跨机房检索对比 | ✅ 完成 |
 | 七 | 多机房接入与平台负载测试：仿真器网关多实例化（一机房一网关）、批量设备工厂、负载档位压测 L1→L4（6 机房 105 台 @120 样本/s 零失败）、ingest 观测增强 | ✅ 完成（[压测报告](docs/多机房与压测迭代计划/05-压测报告.md)） |
 | 八 | 真实用户打磨：告警规则三机制（V19）、IM webhook 渠道（V20）、CI + 前端测试、采样月分区与小时聚合（V21）、下行动作 webhook（V22）、TB 兼容遥测 API（V23，[ADR-008](docs/adr/ADR-008-设备接入形态与TB兼容API边界.md)）、MQTT 子凭证开放通道（V24）；watchdog 延后（依赖实体通知通道） | ✅ 开发完成（[阶段八计划](docs/阶段八-真实用户打磨计划/01-开发计划.md)；企微智能机器人渠道已实测接入真实群；TB 兼容层已用 TB 官方 Python SDK 验收 9/9；[剩余任务清单](docs/阶段八-真实用户打磨计划/04-剩余任务清单.md)） |
+| 九 | 零散设备自定义接入：自定义报文映射与转译引擎（V25，[ADR-009](docs/adr/ADR-009-自定义报文映射与零散设备接入.md)）、企微告警等级差异化样式、TB 生态兼容修复（空探测 200 / token 401） | 🚧 进行中（首卡 ADR-009 已落地，TB 官方 SDK 复验 9/9；后续：设备寄存器库 T3、凭证加密 T4） |
 
 **采样存储与容量规格（S8-4）**：`metric_sample` 按 `sample_time` 月分区（主键调整为 `(id, sample_time)`），每日分区供给任务预建未来 2 个月、整月过期分区按保留策略回收，供给失败产出 `PARTITION_SUPPLY_FAILED` 告警；`metric_sample_hourly` 小时聚合表承接 >48h 跨度趋势查询（小时粒度、cnt 加权均值，当前小时 ≤1h 滞后），TTL 为"drop 分区 + 行级删除"混合口径。已知取舍与长期演进（样本量进入千万级/日或趋势查询仍不达标时评估 TDengine / IoTDB / TimescaleDB / VictoriaMetrics，迁移前提是 ingest 写路径存储层抽象）记录于[阶段八计划 S8-4](docs/阶段八-真实用户打磨计划/01-开发计划.md)。
 
@@ -173,4 +177,4 @@ cd frontend && npm run dev    # 前端 :5173，/api 代理到后端
 
 ---
 
-*基于 refactor/depivot 分支编写，最后更新于 2026-09-01（阶段八真实用户打磨 + TB 官方 SDK 验收基线）。*
+*基于 refactor/depivot 分支编写，最后更新于 2026-09-01（阶段九首卡：自定义报文映射与零散设备接入，ADR-009/V25）。*
