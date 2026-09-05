@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "dcim-iot-platform 系统架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "D:\\code\\iot-platform-main - codex\\docs\\30_系统设计\\系统架构图.html"
+  },
+  "components": [
+    { "id": "gateway", "type": "external", "label": "采集网关", "sublabel": "HMAC 签名 · Gateway AK/SK", "pos": [40, 190], "size": [150, 64] },
+    { "id": "ecosys", "type": "external", "label": "生态组件 / 零散设备", "sublabel": "TB 生态 · 固定报文格式", "pos": [40, 430], "size": [150, 64] },
+    { "id": "sim", "type": "external", "label": "dcim-simulator 仿真服务", "sublabel": "虚拟 Modbus 设备 + 智能网关", "pos": [40, 590], "size": [150, 64] },
+
+    { "id": "http", "type": "backend", "label": "HTTP HMAC 通道", "sublabel": "POST /api/ingest/samples", "pos": [270, 150], "size": [150, 56] },
+    { "id": "mqttch", "type": "backend", "label": "MQTT HMAC 通道", "sublabel": "dcim/{AK}/samples · QoS1", "pos": [270, 250], "size": [150, 56] },
+    { "id": "tbch", "type": "backend", "label": "TB 兼容遥测通道", "sublabel": "/api/v1/{token}/telemetry", "pos": [270, 360], "size": [150, 56] },
+    { "id": "openmqtt", "type": "backend", "label": "MQTT 子凭证开放通道", "sublabel": "dcim-open/{user}/samples", "pos": [270, 470], "size": [150, 56] },
+    { "id": "broker", "type": "messagebus", "label": "mosquitto broker", "sublabel": "MQTT · dynamic-security", "pos": [270, 590], "size": [150, 60] },
+
+    { "id": "core", "type": "backend", "label": "ingest 传输无关核心", "sublabel": "归属校验 → 自动注册 → 幂等 → 映射回退", "pos": [490, 280], "size": [180, 120] },
+
+    { "id": "frontend", "type": "frontend", "label": "Vue3 管理后台", "sublabel": "驾驶舱 · 工作台 · 跨机房检索", "pos": [720, 40], "size": [150, 64] },
+    { "id": "mysql", "type": "database", "label": "MySQL 9.6", "sublabel": "采样月分区 + 小时聚合 + TTL", "pos": [720, 150], "size": [150, 60] },
+    { "id": "redis", "type": "database", "label": "Redis 7", "sublabel": "缓存 · Lettuce", "pos": [720, 270], "size": [150, 60] },
+    { "id": "alarm", "type": "backend", "label": "告警评估引擎", "sublabel": "模版 · 三机制 · 状态机 · 升级", "pos": [720, 400], "size": [150, 64] },
+    { "id": "notify", "type": "backend", "label": "通知分发", "sublabel": "站内/WebSocket/邮件/IM/下行动作", "pos": [720, 520], "size": [150, 64] },
+    { "id": "wecom", "type": "external", "label": "IM 渠道", "sublabel": "企微/钉钉/飞书/ntfy/Telegram", "pos": [950, 520], "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "数据入口层（四通道）", "wraps": ["http", "mqttch", "tbch", "openmqtt", "broker"] },
+    { "kind": "security-group", "label": "平台核心（Spring Boot 4 单体）", "wraps": ["core", "mysql", "redis", "alarm", "notify"] }
+  ],
+  "connections": [
+    { "id": "gw-http", "from": "gateway", "to": "http", "label": "HTTPS 签名", "variant": "emphasis", "fromSide": "top", "toSide": "top", "via": [[115, 110], [345, 110]] },
+    { "id": "gw-mqtt", "from": "gateway", "to": "mqttch", "label": "MQTT", "fromSide": "right" },
+    { "id": "eco-tb", "from": "ecosys", "to": "tbch", "label": "token", "fromSide": "right" },
+    { "id": "eco-open", "from": "ecosys", "to": "openmqtt", "label": "账号密码", "fromSide": "right" },
+    { "id": "http-core", "from": "http", "to": "core", "fromSide": "right" },
+    { "id": "mqttch-core", "from": "mqttch", "to": "core", "fromSide": "right" },
+    { "id": "tbch-core", "from": "tbch", "to": "core", "fromSide": "right" },
+    { "id": "openmqtt-core", "from": "openmqtt", "to": "core", "fromSide": "right", "toSide": "bottom" },
+    { "id": "sim-broker", "from": "sim", "to": "broker", "label": "虚拟网关上报" },
+    { "id": "broker-openmqtt", "from": "broker", "to": "openmqtt", "label": "订阅", "fromSide": "top" },
+    { "id": "core-mysql", "from": "core", "to": "mysql", "label": "采样落库", "fromSide": "top", "toSide": "left" },
+    { "id": "core-redis", "from": "core", "to": "redis", "fromSide": "right", "toSide": "left" },
+    { "id": "core-alarm", "from": "core", "to": "alarm", "label": "评估", "fromSide": "right", "toSide": "left" },
+    { "id": "alarm-notify", "from": "alarm", "to": "notify", "fromSide": "bottom", "toSide": "top" },
+    { "id": "notify-wecom", "from": "notify", "to": "wecom", "label": "webhook", "labelAt": [900, 576] },
+    { "id": "fe-mysql", "from": "frontend", "to": "mysql", "label": "REST /api", "fromSide": "bottom", "toSide": "top", "labelAt": [818, 127] },
+    { "id": "fe-ws", "from": "notify", "to": "frontend", "label": "WebSocket", "variant": "dashed", "fromSide": "right", "toSide": "right", "labelDx": 10 }
+  ]
+}

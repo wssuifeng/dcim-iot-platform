@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "dcim-iot-platform 后端模块架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "D:\\code\\iot-platform-main - codex\\docs\\30_系统设计\\后端模块架构图.html"
+  },
+  "components": [
+    { "id": "controller", "type": "backend", "label": "controller", "sublabel": "REST 控制器 · Swagger", "pos": [60, 60], "size": [160, 60] },
+    { "id": "security", "type": "security", "label": "security", "sublabel": "JWT 过滤链 · 三角色 · WS 鉴权", "pos": [60, 200], "size": [160, 60] },
+    { "id": "common", "type": "backend", "label": "common", "sublabel": "Result · 异常 · 审计 · 限流/XSS", "pos": [60, 340], "size": [160, 60] },
+
+    { "id": "service", "type": "backend", "label": "service + impl", "sublabel": "告警引擎 · 采样事务 · 离线检测", "pos": [340, 60], "size": [160, 64] },
+    { "id": "ingest", "type": "backend", "label": "ingest", "sublabel": "HTTP/MQTT 适配器 + 无关核心", "pos": [340, 200], "size": [160, 64] },
+    { "id": "task", "type": "backend", "label": "task", "sublabel": "离线检测 · TTL · 幂等清理", "pos": [340, 340], "size": [160, 60] },
+
+    { "id": "entity", "type": "database", "label": "entity + dto", "sublabel": "数据模型 · 对齐 Flyway", "pos": [620, 60], "size": [160, 60] },
+    { "id": "mapper", "type": "database", "label": "mapper", "sublabel": "MyBatis-Plus 访问", "pos": [620, 200], "size": [160, 60] },
+    { "id": "config", "type": "cloud", "label": "config", "sublabel": "安全门控 · Redis/MP 装配", "pos": [620, 340], "size": [160, 60] },
+
+    { "id": "mysql", "type": "database", "label": "MySQL", "sublabel": "iot_device_db", "pos": [880, 200], "size": [120, 60] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "CacheService", "pos": [880, 340], "size": [120, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "入口与横切层", "wraps": ["controller", "security", "common"] },
+    { "kind": "region", "label": "业务域层", "wraps": ["service", "ingest", "task"] },
+    { "kind": "region", "label": "数据与配置层", "wraps": ["entity", "mapper", "config", "mysql", "redis"] }
+  ],
+  "connections": [
+    { "id": "ctl-svc", "from": "controller", "to": "service", "label": "调用接口" },
+    { "id": "sec-ctl", "from": "security", "to": "controller", "label": "过滤链前置" },
+    { "id": "cmn-svc", "from": "common", "to": "service", "label": "统一响应", "fromSide": "right", "toSide": "bottom" },
+    { "id": "svc-ingest", "from": "service", "to": "ingest", "label": "评估/采样", "labelAt": [476, 162] },
+    { "id": "task-ingest", "from": "task", "to": "ingest", "label": "定时调度", "labelDx": 26 },
+    { "id": "svc-mapper", "from": "service", "to": "mapper", "label": "CRUD" },
+    { "id": "ingest-mapper", "from": "ingest", "to": "mapper", "label": "落库", "fromSide": "right", "toSide": "top", "via": [[560, 232], [560, 180], [700, 180]], "labelAt": [630, 156] },
+    { "id": "ent-mapper", "from": "entity", "to": "mapper", "label": "映射", "labelAt": [768, 162] },
+    { "id": "cfg-mapper", "from": "config", "to": "mapper", "label": "装配", "labelDx": 26 },
+    { "id": "mapper-db", "from": "mapper", "to": "mysql", "label": "SQL" },
+    { "id": "cfg-redis", "from": "config", "to": "redis", "label": "连接装配" }
+  ]
+}
