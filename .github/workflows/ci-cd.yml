@@ -2,9 +2,10 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop, refactor/depivot]
+    branches: [main]
+  workflow_dispatch:
   pull_request:
-    branches: [main, develop, refactor/depivot]
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -128,7 +129,7 @@ jobs:
   docker-build:
     needs: [build-and-test, simulator-test]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
