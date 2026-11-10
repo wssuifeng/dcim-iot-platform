@@ -1,79 +1,42 @@
-# dcim-simulator · 数据中心机房仿真服务
+# DCIM Simulator
 
-本仓库 `simulator/` 子项目（独立进程、独立 Maven 构建，与平台同仓分发；原独立仓库已并入），
-内部还原真实两级通信链路：
+同仓独立子项目，用虚拟 Modbus TCP 设备、采集网关和环境模型为动环平台提供联调数据。独立 Maven 构建、独立进程，使用 MySQL 独立库；不在平台应用进程内运行，也未纳入根 Compose。
 
-```
-虚拟设备（Modbus TCP slave，真实协议帧/真实 localhost TCP）
-    寄存器值由两层环境驱动：室外气象(确定性) + 室内热湿平衡(持久积分)
-        ▲ FC03 读保持寄存器（南向轮询，每网关独立节拍）
-网关实例 × N（一机房一网关一凭证，实例间独立调度互不阻塞）
-    解码工程量（raw÷10）→ 上报策略（周期/死区/越限即报）→ 分片上报（≤200 条/批）
-        ▼ 北向上报（MQTT QoS1 主 / HTTP 签名 POST 备，内建 qps/延迟统计）
-云平台（dcim-iot-platform 的数据接收门 /api/ingest/*）
-```
+## 启动
 
-设备模块与网关模块之间**没有任何进程内调用**——全部通信走 Modbus TCP，与真实机房同构。
+需要 JDK 17、Maven 与 MySQL。先建 dcim_simulator_db，再在 PowerShell 中设置测试数据库连接：
 
-## 快速开始
-
-```bash
-cd simulator                 # 仓库根目录下进入本子项目
-mvn spring-boot:run          # 服务起在 http://localhost:8090，管理页即开即用
+```powershell
+$env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/dcim_simulator_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
+$env:SIM_DB_USERNAME="root"
+$env:SIM_DB_PASSWORD="填写本地测试数据库密码"
+cd simulator
+mvn spring-boot:run
 ```
 
-数据统一使用 MySQL（与平台同实例，独立库 `dcim_simulator_db`，root 账号见 `application.yaml`；历史 H2 数据已迁移，`./data/` 仅作归档）。多机房对接流程：
+管理页默认为 http://localhost:8090。环境变量只对当前终端生效；本模块不会自动读取父目录的 .env。完整三进程步骤见 [本地开发与仿真联调](../docs/70_部署运行/本地开发与仿真联调.md)。
 
-1. 平台侧创建机房——机房即接入主体，弹窗一次性给出 AccessKey/SecretKey；
-2. 本管理页「网关与观测」Tab →「+ 新增网关」：绑机房 + 填三样（平台地址/AccessKey/SecretKey）→ 创建并启动；一机房一网关，实例独立启停、独立轮询/上报/心跳；
-3. 「虚拟设备」Tab →「机房设备套件」：按数量批量铺设备（编码=前缀-类型缩写+序号，自动初始化环境档案），或单台创建；
-4. 「环境配置」Tab：调机房环境参数 / 环境演练（空调停机/火灾/负载激增/人工自然事件）；
-5. 观测 Tab 实时查看轮询值；网关卡片展示 qps/P95 负载并可一键切换压测档位；故障注入（SENSOR_STUCK / SENSOR_DEAD）随点随生效。
+## 与平台联调
 
-## 模块结构
+1. 平台创建机房，保存一次性显示的接入凭证；需要自动创建设备时启用首包登记。
+2. 仿真器“网关与观测”新增网关，绑定机房并填平台地址、AccessKey、SecretKey。默认平台地址为 http://localhost:8080，修改后以实际地址为准。
+3. 创建机房设备套件或单台虚拟设备，启动网关，检查上报成功/失败计数。
+4. 在平台机房工作台查看设备、最新值、历史曲线和告警；告警验证使用合成阈值场景。
 
-| 模块 | 内容 |
-|------|------|
-| `device/` | 虚拟设备运行时：Modbus slave server（手写 MBAP+FC03 最小子集）、寄存器仓库、环境引擎（通道纯函数）+ **环境物理引擎**（WeatherService 室外气象 / RoomPhysicsEngine 室内热湿平衡持久积分）、设备预设目录、故障注入 |
-| `gateway/` | 网关多实例注册表（一机房一实例，独立调度）：Modbus master 轮询、工程量解码、上报策略、200 条/批分片、北向客户端（签名/seq/LWT + qps/延迟内建统计） |
-| `scenario/` | 剧本播放器（SET_CHANNEL 事件改环境函数）+ 随机事件生成器（权重+冷却+种子） |
-| `lifecycle/` | 启动恢复：扫库重建 slave 与网关，kill 后重启自动恢复 |
-| `client/` | 平台管理客户端：登录换 JWT、设备创建、告警阈值拉取 |
-| `web/` + `static/index.html` | 管理 REST + 极简管理页（三 Tab：虚拟设备/环境配置/网关与观测） |
+## 能力与边界
 
-## 设备预设（一键创建）
+- 五类预设：温湿度、UPS、PDU、精密空调、漏水；设备指标与平台字典对齐。
+- 虚拟设备寄存器、Modbus TCP 轮询、工程量解码、周期/死区/越限上报策略。
+- 每机房独立网关配置与运行时；HTTP/MQTT 客户端及上报统计。
+- 环境模型、故障注入与运行态持久化供开发演练；不等同于真实设备精度或真实机房验证。
 
-管理页「新增虚拟设备」内置 5 类平台设备预设（`GET /api/sim/device-presets`）：选中即自动填充类型与指标映射（寄存器地址 + 缩放系数），创建时自动补齐机房环境通道默认值——同指标已有通道不覆盖（保留已调参值）。指标编码与平台指标字典对齐（平台 V16 扩容了精密空调/漏水检测/UPS 指标，首包自动注册按编码推断类型）。
+[环境模型设计](docs/环境物理引擎设计.md) · [原实施蓝图](../docs/archive/计划书/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md)
 
-| 预设 | 指标映射 | 环境通道默认值 |
-|------|---------|--------------|
-| temp-humidity | temperature / humidity | 随机房档案默认通道（温湿度潮汐） |
-| ups | voltage_a / current_a / battery_level / output_load | 电压 220V 恒定；电流 60±20A、电量 92±6%、负载 65±20% 日周期波动 |
-| pdu-meter | voltage_a / current_a / power_kw / power_kwh | 功率 80±30kW 日周期；累计电量 RAMP +0.0222/s |
-| precision-ac | supply_air_temp / return_air_temp | 送风 18±1.5℃（制冷基线）、回风 27±2℃ |
-| leak-detector | leak_status | 恒定 0；演练按钮可平滑拉到 1 触发漏水告警 |
+## 检查
 
-## 测试
-
-```bash
-mvn test    # 74 例：网关多实例分流/独立启停、机房绑定校验、批量套件工厂、客户端统计、环境物理引擎、Modbus 帧级往返、上报策略、设备预设
+```sh
+# 在 simulator 目录
+mvn -B verify
 ```
 
-## 关键设计
-
-- **两层环境模型**（详见 [docs/环境物理引擎设计.md](docs/环境物理引擎设计.md)）：室外气象为 (seed, 时刻) 确定性纯函数（南昌季节基线 + 晴/阴/雨/暴雨/闷热天气型 5h 窗口轮转）；室内热湿平衡为持久化状态机——IT 负载发热、围护导热、空调制冷/除湿每秒积分，**重启续积分永不重置**，设备发热与空调动作真实反作用机房环境；
-- **设备读环境而非捏造**：温湿度/送回风/功率由室内状态派生（送风=室温−8、回风=室温+1.5、功率=IT 负载+空调电耗/COP），设备间叠加确定性偏差（±0.4℃/±2%/±3%）；
-- **确定性**：环境噪声与随机事件均接受种子（`simulator.seed`），同种子两次运行数据一致；
-- **因果单向**：环境变 → 寄存器变 → 网关读到 → 才有上报；事件只改环境函数，不改数据；
-- **三级频率解耦**：环境刷新 1s → 网关轮询 5s → 北向上报 60s（死区/越限即时）；
-- **故障语义同构**：SENSOR_DEAD=slave 停止响应→网关超时判离线→平台 15 分钟离线告警；GATEWAY 断连→MQTT 遗嘱→平台 LWT 观测；
-- **随机事件默认关闭**（`simulator.random-event.enabled`，默认 false）：环境已由物理引擎演化，通道 STEP 注入仅对电气类指标有意义；环境演练走管理页（空调停机/恢复/火灾热注入，火灾可越常规 55℃ 钳位至 120℃）。
-
-## 多机房与压测（阶段七）
-
-- **网关多实例化**：`gateway_config.cloud_room_id` 一机房一网关；`GatewayRuntime` 注册表按机房分流设备（只轮询/上报本机房），实例独立单线程调度；平台阈值缓存按网关分片，机房目录全局共享；
-- **批量设备套件**：`POST /api/sim/rooms/{cloudRoomId}/device-suite` 按五类数量一键创建（幂等跳过编码冲突，自动建环境档案）；
-- **压测档位**：常态(上报 60s/轮询 5s) / 高频(10s/2s) / 风暴(2s/1s) 管理页一键切换（风暴需确认）；`GET /api/sim/load-stats` 输出各网关 qps/P50/P95/P99 与成功失败计数；
-- **平台侧配套**：`GET /api/observability/ingest-metrics`（服务端吞吐/延迟观测），计划书见平台仓库 `docs/多机房与压测迭代计划/`。
-
-实施蓝图见本仓库 `docs/阶段二与阶段三实施计划-数据接收门与机房仿真服务.md`（阶段八起仿真器并入平台仓库 `simulator/` 子目录，独立构建：`cd simulator && mvn test`）。
+2026-11-10：79 项测试通过并打包成功；在隔离 MySQL/Redis 环境与平台完成 HTTP 联调，观测截点 236 次请求全部成功。MQTT 端到端、真实硬件和长期运行未在本轮验证，细节见 [本轮验证](../docs/50_系统测试/2026-11-10-仓库收口验证.md)。

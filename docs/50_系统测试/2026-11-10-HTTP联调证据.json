@@ -1,0 +1,258 @@
+{
+  "testedAt": "2026-11-10T09:15:57.558Z",
+  "environment": "isolated synthetic local MySQL/Redis, standalone processes; HTTP path only",
+  "health": {
+    "groups": [
+      "liveness",
+      "readiness"
+    ],
+    "status": "UP"
+  },
+  "simulatorStats": [
+    {
+      "httpRequests": 236,
+      "cloudRoomId": 3,
+      "reportIntervalSec": 5,
+      "pollIntervalSec": 2,
+      "running": true,
+      "p50Ms": 112,
+      "httpFailed": 0,
+      "p99Ms": 213,
+      "qps": 0.2,
+      "p95Ms": 167,
+      "name": "演示网关 · HTTP",
+      "httpSuccess": 236,
+      "gatewayId": 1
+    }
+  ],
+  "latest": {
+    "code": 200,
+    "data": [
+      {
+        "deviceId": 1,
+        "id": 1,
+        "latestTime": "2026-11-10T16:54:14",
+        "latestValue": 39.8,
+        "pointCode": "temperature",
+        "pointId": 1,
+        "pointName": "温度",
+        "unit": "℃"
+      },
+      {
+        "deviceId": 1,
+        "id": 2,
+        "latestTime": "2026-11-10T16:53:42",
+        "latestValue": 48,
+        "pointCode": "humidity",
+        "pointId": 2,
+        "pointName": "湿度",
+        "unit": "%"
+      }
+    ],
+    "message": "success"
+  },
+  "trend": {
+    "code": 200,
+    "data": [
+      {
+        "avgValue": 25.8,
+        "maxValue": 27,
+        "minValue": 24,
+        "time": "2026-11-10T16:30:00"
+      },
+      {
+        "avgValue": 22.22,
+        "maxValue": 24.2,
+        "minValue": 21,
+        "time": "2026-11-10T16:40:00"
+      },
+      {
+        "avgValue": 28.16666667,
+        "maxValue": 39.8,
+        "minValue": 24.6,
+        "time": "2026-11-10T16:50:00"
+      }
+    ],
+    "message": "success"
+  },
+  "alarmBefore": {
+    "code": 200,
+    "data": {
+      "alarmLevel": 2,
+      "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+      "alarmType": "METRIC",
+      "cloudRoomId": 3,
+      "createTime": "2026-11-10T16:54:15",
+      "deviceId": 1,
+      "deviceName": "DEMO-TEMP-01",
+      "id": 1,
+      "pointId": 1,
+      "pointName": "温度",
+      "pointUnit": "℃",
+      "state": "TRIGGERED",
+      "triggeredTime": "2026-11-10T16:54:15",
+      "updateTime": "2026-11-10T16:54:15"
+    },
+    "message": "success"
+  },
+  "lifecycle": [
+    {
+      "action": "ack",
+      "result": {
+        "code": 200,
+        "data": {
+          "alarmLevel": 2,
+          "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+          "alarmType": "METRIC",
+          "cloudRoomId": 3,
+          "createTime": "2026-11-10T16:54:15",
+          "deleted": 0,
+          "deviceId": 1,
+          "id": 1,
+          "pointId": 1,
+          "state": "ACKED",
+          "triggeredTime": "2026-11-10T16:54:15",
+          "updateTime": "2026-11-10T17:15:57.6521209"
+        },
+        "message": "success"
+      }
+    },
+    {
+      "action": "handling",
+      "result": {
+        "code": 200,
+        "data": {
+          "alarmLevel": 2,
+          "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+          "alarmType": "METRIC",
+          "cloudRoomId": 3,
+          "createTime": "2026-11-10T16:54:15",
+          "deleted": 0,
+          "deviceId": 1,
+          "id": 1,
+          "pointId": 1,
+          "state": "HANDLING",
+          "triggeredTime": "2026-11-10T16:54:15",
+          "updateTime": "2026-11-10T17:15:57.6909012"
+        },
+        "message": "success"
+      }
+    },
+    {
+      "action": "recover",
+      "result": {
+        "code": 200,
+        "data": {
+          "alarmLevel": 2,
+          "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+          "alarmType": "METRIC",
+          "cloudRoomId": 3,
+          "createTime": "2026-11-10T16:54:15",
+          "deleted": 0,
+          "deviceId": 1,
+          "id": 1,
+          "pointId": 1,
+          "recoveredTime": "2026-11-10T17:15:57.7129404",
+          "state": "RECOVERED",
+          "triggeredTime": "2026-11-10T16:54:15",
+          "updateTime": "2026-11-10T17:15:57.71394"
+        },
+        "message": "success"
+      }
+    },
+    {
+      "action": "close",
+      "result": {
+        "code": 200,
+        "data": {
+          "alarmLevel": 2,
+          "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+          "alarmType": "METRIC",
+          "closedTime": "2026-11-10T17:15:57.7402237",
+          "cloudRoomId": 3,
+          "createTime": "2026-11-10T16:54:15",
+          "deleted": 0,
+          "deviceId": 1,
+          "id": 1,
+          "pointId": 1,
+          "recoveredTime": "2026-11-10T17:15:58",
+          "state": "CLOSED",
+          "triggeredTime": "2026-11-10T16:54:15",
+          "updateTime": "2026-11-10T17:15:57.7402237"
+        },
+        "message": "success"
+      }
+    }
+  ],
+  "transitions": {
+    "code": 200,
+    "data": [
+      {
+        "alarmEventId": 1,
+        "createTime": "2026-11-10T16:54:15",
+        "id": 1,
+        "remark": "系统触发",
+        "toState": "TRIGGERED"
+      },
+      {
+        "alarmEventId": 1,
+        "createTime": "2026-11-10T17:15:58",
+        "fromState": "TRIGGERED",
+        "id": 3,
+        "operatorUserId": 1,
+        "remark": "隔离合成数据联调：ack",
+        "toState": "ACKED"
+      },
+      {
+        "alarmEventId": 1,
+        "createTime": "2026-11-10T17:15:58",
+        "fromState": "ACKED",
+        "id": 4,
+        "operatorUserId": 1,
+        "remark": "隔离合成数据联调：handling",
+        "toState": "HANDLING"
+      },
+      {
+        "alarmEventId": 1,
+        "createTime": "2026-11-10T17:15:58",
+        "fromState": "HANDLING",
+        "id": 5,
+        "operatorUserId": 1,
+        "remark": "隔离合成数据联调：recover",
+        "toState": "RECOVERED"
+      },
+      {
+        "alarmEventId": 1,
+        "createTime": "2026-11-10T17:15:58",
+        "fromState": "RECOVERED",
+        "id": 6,
+        "operatorUserId": 1,
+        "remark": "隔离合成数据联调：close",
+        "toState": "CLOSED"
+      }
+    ],
+    "message": "success"
+  },
+  "finalAlarm": {
+    "code": 200,
+    "data": {
+      "alarmLevel": 2,
+      "alarmMessage": "高温警告：温度=39.8℃（规则 GT 35，级别2）",
+      "alarmType": "METRIC",
+      "closedTime": "2026-11-10T17:15:58",
+      "cloudRoomId": 3,
+      "createTime": "2026-11-10T16:54:15",
+      "deviceId": 1,
+      "deviceName": "DEMO-TEMP-01",
+      "id": 1,
+      "pointId": 1,
+      "pointName": "温度",
+      "pointUnit": "℃",
+      "recoveredTime": "2026-11-10T17:15:58",
+      "state": "CLOSED",
+      "triggeredTime": "2026-11-10T16:54:15",
+      "updateTime": "2026-11-10T17:15:58"
+    },
+    "message": "success"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-10",
+  "source": {
+    "base": "f1ff2ecfe1c3fc3a5f55e51e60203f3ff22e3518",
+    "stabilityAndTestRunner": "e9928f0",
+    "configurationAndCI": "c51a616"
+  },
+  "platform": {
+    "command": "mvn -B verify",
+    "total": 394,
+    "passed": 392,
+    "skipped": 2,
+    "failed": 0,
+    "errors": 0,
+    "skipReason": "MAIL_USERNAME not configured"
+  },
+  "simulator": {
+    "command": "mvn -B verify",
+    "passed": 79,
+    "failed": 0
+  },
+  "simulatorDefaultsRegression": {
+    "command": "mvn -B -Dtest=GatewayScenarioControllerDefaultTest,GatewayConfigRoomBindingTest test",
+    "passed": 10,
+    "overlapsSimulatorSuite": true
+  },
+  "frontend": {
+    "tests": 17,
+    "failed": 0,
+    "build": "passed"
+  },
+  "runtime": {
+    "mode": "isolated standalone processes",
+    "transport": "HTTP",
+    "syntheticData": true,
+    "simulatorHttpRequests": 236,
+    "simulatorHttpSuccess": 236,
+    "simulatorHttpFailed": 0,
+    "latestValues": "verified",
+    "historyTrend": "verified",
+    "thresholdAlarm": "verified",
+    "manualLifecycle": [
+      "ACKED",
+      "HANDLING",
+      "RECOVERED",
+      "CLOSED"
+    ],
+    "automaticRecoveryTested": false,
+    "pageErrors": 0
+  },
+  "compose": {
+    "staticConfig": "passed",
+    "fullRuntime": "not_verified"
+  },
+  "notVerified": [
+    "real hardware",
+    "real data center",
+    "MQTT end-to-end",
+    "external notification delivery",
+    "production deployment",
+    "long-term stability"
+  ],
+  "phaseAcceptance": "unchanged"
+}

@@ -55,7 +55,7 @@
 
 ### 3.1 项目定位（一句话）
 
-自部署的数据中心动环监控平台（DCIM）：`docker compose up` 之后即拥有机房、设备、流动的数据与会响的告警；采集网关只凭三样配置（平台地址 + AccessKey + SecretKey）往北向契约推数，配套仿真服务让整个系统开箱即活。
+个人开发的数据中心动环监控平台（DCIM）：机房、设备、测点采样、查询与告警管理；网关按统一契约上报。同仓 simulator 是独立构建、独立进程，需与前端分别启动；Compose 只覆盖后端与依赖服务。
 
 ### 3.2 技术栈与版本约束（改代码时必须遵守，踩过坑）
 
@@ -138,13 +138,13 @@
 
 | 命令 | 用途 |
 |------|------|
-| `mvn test` | 平台全量单元测试（394 用例；387 存量 + 7 新增，2026-09-29 Surefire 3.6.0 修复 @Nested 上报缺失后实测） |
+| `mvn test` | 平台自动化测试（2026-11-10 verify：394 项，392 通过、2 邮箱条件跳过；测试库与 Redis 前提见验证记录） |
 | `mvn test -Dtest=DeviceServiceImplTest` | 单个测试类 |
 | `mvn spring-boot:run` | 启动应用（需先起 MySQL + Redis） |
 | `mvn clean compile` | 仅编译（快速验证语法） |
-| `cd simulator && mvn test` | 仿真服务测试（独立子项目，独立 H2） |
+| `cd simulator && mvn test` | 仿真服务测试（独立子项目；实际运行使用 MySQL 独立库） |
 | `cd frontend && npm run test` | 前端 Vitest 单元测试 |
-| `docker compose up -d --build` | 一键容器化部署（app + MySQL + Redis + mosquitto） |
+| `docker compose up -d --build` | 后端与依赖编排（app + MySQL + Redis + mosquitto；不含 frontend/simulator） |
 
 **启动前置条件**：MySQL 运行中（库 `iot_device_db`）、Redis 运行中、`sys_user` 表存在 ID=1 管理员账号（V9 seed，测试依赖）。生产环境由 `ProductionSafetyGuard` 启动门控强制：必须替换默认 JWT 密钥、配置明确 CORS 来源、配置数据库与 Redis 密码。
 
@@ -216,3 +216,11 @@
 3. 在 `docs/40_开发实施/_中控.md` 建 bug 修复任务（挂 Cx 编号 + 设计章节 + 完成判据）
 4. 按任务实施，回写 `_中控.md` 任务状态
 5. P0 修复完成 → 回写差距清单 G-015 状态 → 补测试用例
+
+### 3.9 仓库展示与维护入口
+
+- 仓库维护约定：`docs/90_全局/开发与提交约定.md`；后续使用短期任务分支，沿用真实提交历史，不重建历史或自动删除尚未核实 PR 的分支。
+- 本轮检查与限制：`docs/50_系统测试/2026-11-10-仓库收口验证.md`；本地步骤：`docs/70_部署运行/本地开发与仿真联调.md`。
+- 源码默认后端端口 8080；本机开发继续遵守 §3.5 的端口避让约定。本轮隔离端口为 8089/5189/8099，未占用上述保留端口。
+- README 的实现范围、自动化检查、HTTP 合成联调与生产使用分开陈述；不把 `sha256(SK+body)` 称为标准 HMAC，不把配置映射泛化为任意设备免改代码。
+- 许可证维持原样；仓库公开访问与远程分支清理结果以总控维护记录为准。
