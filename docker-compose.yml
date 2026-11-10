@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build: .
@@ -10,13 +8,19 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      # app 容器通过服务名访问依赖；.env.example 的 localhost 用于宿主机开发
+      - DB_URL=jdbc:mysql://mysql:3306/iot_device_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - DB_USERNAME=root
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INGEST_MQTT_BROKER_URL=tcp://mosquitto:1883
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/actuator/health"]
       interval: 30s
       timeout: 5s
       start_period: 60s
@@ -63,7 +67,7 @@ services:
       - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "healthcheck", "-C", "1", "-W", "3"]
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok", "-q", "1"]
       interval: 15s
       timeout: 5s
       retries: 5

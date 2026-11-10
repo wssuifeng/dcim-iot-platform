@@ -29,6 +29,6 @@ EXPOSE 8080
 
 # 健康检查：访问 Actuator health 端点
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+    CMD wget -qO- http://localhost:8080/api/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -58,7 +58,7 @@ class GatewayConfigRoomBindingTest {
         config.setId(id);
         config.setName("网关-" + cloudRoomId);
         config.setCloudRoomId(cloudRoomId);
-        config.setPlatformBaseUrl("http://localhost:8081");
+        config.setPlatformBaseUrl("http://localhost:8080");
         config.setIngestAccessKey("ak");
         config.setIngestSecret("sk");
         config.setStatus(1); // 不触发启动，专注校验逻辑
@@ -134,7 +134,7 @@ class GatewayConfigRoomBindingTest {
     void should_normalizeBaseUrl_withContextPath() throws Exception {
         java.lang.reflect.Field field = GatewayScenarioController.class.getDeclaredField("platformBaseUrl");
         field.setAccessible(true);
-        field.set(controller, "http://localhost:8081");
+        field.set(controller, "http://localhost:8080");
 
         GatewayConfig existing = draft(1L, 3L);
         when(configRepository.findById(1L)).thenReturn(java.util.Optional.of(existing));
@@ -149,11 +149,11 @@ class GatewayConfigRoomBindingTest {
     }
 
     @Test
-    @DisplayName("地址留空：创建时回退服务端默认（8081 口径）")
+    @DisplayName("地址留空：创建时回退服务端默认（8080 口径）")
     void should_fallbackToServerDefault_whenUrlBlank() throws Exception {
         java.lang.reflect.Field field = GatewayScenarioController.class.getDeclaredField("platformBaseUrl");
         field.setAccessible(true);
-        field.set(controller, "http://localhost:8081");
+        field.set(controller, "http://localhost:8080");
         when(configRepository.findAll()).thenReturn(List.of());
         when(configRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         GatewayConfig body = draft(null, 4L);
@@ -161,7 +161,7 @@ class GatewayConfigRoomBindingTest {
 
         controller.createGateway(body);
 
-        assertThat(body.getPlatformBaseUrl()).isEqualTo("http://localhost:8081");
+        assertThat(body.getPlatformBaseUrl()).isEqualTo("http://localhost:8080");
     }
 
     @Test

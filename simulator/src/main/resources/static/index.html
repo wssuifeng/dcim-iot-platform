@@ -366,7 +366,7 @@
               <select v-model.number="newGateway.cloudRoomId" class="small">
                 <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
               </select>
-              <label>平台地址</label><input v-model="newGateway.platformBaseUrl" style="width:190px" placeholder="自填完整地址，如 http://localhost:8081" />
+              <label>平台地址</label><input v-model="newGateway.platformBaseUrl" style="width:190px" placeholder="自填完整地址，如 http://localhost:8080" />
               <label>传输</label><select v-model="newGateway.northboundTransport" class="small"><option>MQTT</option><option>HTTP</option></select>
             </div>
             <div class="row">
@@ -412,7 +412,7 @@
               <select v-model.number="editForm.cloudRoomId" class="small">
                 <option v-for="r in platformRooms" :key="r.roomId" :value="r.roomId">{{ r.label }}</option>
               </select>
-              <label>平台地址</label><input v-model="editForm.platformBaseUrl" style="width:190px" placeholder="完整地址，如 http://localhost:8081" />
+              <label>平台地址</label><input v-model="editForm.platformBaseUrl" style="width:190px" placeholder="完整地址，如 http://localhost:8080" />
               <label>传输</label><select v-model="editForm.northboundTransport" class="small"><option>MQTT</option><option>HTTP</option></select>
             </div>
             <div class="row" v-if="editForm.id === g.id">
@@ -471,7 +471,7 @@ const app = createApp({
     // 多网关（一机房一网关）：列表 + 新增表单 + 行内编辑
     const gateways = ref([])
     const showNewGateway = ref(false)
-    // 平台地址不内置预填：留空时服务端回退默认（8081 口径），用户自填完整地址
+    // 平台地址不内置预填：留空时服务端回退默认（8080 口径），用户自填完整地址
     const newGateway = reactive({ name: '', northboundTransport: 'HTTP', platformBaseUrl: '',
       cloudRoomId: null, ingestAccessKey: '', ingestSecret: '', pollIntervalSec: 5, reportIntervalSec: 60,
       changeDeadband: 0.5, alarmReportIntervalSec: 5, status: 0 })

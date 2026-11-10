@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 网关配置接口默认值测试：无已保存配置时 GET /api/sim/gateway
- * 必须返回服务端默认（平台地址 8081 口径），而不是空——
+ * 必须返回服务端默认（平台地址 8080 口径），而不是空——
  * 防止管理页（含旧缓存页面）显示过期默认地址
  */
 @ExtendWith(MockitoExtension.class)
@@ -51,18 +51,18 @@ class GatewayScenarioControllerDefaultTest {
                 new com.dcim.simulator.web.PlatformDirectoryCache());
         Field field = GatewayScenarioController.class.getDeclaredField("platformBaseUrl");
         field.setAccessible(true);
-        field.set(controller, "http://localhost:8081");
+        field.set(controller, "http://localhost:8080");
     }
 
     @Test
-    @DisplayName("无已保存配置时返回服务端默认：平台地址 8081 口径")
+    @DisplayName("无已保存配置时返回服务端默认：平台地址 8080 口径")
     void should_returnServerDefault_whenNoConfigSaved() {
         when(configRepository.findAll()).thenReturn(List.of());
 
         GatewayConfig config = controller.getGateway();
 
         assertThat(config).isNotNull();
-        assertThat(config.getPlatformBaseUrl()).isEqualTo("http://localhost:8081");
+        assertThat(config.getPlatformBaseUrl()).isEqualTo("http://localhost:8080");
         assertThat(config.getName()).isEqualTo("仿真网关01");
         assertThat(config.getNorthboundTransport()).isEqualTo("HTTP");
         assertThat(config.getStatus()).isZero();

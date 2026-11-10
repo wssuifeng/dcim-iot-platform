@@ -53,7 +53,7 @@ gateway:
   change-deadband: 0.5
   alarm-report-interval-sec: 5
   # 无已保存配置时 GET /api/sim/gateway 返回的默认平台地址（与平台默认端口一致）
-  platform-base-url: http://localhost:8081
+  platform-base-url: http://localhost:8080
 
 logging:
   level:

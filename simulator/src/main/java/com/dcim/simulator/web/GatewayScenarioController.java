@@ -36,7 +36,7 @@ public class GatewayScenarioController {
     private final com.dcim.simulator.gateway.GatewayRuntime gatewayRuntime;
     private final PlatformDirectoryCache directoryCache;
 
-    @org.springframework.beans.factory.annotation.Value("${gateway.platform-base-url:http://localhost:8081}")
+    @org.springframework.beans.factory.annotation.Value("${gateway.platform-base-url:http://localhost:8080}")
     private String platformBaseUrl;
 
     public GatewayScenarioController(GatewayConfigRepository configRepository,
@@ -237,7 +237,7 @@ public class GatewayScenarioController {
     }
 
     /**
-     * 平台地址归一化：留空回退服务端默认（gateway.platform-base-url，8081 口径）；
+     * 平台地址归一化：留空回退服务端默认（gateway.platform-base-url，8080 口径）；
      * 支持用户填完整地址（可含 context path /api 与尾斜杠），统一存根地址，北向拼接 /api/ingest/*
      */
     private void resolvePlatformBaseUrl(GatewayConfig config) {
