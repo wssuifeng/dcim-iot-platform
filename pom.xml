@@ -185,6 +185,14 @@
 
 	<build>
 		<plugins>
+			<!-- Surefire 显式钉 3.6.0：Boot 4.0.6 父 POM 管理的 3.5.5 在 JUnit Platform 6 下
+			     @Nested 用例执行但不计入报告（SUREFIRE-2298/#3454 一族），133 个核心 service
+			     测试在 mvn test 中静默隐身且失败不阻断构建——升级后恢复完整上报 -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.6.0</version>
+			</plugin>
 			<!-- JaCoCo 覆盖率报告：test/verify 阶段产出 target/site/jacoco（CI 上传制品，暂不设门禁） -->
 			<plugin>
 				<groupId>org.jacoco</groupId>
