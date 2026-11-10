@@ -73,7 +73,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -125,40 +125,8 @@ jobs:
           path: simulator/target/site/jacoco/
           retention-days: 14
 
-  # 仿真器（simulator/ 子项目）：纯单元测试（Modbus 帧级 socket 往返等），无 DB 依赖
-  simulator-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-sim-${{ hashFiles('simulator/**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-sim-
-
-      - name: Build and Test (Simulator)
-        run: mvn clean verify -B -f simulator/pom.xml
-
-      - name: Upload JaCoCo coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-report-simulator
-          path: simulator/target/site/jacoco/
-          retention-days: 14
-
   docker-build:
-    needs: build-and-test
+    needs: [build-and-test, simulator-test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 20
