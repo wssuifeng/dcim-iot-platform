@@ -70,7 +70,7 @@
 
 - 后端分层：Controller → Service（接口） → ServiceImpl → Mapper → Entity
 - 前端：Vue 3 + Vite + Element Plus + Pinia + ECharts，日/夜双主题
-- 仿真服务：`simulator/` 独立子项目（Spring Boot + JPA + H2，手写最小 Modbus TCP 子集）
+- 仿真服务：`simulator/` 独立子项目（Spring Boot + JPA + MySQL 独立库，手写最小 Modbus TCP 子集）
 
 ### 3.3 代码规范与注释习惯
 
@@ -175,8 +175,8 @@
 **告警评估与升级**：`AlarmEvaluateServiceImpl` 对上报采样做模版规则阈值评估，命中最严重级别触发；`rule.level < 现有告警级别` 时升级（数字小 = 更紧急）。
 
 **数据入口（四条，汇入同一条传输无关核心）**：
-1. HMAC 通道 HTTP `POST /api/ingest/samples`（`Authorization: Gateway {AK}:{sha256(SK+body)}`）；
-2. HMAC 通道 MQTT `dcim/{accessKey}/samples`（报文 `{signature,batch}`，含遗嘱/LWT 网关离线即时告警）；
+1. 密钥签名通道 HTTP `POST /api/ingest/samples`（`Authorization: Gateway {AK}:{sha256(SK+body)}`；当前实现为 `SHA-256(SecretKey + 原始正文)`，不是标准 HMAC）；
+2. 密钥签名通道 MQTT `dcim/{accessKey}/samples`（报文 `{signature,batch}`，当前签名算法同上；含遗嘱/LWT 网关离线即时告警）；
 3. TB 兼容开放通道 `POST /api/v1/{token}/telemetry`（token 鉴权无签名，ADR-008）；
 4. MQTT 子凭证开放通道 `dcim-open/{mqttUsername}/samples`（连接层鉴权，broker 侧 dynamic-security）。
 
@@ -207,7 +207,7 @@
 | 优先级 | 数量 | 报告 | 处置 |
 |--------|------|------|------|
 | **P0 紧急** | 1 | `docs/60_评估验收/本项目自查报告.md` W-001 | MQTT broker 重连后静默假死（不重订阅）——开发阶段**第一优先修复** |
-| **P1 重要** | 16 | 同上 W-002~W-031 | 调度单线程、@Async 拒绝丢评估、dedup 无界 DELETE、HMAC 无防重放、mosquitto 匿名、Token 黑名单 Redis 降级失效、告警 trigger 竞态、GATEWAY_OFFLINE 单槽、每采样全量评估零缓存等 |
+| **P1 重要** | 16 | 同上 W-002~W-031 | 调度单线程、@Async 拒绝丢评估、dedup 无界 DELETE、sha256(SK+body) 签名缺少防重放、mosquitto 匿名、Token 黑名单 Redis 降级失效、告警 trigger 竞态、GATEWAY_OFFLINE 单槽、每采样全量评估零缓存等 |
 | **P2 可延后** | 20 | 同上 W-007~W-037 | 批失败死信、metric_latest 竞态、refresh token、TraceId、系统自监控、Flyway 回滚等 |
 
 **开发阶段修复流程**：
