@@ -138,7 +138,7 @@
 
 | 命令 | 用途 |
 |------|------|
-| `mvn test` | 平台全量单元测试（387 用例） |
+| `mvn test` | 平台全量单元测试（394 用例；387 存量 + 7 新增，2026-09-29 Surefire 3.6.0 修复 @Nested 上报缺失后实测） |
 | `mvn test -Dtest=DeviceServiceImplTest` | 单个测试类 |
 | `mvn spring-boot:run` | 启动应用（需先起 MySQL + Redis） |
 | `mvn clean compile` | 仅编译（快速验证语法） |
