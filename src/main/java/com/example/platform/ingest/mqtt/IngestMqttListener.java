@@ -15,6 +15,8 @@ import jakarta.annotation.PreDestroy;
 import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -47,7 +49,10 @@ import java.util.concurrent.TimeUnit;
  *   【安全审查点（后期专项）】本命名空间依赖 broker 连接层鉴权 + publish-only
  *   ACL（dcim-open/${username}/#）；平台侧仅做归属与格式校验，无速率限制
  *   （单租户口径，后续专项补 per-username 限流）。
- * 【连接韧性】broker 不可用时后台定时重连，不阻塞应用启动（HTTP 通道独立可用）。
+ * 【连接韧性】broker 不可用时后台定时重连，不阻塞应用启动（HTTP 通道独立可用）；
+ *   cleanSession=true 下 Paho 自动重连成功后不会自动重订阅（broker 侧订阅状态随
+ *   会话丢弃），由 MqttCallbackExtended.connectComplete 回调补订全部 topic（W-001
+ *   修复），并有 MQTT_INGEST_STALL 假死巡检兜底（task/MqttIngestLivenessTask）。
  * */
 @Slf4j
 @Component
@@ -81,6 +86,8 @@ public class IngestMqttListener {
 
     private MqttClient client;
     private ScheduledExecutorService reconnectExecutor;
+    // 假死巡检水位：最近一次收到任何订阅 topic 消息的时间戳（自监控用，W-001 配套）
+    private volatile long lastIngestMessageMillis = System.currentTimeMillis();
 
     public IngestMqttListener(IngestCoreService ingestCoreService,
                               com.example.platform.ingest.metrics.IngestMetricsCollector metricsCollector,
@@ -123,6 +130,8 @@ public class IngestMqttListener {
     public void start() {
         try {
             client = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
+            // 回调须在 connect 前注册：首次连接与自动重连成功都会触发 connectComplete 补订
+            client.setCallback(new ResubscribeCallback());
             connectAndSubscribe();
             log.info("MQTT 数据接收门已启动 broker={} clientId={}", brokerUrl, clientId);
         } catch (MqttException ex) {
@@ -160,6 +169,7 @@ public class IngestMqttListener {
      * */
     void handleSamples(String topic, byte[] payload) {
         String accessKey = accessKeyOf(topic);
+        noteIngestTraffic();
         try {
             IngestCredential credential = ingestCredentialService.authenticate(accessKey);
 
@@ -207,6 +217,7 @@ public class IngestMqttListener {
     void handleOpenSamples(String topic, byte[] payload) {
         String mqttUsername = topic.startsWith(OPEN_PREFIX) && topic.length() > OPEN_PREFIX.length()
                 ? topic.substring(OPEN_PREFIX.length()).split("/")[0] : "unknown";
+        noteIngestTraffic();
         try {
             IngestCredential credential = ingestCredentialService.authenticateByMqttUsername(mqttUsername);
             // 双重校验：topic 第二层必须与凭证用户名一致（防跨用户 topic 混投）
@@ -262,6 +273,7 @@ public class IngestMqttListener {
      * */
     void handleHeartbeat(String topic, byte[] payload) {
         String accessKey = accessKeyOf(topic);
+        noteIngestTraffic();
         try {
             IngestCredential credential = ingestCredentialService.authenticate(accessKey);
             ingestCoreService.heartbeat(credential);
@@ -277,6 +289,7 @@ public class IngestMqttListener {
      * */
     void handleLwt(String topic, byte[] payload) {
         String accessKey = accessKeyOf(topic);
+        noteIngestTraffic();
         String will = new String(payload, StandardCharsets.UTF_8);
         log.warn("MQTT 网关遗嘱触发（断连）accessKey={} will={}", accessKey, will);
         sysAuditLogService.logStructured(null, accessKey, "GATEWAY", null,
@@ -322,11 +335,65 @@ public class IngestMqttListener {
             options.setPassword(password.toCharArray());
         }
         client.connect(options);
-        client.subscribe(TOPIC_SAMPLES, 1, (t, m) -> handleSamples(t, m.getPayload()));
-        client.subscribe(TOPIC_HEARTBEAT, 0, (t, m) -> handleHeartbeat(t, m.getPayload()));
-        client.subscribe(TOPIC_LWT, 0, (t, m) -> handleLwt(t, m.getPayload()));
+        subscribeAll();
+    }
+
+    /*
+     * 方法功能:订阅全部北向 topic（samples/heartbeat/lwt/open）
+     * 参数:target-目标客户端（连接回调与测试可注入）
+     * 返回数据:无
+     * 说明:Paho 同过滤器重复订阅为替换语义，幂等；首次连接（connectAndSubscribe）与
+     *   自动重连（connectComplete）都会调用——cleanSession=true 下自动重连不重订阅，
+     *   缺此补订会导致通道静默假死（W-001）
+     * */
+    void subscribeAll(IMqttClient target) throws MqttException {
+        target.subscribe(TOPIC_SAMPLES, 1, (t, m) -> handleSamples(t, m.getPayload()));
+        target.subscribe(TOPIC_HEARTBEAT, 0, (t, m) -> handleHeartbeat(t, m.getPayload()));
+        target.subscribe(TOPIC_LWT, 0, (t, m) -> handleLwt(t, m.getPayload()));
         // S8-5 开放命名空间（MQTT 子凭证直连）：报文直入传输无关核心
-        client.subscribe(TOPIC_OPEN_SAMPLES, 1, (t, m) -> handleOpenSamples(t, m.getPayload()));
+        target.subscribe(TOPIC_OPEN_SAMPLES, 1, (t, m) -> handleOpenSamples(t, m.getPayload()));
+    }
+
+    private void subscribeAll() throws MqttException {
+        subscribeAll(client);
+    }
+
+    /*
+     * 方法功能:连接完成回调处理——全量补订（测试可注入客户端）
+     * 参数:target-目标客户端, reconnect-是否自动重连, serverURI-broker 地址
+     * 返回数据:无
+     * */
+    void handleConnectComplete(IMqttClient target, boolean reconnect, String serverURI) throws MqttException {
+        subscribeAll(target);
+        log.info("MQTT 订阅就绪 reconnect={} broker={}", reconnect, serverURI);
+    }
+
+    /*
+     * 类功能:Paho 连接回调——connectComplete 在首次连接与自动重连成功后均触发，
+     *   在此全量补订；connectionLost 仅留痕，重连由 automaticReconnect 负责
+     * */
+    private class ResubscribeCallback implements MqttCallbackExtended {
+        @Override
+        public void connectComplete(boolean reconnect, String serverURI) {
+            try {
+                handleConnectComplete(client, reconnect, serverURI);
+            } catch (MqttException ex) {
+                log.error("MQTT 重订阅失败（通道将静默失效，假死巡检会告警）: {}", ex.getMessage(), ex);
+            }
+        }
+
+        @Override
+        public void connectionLost(Throwable cause) {
+            log.warn("MQTT 连接断开，等待自动重连 broker={} reason={}", brokerUrl,
+                    cause == null ? "unknown" : cause.getMessage());
+        }
+
+        // 消息分发走 subscribe 的 per-topic listener，全局回调不承接消息
+        @Override
+        public void messageArrived(String topic, MqttMessage message) { }
+
+        @Override
+        public void deliveryComplete(IMqttDeliveryToken token) { }
     }
 
     private void scheduleReconnect() {
@@ -342,6 +409,8 @@ public class IngestMqttListener {
             try {
                 if (client == null) {
                     client = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
+                    // 新建客户端同样要挂回调，否则后续自动重连无补订能力（W-001）
+                    client.setCallback(new ResubscribeCallback());
                 }
                 connectAndSubscribe();
                 log.info("MQTT broker 重连成功 broker={}", brokerUrl);
@@ -381,5 +450,28 @@ public class IngestMqttListener {
     // 供测试断言连接状态
     boolean isConnected() {
         return client != null && client.isConnected();
+    }
+
+    /*
+     * 方法功能:MQTT 连接状态查询（假死巡检任务用）
+     * 参数:无
+     * 返回数据:true=客户端已连接
+     * */
+    public boolean isMqttConnected() {
+        return client != null && client.isConnected();
+    }
+
+    /*
+     * 方法功能:最近一次收到任何订阅 topic 消息距今的毫秒数（假死巡检任务用）
+     * 参数:无
+     * 返回数据:毫秒数；启动后尚无消息时为进程内经历时长
+     * */
+    public long millisSinceLastIngestMessage() {
+        return System.currentTimeMillis() - lastIngestMessageMillis;
+    }
+
+    // 任何订阅 topic 消息到达即刷新假死巡检水位
+    private void noteIngestTraffic() {
+        lastIngestMessageMillis = System.currentTimeMillis();
     }
 }

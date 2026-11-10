@@ -7,6 +7,8 @@ import com.example.platform.service.MetricRetentionPolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -43,6 +45,22 @@ public class MetricSamplePartitionTask {
     // 全局保留策略兜底天数（与指标保留策略服务一致）
     @Value("${metric.retention-default-days:90}")
     private int retentionDefaultDays;
+
+    /*
+     * 方法功能:应用启动即执行一次分区供给检查（W-017 修复）——弥补每日定时之外的重启盲区，
+     *   避免"上次供给失败 + 随即重启"组合下跨月首日写入失败无兜底
+     * 参数:无
+     * 返回数据:无
+     * */
+    @EventListener(ApplicationReadyEvent.class)
+    public void ensureOnStartup() {
+        try {
+            ensureFuturePartitions(YearMonth.now());
+        } catch (Exception ex) {
+            log.error("启动分区供给检查失败 error={}", ex.getMessage(), ex);
+            triggerSupplyAlarm(ex);
+        }
+    }
 
     /*
      * 方法功能:每日检查未来 2 个月分区供给 + 整月过期分区回收
@@ -139,6 +157,9 @@ public class MetricSamplePartitionTask {
             }
         } catch (Exception ex) {
             log.error("分区供给失败告警触发异常 error={}", ex.getMessage(), ex);
+            // 自指告警写库失败（常见根因=DB 本身故障）：降级直打 stderr 留痕（W-017）
+            System.err.println("[PARTITION-SUPPLY-DEGRADED] 分区供给失败且告警写库失败: "
+                    + ex.getMessage() + " | 原始原因: " + cause.getMessage());
         }
     }
 

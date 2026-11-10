@@ -34,6 +34,13 @@ spring:
     validate-on-migrate: true
     locations: classpath:db/migration
 
+  # 定时任务调度线程池：默认 1 线程会被长任务（大表清理/分区 DDL）阻塞
+  # 短周期任务（离线检测等），隔离为 4 线程（W-002 修复）
+  task:
+    scheduling:
+      pool:
+        size: 4
+
   # 邮件通知配置（生产环境需填写真实值）
   mail:
     host: ${MAIL_HOST:smtp.example.com}

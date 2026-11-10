@@ -85,6 +85,12 @@ logging:
     com.example.platform: info
     com.example.platform.mapper: info
 
+# ==================== 生产环境 MyBatis-Plus（SQL 日志脱离 stdout，W-016 修复） ====================
+# 主配置的 StdOutImpl 绕过 SLF4J 直打 System.out，prod 日志级别管不住——覆盖为 NoLoggingImpl
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
 # ==================== 生产环境 OpenAPI 门控（默认关闭） ====================
 springdoc:
   api-docs:
